@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-    }
-}
+#![feature(dropck_parametricity)]
+
+pub mod arena;
