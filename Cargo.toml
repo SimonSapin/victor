@@ -12,3 +12,5 @@ doctest = false
 [dependencies]
 xml-rs = "0.3.2"
 matches = "0.1"
+selectors = "0.5"
+string_cache = "0.2"

@@ -3,6 +3,7 @@ use std::cell::Cell;
 use std::fs::File;
 use std::io::{Read, BufReader};
 use std::path::Path;
+use string_cache::{Atom, Namespace, QualName};
 use xml_rs::reader::{ParserConfig, EventReader, XmlEvent};
 
 pub use xml_rs::attribute::OwnedAttribute;
@@ -33,14 +34,35 @@ pub enum NodeData {
     Text(String),
     ProcessingInstruction {
         name: String,
-        data: String
+        data: String,
     },
 }
 
 #[derive(Debug)]
 pub struct ElementData {
-    pub name: OwnedName,
-    pub attributes: Vec<OwnedAttribute>,
+    pub name: QualName,
+    pub attributes: Vec<(QualName, String)>,
+    pub id: Option<Atom>,
+    pub classes: Vec<Atom>,
+}
+
+impl ElementData {
+    pub fn attribute(&self, local_name: &Atom) -> Option<&str> {
+        self.attributes.iter()
+            .find(|&&(ref name, _)| name.local == *local_name && name.ns == ns!())
+            .map(|&(_, ref value)| &**value)
+    }
+}
+
+fn to_qualname(name: OwnedName) -> QualName {
+    let ns = Atom::from(name.namespace.unwrap_or_else(String::new));
+    let local = Atom::from(name.local_name);
+    QualName::new(Namespace(ns), local)
+}
+
+/// https://html.spec.whatwg.org/#space-character
+fn space_character(ch: char) -> bool {
+    matches!(ch, ' ' | '\t' | '\n' | '\u{0C}' | '\r')
 }
 
 impl<'arena> Parser<'arena> {
@@ -75,9 +97,30 @@ impl<'arena> Parser<'arena> {
                 XmlEvent::EndDocument | XmlEvent::EndElement { .. } => return Ok(()),
 
                 XmlEvent::StartElement { name, attributes, .. } => {
+                    let mut id = None;
+                    let mut classes = Vec::new();
                     let element = self.append_to(parent, NodeData::Element(ElementData {
-                        name: name,
-                        attributes: attributes
+                        name: to_qualname(name),
+                        attributes: attributes.into_iter().map(|attr| {
+                            let name = to_qualname(attr.name);
+                            match name {
+                                qualname!("", "id") => {
+                                    id = Some(Atom::from(&*attr.value))
+                                }
+                                qualname!("", "class") => {
+                                    // https://svgwg.org/svg2-draft/styling.html#ClassAttribute
+                                    // set of space-separated tokens
+                                    classes = attr.value.split(space_character)
+                                                  .filter(|s| !s.is_empty())
+                                                  .map(Atom::from)
+                                                  .collect()
+                                }
+                                _ => {}
+                            }
+                            (name, attr.value)
+                        }).collect(),
+                        id: id,
+                        classes: classes,
                     }));
                     try!(self.parse_content(element, parser))
                 }
@@ -150,18 +193,21 @@ impl<'arena> Node<'arena> {
 
     pub fn as_element(&'arena self) -> Option<Element<'arena>> {
         match self.data {
-            NodeData::Element(ref data) => Some(Element {
-                node: self,
-                name: &data.name,
-                attributes: &data.attributes,
-            }),
+            NodeData::Element(ref data) => Some(Element { node: self, data: data }),
             _ => None,
         }
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Element<'arena> {
     pub node: Ref<'arena>,
-    pub name: &'arena OwnedName,
-    pub attributes: &'arena [OwnedAttribute],
+    pub data: &'arena ElementData,
+}
+
+impl<'arena> Element<'arena> {
+    #[inline]
+    pub fn attribute(&self, local_name: &Atom) -> Option<&str> {
+        self.data.attribute(local_name)
+    }
 }
