@@ -210,3 +210,17 @@ fn mutable_aliasing() {
     let _b = Box::new(7);
     assert_eq!(*five, 5);  // Use after free?
 }
+
+#[test]
+fn moveable() {
+    struct Node<'a>(Cell<Option<&'a Node<'a>>>, Box<u32>);
+    let arena = Box::new(Arena::new());
+    {
+        let a = arena.push(Node(Cell::new(None), Box::new(1)));
+        let b = arena.push(Node(Cell::new(None), Box::new(2)));
+        a.0.set(Some(b));
+        b.0.set(Some(a));
+    }
+    fn take(_: Box<Arena<Node>>) {}
+    take(arena)
+}
