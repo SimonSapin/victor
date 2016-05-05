@@ -7,6 +7,9 @@ extern crate xml as xml_rs;
 
 mod arena;
 mod select;
+pub mod svg {
+    pub mod path;
+}
 pub mod xml;
 
 pub use select::SelectorList;
