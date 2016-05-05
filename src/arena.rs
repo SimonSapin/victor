@@ -32,13 +32,13 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn push(&self, item: T) -> &mut T {
+    pub fn push(&self, item: T) -> &T {
         unsafe {
             let next = self.current_block_next.get();
             if next != self.current_block_end.get() {
                 self.current_block_next.set(next.offset(1));
                 ptr::write(next, item);
-                return &mut *next
+                return &*next
             } else {
                 self.push_into_new_block(item)
             }
@@ -48,7 +48,7 @@ impl<T> Arena<T> {
     /// Must only be called when self.current_block_next == self.current_block_end
     #[inline(never)]
     #[cold]
-    unsafe fn push_into_new_block(&self, item: T) -> &mut T {
+    unsafe fn push_into_new_block(&self, item: T) -> &T {
         let start = self.current_block_start.get();
         let len = ptr_pair_len(start, self.current_block_end.get());
         let slice = slice::from_raw_parts_mut(start, len);
@@ -61,7 +61,21 @@ impl<T> Arena<T> {
         self.current_block_end.set(new_start.offset(new_len as isize));
 
         ptr::write(new_start, item);
-        &mut *new_start
+        &*new_start
+    }
+
+    pub fn first(&self) -> Option<&T> {
+        let ptr: *const T;
+        if let Some(first_block) = self.previous_blocks.borrow().first() {
+            ptr = &first_block[0]
+        } else if self.current_block_start.get() != self.current_block_next.get() {
+            ptr = self.current_block_start.get()
+        } else {
+            return None
+        }
+        unsafe {
+            Some(&*ptr)
+        }
     }
 }
 
@@ -157,8 +171,7 @@ fn cycle() {
     let arena = Arena::new();
     let a = arena.push(Node(Cell::new(None), Box::new(1)));
     let b = arena.push(Node(Cell::new(None), Box::new(2)));
-    a.0 = Cell::new(Some(b));
-    a.1 = Box::new(3);
+    a.0.set(Some(b));
     b.0.set(Some(a));
     let mut nums = Vec::new();
     let mut node = &*a;
@@ -166,7 +179,7 @@ fn cycle() {
         nums.push(*node.1);
         node = node.0.get().unwrap();
     }
-    assert_eq!(nums, [3, 2, 3, 2, 3, 2, 3, 2, 3, 2])
+    assert_eq!(nums, [1, 2, 1, 2, 1, 2, 1, 2, 1, 2])
 }
 
 #[test]
@@ -184,4 +197,16 @@ fn dropck() {
     x = "alive".to_string();
     y = Arena::new();
     y.push(Foo(&x));
+}
+
+#[test]
+fn mutable_aliasing() {
+    let arena = Arena::new();
+    let _a = arena.push(Some(Box::new(5)));
+    let five: &u32 = arena.first().unwrap().as_ref().unwrap();
+    // Arena::push must return &T rather than &mut T if Arena::first exists
+    // (or any other way to access an item in the arena).
+    //_a.take();
+    let _b = Box::new(7);
+    assert_eq!(*five, 5);  // Use after free?
 }
