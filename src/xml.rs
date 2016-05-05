@@ -148,10 +148,20 @@ impl<'arena> Node<'arena> {
         }
     }
 
-    pub fn element_data(&self) -> Option<&ElementData> {
+    pub fn as_element(&'arena self) -> Option<Element<'arena>> {
         match self.data {
-            NodeData::Element(ref e) => Some(e),
+            NodeData::Element(ref data) => Some(Element {
+                node: self,
+                name: &data.name,
+                attributes: &data.attributes,
+            }),
             _ => None,
         }
     }
+}
+
+pub struct Element<'arena> {
+    pub node: Ref<'arena>,
+    pub name: &'arena OwnedName,
+    pub attributes: &'arena [OwnedAttribute],
 }
