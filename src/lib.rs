@@ -1,3 +1,7 @@
 #![feature(dropck_parametricity)]
 
-pub mod arena;
+#[macro_use] extern crate matches;
+extern crate xml as xml_rs;
+
+mod arena;
+pub mod xml;

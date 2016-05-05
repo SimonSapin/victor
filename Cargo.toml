@@ -8,3 +8,7 @@ repository = "https://github.com/SimonSapin/victor"
 
 [lib]
 doctest = false
+
+[dependencies]
+xml-rs = "0.3.2"
+matches = "0.1"
