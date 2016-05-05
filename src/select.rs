@@ -1,7 +1,7 @@
 use selectors;
 use selectors::parser::{self, SelectorImpl, Selector, AttrSelector, NamespaceConstraint};
 use string_cache::{Atom, Namespace};
-use xml::{Element, NodeData};
+use xml::{Element, Ref, NodeData};
 
 pub struct SelectorList(Vec<Selector<Impl>>);
 
@@ -12,6 +12,24 @@ impl SelectorList {
 
     pub fn matches(&self, element: Element) -> bool {
         selectors::matching::matches(&self.0, &element, None)
+    }
+
+    /// Return the first element that matches, if any,
+    /// among this node and its descendants in tree order.
+    pub fn query<'arena>(&self, node: Ref<'arena>) -> Option<Element<'arena>> {
+        if let Some(element) = node.as_element() {
+            if self.matches(element) {
+                return Some(element)
+            }
+        }
+        let mut link = node.first_child();
+        while let Some(child_node) = link {
+            if let Some(matching_element) = self.query(child_node) {
+                return Some(matching_element)
+            }
+            link = child_node.next_sibling()
+        }
+        None
     }
 }
 
