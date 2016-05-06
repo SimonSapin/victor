@@ -1,4 +1,4 @@
-use std::io::{self, Write, Seek};
+use std::io::{self, Write};
 
 fn px_to_pt(value: f32) -> f32 {
     // 96px = 1in = 72pt
@@ -19,7 +19,7 @@ pub struct Color {
     pub b: u8,
 }
 
-pub fn render<W: Write + Seek>(items: &[(Rect, Color)], bounds: Rect, output: W) -> io::Result<()> {
+pub fn render<W: Write>(items: &[(Rect, Color)], bounds: Rect, output: W) -> io::Result<()> {
     let mut pdf = try!(Pdf::new(output));
     // We map CSS pt to Poscript points (which is the default length unit in PDF).
     try!(pdf.render_page(px_to_pt(bounds.width), px_to_pt(bounds.height), |output| {
@@ -38,8 +38,8 @@ fn render_item<W: Write>(rect: &Rect, color: &Color, output: &mut W) -> io::Resu
            rect.x, rect.y, rect.width, rect.height)
 }
 
-struct Pdf<W: Write + Seek> {
-    output: W,
+struct Pdf<W: Write> {
+    output: CountingWriter<W>,
     object_offsets: Vec<i64>,
     page_objects_ids: Vec<usize>,
 }
@@ -47,12 +47,15 @@ struct Pdf<W: Write + Seek> {
 const ROOT_OBJECT_ID: usize = 1;
 const PAGES_OBJECT_ID: usize = 2;
 
-impl<W: Write + Seek> Pdf<W> {
+impl<W: Write> Pdf<W> {
     fn new(mut output: W) -> io::Result<Self> {
         // FIXME: Find out the lowest version that contains the features we’re using.
         try!(output.write_all(b"%PDF-1.7\n%\xB5\xED\xAE\xFB\n"));
         Ok(Pdf {
-            output: output,
+            output: CountingWriter {
+                inner: output,
+                bytes_written: 0,
+            },
             // Object ID 0 is special in PDF.
             // We reserve IDs 1 and 2 for the catalog and page tree.
             object_offsets: vec![-1, -1, -1],
@@ -60,12 +63,12 @@ impl<W: Write + Seek> Pdf<W> {
         })
     }
 
-    fn tell(&mut self) -> io::Result<u64> {
-        self.output.seek(io::SeekFrom::Current(0))
+    fn position(&self) -> u64 {
+        self.output.bytes_written
     }
 
     fn render_page<F>(&mut self, width: f32, height: f32, render_contents: F) -> io::Result<()>
-    where F: FnOnce(&mut W) -> io::Result<()> {
+    where F: FnOnce(&mut CountingWriter<W>) -> io::Result<()> {
         let (contents_object_id, content_length) =
         try!(self.write_new_object(move |contents_object_id, pdf| {
             // Guess the ID of the next object. (We’ll assert it below.)
@@ -73,11 +76,11 @@ impl<W: Write + Seek> Pdf<W> {
             try!(write!(pdf.output, ">>\n"));
             try!(write!(pdf.output, "stream\n"));
 
-            let start = try!(pdf.tell());
+            let start = pdf.position();
             try!(write!(pdf.output, "/DeviceRGB cs /DeviceRGB CS\n"));
             try!(write!(pdf.output, "0.75 0 0 -0.75 0 {} cm\n", height));
             try!(render_contents(&mut pdf.output));
-            let end = try!(pdf.tell());
+            let end = pdf.position();
 
             try!(write!(pdf.output, "endstream\n"));
             Ok((contents_object_id, end - start))
@@ -102,7 +105,7 @@ impl<W: Write + Seek> Pdf<W> {
     fn write_new_object<F, T>(&mut self, write_content: F) -> io::Result<T>
     where F: FnOnce(usize, &mut Pdf<W>) -> io::Result<T> {
         let id = self.object_offsets.len();
-        let position = try!(self.tell());
+        let position = self.position();
         // `as i64` here would only overflow for PDF files bigger than 2**63 bytes
         self.object_offsets.push(position as i64);
         self._write_object(id, move |pdf| write_content(id, pdf))
@@ -112,7 +115,7 @@ impl<W: Write + Seek> Pdf<W> {
     where F: FnOnce(&mut Pdf<W>) -> io::Result<T> {
         assert!(self.object_offsets[id] == -1);
         // `as i64` here would only overflow for PDF files bigger than 2**63 bytes
-        self.object_offsets[id] = try!(self.tell()) as i64;
+        self.object_offsets[id] = self.position() as i64;
         self._write_object(id, write_content)
     }
 
@@ -146,7 +149,7 @@ impl<W: Write + Seek> Pdf<W> {
             try!(write!(pdf.output, ">>\n"));
             Ok(())
         }));
-        let startxref = try!(self.tell());
+        let startxref = self.position();
         try!(write!(self.output, "xref\n"));
         try!(write!(self.output, "0 {}\n", self.object_offsets.len()));
         // Object 0 is special
@@ -164,5 +167,24 @@ impl<W: Write + Seek> Pdf<W> {
         try!(write!(self.output, "{}\n", startxref));
         try!(write!(self.output, "%%EOF\n"));
         Ok(())
+    }
+}
+
+struct CountingWriter<W: Write> {
+    inner: W,
+    bytes_written: u64,
+}
+
+impl<W: Write> Write for CountingWriter<W> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let result = self.inner.write(buffer);
+        if let Ok(bytes) = result {
+            self.bytes_written += bytes as u64;
+        }
+        result
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
     }
 }
