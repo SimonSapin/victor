@@ -428,15 +428,17 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_number_common(&mut self, start_position: usize) -> Result<f64, &'static str> {
-        let position_after_sign = self.position;
+        let mut any_significand_digit = false;
         while matches!(self.peek(), Some('0'...'9')) {
             self.position += 1;
+            any_significand_digit = true;
         }
         if matches!(self.peek(), Some('.')) {
             self.position += 1;
         }
         while matches!(self.peek(), Some('0'...'9')) {
             self.position += 1;
+            any_significand_digit = true;
         }
         if matches!(self.peek(), Some('e') | Some('E')) {
             self.position += 1;
@@ -449,7 +451,7 @@ impl<'input> Parser<'input> {
                 self.position += 1;
             }
         }
-        if self.position == position_after_sign {
+        if !any_significand_digit {
             return Err("expected number")
         }
 
