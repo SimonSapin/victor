@@ -6,6 +6,7 @@ extern crate selectors;
 extern crate xml as xml_rs;
 
 mod arena;
+pub mod pdf;
 mod select;
 pub mod svg {
     pub mod path;
