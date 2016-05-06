@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::io::{self, Write, Seek};
 
 fn px_to_pt(value: f32) -> f32 {
@@ -20,8 +19,8 @@ pub struct Color {
     pub b: u8,
 }
 
-pub fn render(items: &[(Rect, Color)], bounds: Rect, file: &mut File) -> io::Result<()> {
-    let mut pdf = try!(Pdf::new(file));
+pub fn render<W: Write + Seek>(items: &[(Rect, Color)], bounds: Rect, output: W) -> io::Result<()> {
+    let mut pdf = try!(Pdf::new(output));
     // We map CSS pt to Poscript points (which is the default length unit in PDF).
     try!(pdf.render_page(px_to_pt(bounds.width), px_to_pt(bounds.height), |output| {
         for &(ref rect, ref color) in items {
@@ -39,8 +38,8 @@ fn render_item<W: Write>(rect: &Rect, color: &Color, output: &mut W) -> io::Resu
            rect.x, rect.y, rect.width, rect.height)
 }
 
-struct Pdf<'a, W: 'a + Write + Seek> {
-    output: &'a mut W,
+struct Pdf<W: Write + Seek> {
+    output: W,
     object_offsets: Vec<i64>,
     page_objects_ids: Vec<usize>,
 }
@@ -48,8 +47,8 @@ struct Pdf<'a, W: 'a + Write + Seek> {
 const ROOT_OBJECT_ID: usize = 1;
 const PAGES_OBJECT_ID: usize = 2;
 
-impl<'a, W: Write + Seek> Pdf<'a, W> {
-    fn new(output: &'a mut W) -> io::Result<Pdf<'a, W>> {
+impl<W: Write + Seek> Pdf<W> {
+    fn new(mut output: W) -> io::Result<Self> {
         // FIXME: Find out the lowest version that contains the features we’re using.
         try!(output.write_all(b"%PDF-1.7\n%\xB5\xED\xAE\xFB\n"));
         Ok(Pdf {
@@ -77,7 +76,7 @@ impl<'a, W: Write + Seek> Pdf<'a, W> {
             let start = try!(pdf.tell());
             try!(write!(pdf.output, "/DeviceRGB cs /DeviceRGB CS\n"));
             try!(write!(pdf.output, "0.75 0 0 -0.75 0 {} cm\n", height));
-            try!(render_contents(pdf.output));
+            try!(render_contents(&mut pdf.output));
             let end = try!(pdf.tell());
 
             try!(write!(pdf.output, "endstream\n"));
@@ -134,7 +133,7 @@ impl<'a, W: Write + Seek> Pdf<'a, W> {
             try!(write!(pdf.output, "<<  /Type /Pages\n"));
             try!(write!(pdf.output, "    /Count {}\n", pdf.page_objects_ids.len()));
             try!(write!(pdf.output, "    /Kids [ "));
-            for &page_object_id in pdf.page_objects_ids.iter() {
+            for &page_object_id in &pdf.page_objects_ids {
                 try!(write!(pdf.output, "{} 0 R ", page_object_id));
             }
             try!(write!(pdf.output, "]\n"));
@@ -153,7 +152,7 @@ impl<'a, W: Write + Seek> Pdf<'a, W> {
         // Object 0 is special
         try!(write!(self.output, "0000000000 65535 f \n"));
         // Use [1..] to skip object 0 in self.object_offsets.
-        for &offset in self.object_offsets[1..].iter() {
+        for &offset in &self.object_offsets[1..] {
             assert!(offset >= 0);
             try!(write!(self.output, "{:010} 00000 n \n", offset));
         }
