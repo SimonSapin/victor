@@ -7,7 +7,11 @@ fn main() {
     let selector = victor::SelectorList::parse("svg > path[d]:first-child").unwrap();
     let element = selector.query(doc).unwrap();
     let attribute = element.attribute(&atom!("d")).unwrap();
-    for command in victor::svg::path::parse(attribute) {
+    let mut path = victor::svg::path::parse(attribute);
+    for command in &mut path {
         println!("{:?}", command)
+    }
+    if let Some(error) = path.error() {
+        println!("{:?}", error)
     }
 }
