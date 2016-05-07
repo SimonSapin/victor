@@ -2,6 +2,11 @@ use self::Command::*;
 use self::Origin::*;
 use self::State::*;
 use std::str;
+use svg::geometry::Pair;
+
+#[path = "simple_path.rs"]
+mod simple_path;
+pub use self::simple_path::{Simplify, simplify};
 
 /// Parse the given string as SVG path data. Returns a value that both:
 ///
@@ -19,7 +24,7 @@ pub fn parse(s: &str) -> Parser {
     Parser {
         bytes: s.as_bytes(),
         position: 0,
-        state: State::ExpectingMoveTo,
+        state: State::ExpectingMove,
         error: None,
     }
 }
@@ -39,6 +44,10 @@ impl<'input> Parser<'input> {
     pub fn error(&self) -> Option<Error> {
         self.error
     }
+
+    pub fn simplify(self) -> Simplify<Self> {
+        simplify(self)
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -51,41 +60,41 @@ pub struct Error {
 /// https://www.w3.org/TR/SVG/paths.html#PathData
 #[derive(Copy, Clone, Debug)]
 pub enum Command {
-    MoveTo {
+    Move {
         origin: Origin,
-        end: Pair,
+        to: Pair,
     },
-    LineTo {
+    Line {
         origin: Origin,
-        end: Pair,
+        to: Pair,
     },
-    HorizontalLineTo {
+    HorizontalLine {
         origin: Origin,
-        end: f64,
+        to: f64,
     },
-    VerticalLineTo {
+    VerticalLine {
         origin: Origin,
-        end: f64,
+        to: f64,
     },
-    CurveTo {
+    Curve {
         origin: Origin,
-        control_start: Pair,
-        control_end: Pair,
-        end: Pair,
+        control_1: Pair,
+        control_2: Pair,
+        to: Pair,
     },
-    SmothCurveTo {
+    SmothCurve {
         origin: Origin,
-        control_end: Pair,
-        end: Pair,
+        control_2: Pair,
+        to: Pair,
     },
-    QuadraticBezierCurveTo {
+    QuadraticBezierCurve {
         origin: Origin,
         control: Pair,
-        end: Pair,
+        to: Pair,
     },
-    SmothQuadraticBezierCurveTo {
+    SmothQuadraticBezierCurve {
         origin: Origin,
-        end: Pair,
+        to: Pair,
     },
     EllipticalArc {
         origin: Origin,
@@ -94,7 +103,7 @@ pub enum Command {
         x_axis_rotation: f64,
         large_arc: bool,
         sweep: bool,
-        end: Pair,
+        to: Pair,
     },
     ClosePath
 }
@@ -105,24 +114,19 @@ pub enum Origin {
     Absolute,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Pair {
-    pub x: f64,
-    pub y: f64,
-}
 
 #[derive(Copy, Clone, Debug)]
 enum State {
-    ExpectingMoveTo,
+    ExpectingMove,
     AfterClosePath,
-    AfterMoveTo(Origin),
-    AfterLineTo(Origin),
-    AfterHorizontalLineTo(Origin),
-    AfterVeticalLineTo(Origin),
-    AfterCurveTo(Origin),
-    AfterSmothCurveTo(Origin),
-    AfterQuadraticBezierCurveTo(Origin),
-    AfterSmothQuadraticBezierCurveTo(Origin),
+    AfterMove(Origin),
+    AfterLine(Origin),
+    AfterHorizontalLine(Origin),
+    AfterVeticalLine(Origin),
+    AfterCurve(Origin),
+    AfterSmothCurve(Origin),
+    AfterQuadraticBezierCurve(Origin),
+    AfterSmothQuadraticBezierCurve(Origin),
     AfterEllipticalArc(Origin),
 }
 
@@ -163,7 +167,7 @@ impl<'input> Parser<'input> {
             }
         }
         match self.state {
-            ExpectingMoveTo => {
+            ExpectingMove => {
                 self.consume_whitespace();
                 let origin = match self.next() {
                     Some('M') => Absolute,
@@ -174,15 +178,15 @@ impl<'input> Parser<'input> {
                 self.parse_move_to(origin)
             }
             AfterClosePath => self.parse_command(),
-            AfterMoveTo(origin) |
-            AfterLineTo(origin) => after!(origin, parse_line_to),
-            AfterHorizontalLineTo(origin) => after!(origin, parse_horizontal_line_to),
-            AfterVeticalLineTo(origin) => after!(origin, parse_vertical_line_to),
-            AfterCurveTo(origin) => after!(origin, parse_curve_to),
-            AfterSmothCurveTo(origin) => after!(origin, parse_smooth_curve_to),
-            AfterQuadraticBezierCurveTo(origin) => after!(origin, parse_quadratic_bezier_curve_to),
-            AfterSmothQuadraticBezierCurveTo(o) => after!(o, parse_smooth_quadratic_bezier_curve_to),
-            AfterEllipticalArc(origin) => after!(origin, parse_elliptic_arc),
+            AfterMove(origin) |
+            AfterLine(origin) => after!(origin, parse_line_to),
+            AfterHorizontalLine(origin) => after!(origin, parse_horizontal_line_to),
+            AfterVeticalLine(origin) => after!(origin, parse_vertical_line_to),
+            AfterCurve(origin) => after!(origin, parse_curve_to),
+            AfterSmothCurve(origin) => after!(origin, parse_smooth_curve_to),
+            AfterQuadraticBezierCurve(origin) => after!(origin, parse_quadratic_bezier_curve_to),
+            AfterSmothQuadraticBezierCurve(o) => after!(o, parse_smooth_quadratic_bezier_curve_to),
+            AfterEllipticalArc(origin) => after!(origin, parse_elliptical_arc),
         }
     }
 
@@ -259,8 +263,8 @@ impl<'input> Parser<'input> {
             Some('T') => self.parse_smooth_quadratic_bezier_curve_to(Absolute),
             Some('t') => self.parse_smooth_quadratic_bezier_curve_to(Relative),
 
-            Some('A') => self.parse_elliptic_arc(Absolute),
-            Some('a') => self.parse_elliptic_arc(Relative),
+            Some('A') => self.parse_elliptical_arc(Absolute),
+            Some('a') => self.parse_elliptical_arc(Relative),
 
             Some(_) => Err("expected command"),
             None => Ok(None),
@@ -269,75 +273,75 @@ impl<'input> Parser<'input> {
 
     fn parse_move_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterMoveTo(origin);
-        Ok(Some(MoveTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterMove(origin);
+        Ok(Some(Move {
             origin: origin,
-            end: end
+            to: to
         }))
     }
 
     fn parse_line_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterLineTo(origin);
-        Ok(Some(LineTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterLine(origin);
+        Ok(Some(Line {
             origin: origin,
-            end: end,
+            to: to,
         }))
     }
 
     fn parse_horizontal_line_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
-        let end = try!(self.parse_number());
-        self.state = AfterHorizontalLineTo(origin);
-        Ok(Some(HorizontalLineTo {
+        let to = try!(self.parse_number());
+        self.state = AfterHorizontalLine(origin);
+        Ok(Some(HorizontalLine {
             origin: origin,
-            end: end,
+            to: to,
         }))
     }
 
     fn parse_vertical_line_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
-        let end = try!(self.parse_number());
-        self.state = AfterVeticalLineTo(origin);
-        Ok(Some(VerticalLineTo {
+        let to = try!(self.parse_number());
+        self.state = AfterVeticalLine(origin);
+        Ok(Some(VerticalLine {
             origin: origin,
-            end: end,
+            to: to,
         }))
     }
 
     fn parse_curve_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
 
-        let control_start = try!(self.parse_coordinate_pair());
+        let control_1 = try!(self.parse_coordinate_pair());
         self.consume_comma_whitespace();
 
-        let control_end = try!(self.parse_coordinate_pair());
+        let control_2 = try!(self.parse_coordinate_pair());
         self.consume_comma_whitespace();
 
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterCurveTo(origin);
-        Ok(Some(CurveTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterCurve(origin);
+        Ok(Some(Curve {
             origin: origin,
-            control_start: control_start,
-            control_end: control_end,
-            end: end,
+            control_1: control_1,
+            control_2: control_2,
+            to: to,
         }))
     }
 
     fn parse_smooth_curve_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
 
-        let control_end = try!(self.parse_coordinate_pair());
+        let control_2 = try!(self.parse_coordinate_pair());
         self.consume_comma_whitespace();
 
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterSmothCurveTo(origin);
-        Ok(Some(SmothCurveTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterSmothCurve(origin);
+        Ok(Some(SmothCurve {
             origin: origin,
-            control_end: control_end,
-            end: end,
+            control_2: control_2,
+            to: to,
         }))
     }
 
@@ -347,26 +351,26 @@ impl<'input> Parser<'input> {
         let control = try!(self.parse_coordinate_pair());
         self.consume_comma_whitespace();
 
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterQuadraticBezierCurveTo(origin);
-        Ok(Some(QuadraticBezierCurveTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterQuadraticBezierCurve(origin);
+        Ok(Some(QuadraticBezierCurve {
             origin: origin,
             control: control,
-            end: end,
+            to: to,
         }))
     }
 
     fn parse_smooth_quadratic_bezier_curve_to(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
-        let end = try!(self.parse_coordinate_pair());
-        self.state = AfterSmothQuadraticBezierCurveTo(origin);
-        Ok(Some(SmothQuadraticBezierCurveTo {
+        let to = try!(self.parse_coordinate_pair());
+        self.state = AfterSmothQuadraticBezierCurve(origin);
+        Ok(Some(SmothQuadraticBezierCurve {
             origin: origin,
-            end: end,
+            to: to,
         }))
     }
 
-    fn parse_elliptic_arc(&mut self, origin: Origin) -> CommandResult {
+    fn parse_elliptical_arc(&mut self, origin: Origin) -> CommandResult {
         self.consume_whitespace();
 
         let rx = try!(self.parse_non_negative_number());
@@ -384,7 +388,7 @@ impl<'input> Parser<'input> {
         let sweep = try!(self.parse_flag());
         self.consume_comma_whitespace();
 
-        let end = try!(self.parse_coordinate_pair());
+        let to = try!(self.parse_coordinate_pair());
         self.state = AfterEllipticalArc(origin);
         Ok(Some(EllipticalArc {
             origin: origin,
@@ -395,7 +399,7 @@ impl<'input> Parser<'input> {
             x_axis_rotation: x_axis_rotation,
             large_arc: large_arc,
             sweep: sweep,
-            end: end,
+            to: to,
         }))
     }
 

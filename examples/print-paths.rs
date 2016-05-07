@@ -23,7 +23,7 @@ fn main() {
             if selector.matches(element) {
                 println!("<path>");
                 let attribute = element.attribute(&atom!("d")).unwrap();
-                let mut path = victor::svg::path::parse(attribute);
+                let mut path = victor::svg::path::parse(attribute).simplify();
                 for command in &mut path {
                     println!("    {:?}", command)
                 }

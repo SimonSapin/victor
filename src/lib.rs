@@ -18,7 +18,7 @@ pub mod pdf {
 }
 
 pub mod svg {
+    pub mod geometry;
     pub mod path;
+    // Despite simple_path.rs being next to path.rs, it is its sub-module: svg::path::simple_path.
 }
-
-
