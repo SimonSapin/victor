@@ -6,11 +6,19 @@ extern crate selectors;
 extern crate xml as xml_rs;
 
 mod arena;
-pub mod pdf;
 mod select;
+
+pub use select::SelectorList;
+
+pub mod xml;
+
+pub mod pdf {
+    pub mod document_structure;
+    mod file_structure;
+}
+
 pub mod svg {
     pub mod path;
 }
-pub mod xml;
 
-pub use select::SelectorList;
+
