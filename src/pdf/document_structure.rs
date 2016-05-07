@@ -1,47 +1,33 @@
 use std::io::{self, Write};
 use pdf::file_structure::{PdfFile, CountingWriter, ObjectId};
 
-fn px_to_pt(value: f32) -> f32 {
+fn px_to_pt(value: f64) -> f64 {
     // 96px = 1in = 72pt
     // value * 1px = value * 96px / 96 = value * 72pt / 96 = (value * 0.75) * 1pt
     value * 0.75
 }
 
 pub struct Rect {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
 }
 
-pub fn render<W: Write>(items: &[(Rect, Color)], bounds: Rect, output: W) -> io::Result<W> {
-    let mut pdf = try!(PdfDocument::new(output));
-    // We map CSS pt to Poscript points (which is the default length unit in PDF).
-    try!(pdf.render_page(px_to_pt(bounds.width), px_to_pt(bounds.height), |output| {
-        for &(ref rect, ref color) in items {
-            try!(write!(output, "{} {} {} sc {} {} {} {} re f\n",
-                        color.r, color.g, color.b,
-                        rect.x, rect.y, rect.width, rect.height))
-        }
-        Ok(())
-    }));
-    pdf.finish()
-}
-
-struct PdfDocument<W: Write> {
+pub struct PdfDocument<W: Write> {
     file: PdfFile<W>,
     page_tree_id: ObjectId,
     page_objects_ids: Vec<ObjectId>,
 }
 
 impl<W: Write> PdfDocument<W> {
-    fn new(output: W) -> io::Result<Self> {
+    pub fn new(output: W) -> io::Result<Self> {
         let mut file = try!(PdfFile::new(output));
         Ok(PdfDocument {
             page_tree_id: file.assign_object_id(),
@@ -50,8 +36,12 @@ impl<W: Write> PdfDocument<W> {
         })
     }
 
-    fn render_page<F>(&mut self, width: f32, height: f32, render_contents: F) -> io::Result<()>
-    where F: FnOnce(&mut CountingWriter<W>) -> io::Result<()> {
+    pub fn write_page<F>(&mut self, width: f64, height: f64, render_contents: F) -> io::Result<()>
+    where F: FnOnce(&mut Page<W>) -> io::Result<()> {
+        // We map CSS pt to Poscript points (which is the default length unit in PDF).
+        let width = px_to_pt(width);
+        let height = px_to_pt(height);
+
         let page_tree_id = self.page_tree_id;
         let page_id = self.file.assign_object_id();
         let contents_id = self.file.assign_object_id();
@@ -74,8 +64,11 @@ impl<W: Write> PdfDocument<W> {
             )
         }));
         self.write_stream(contents_id, |output| {
+            // 0.75 (like in px_to_pt) makes the coordinate system be in CSS px units.
             try!(write!(output, "/DeviceRGB cs /DeviceRGB CS 0.75 0 0 -0.75 0 {} cm\n", height));
-            render_contents(output)
+            render_contents(&mut Page {
+                output: output,
+            })
         })
     }
 
@@ -96,7 +89,7 @@ impl<W: Write> PdfDocument<W> {
         self.file.write_object(length_id, |output| write!(output, "{}\n", length.unwrap()))
     }
 
-    fn finish(mut self) -> io::Result<W> {
+    pub fn finish(mut self) -> io::Result<W> {
         let page_objects_ids = &self.page_objects_ids;
         try!(self.file.write_object(self.page_tree_id, |output| {
             try!(write!(output, "<<  /Type /Pages\n"));
@@ -118,5 +111,18 @@ impl<W: Write> PdfDocument<W> {
             Ok(())
         }));
         self.file.finish(catalog_id, None)
+    }
+}
+
+pub struct Page<'a, W: 'a + Write> {
+    output: &'a mut CountingWriter<W>,
+}
+
+impl<'a, W: Write> Page<'a, W> {
+    pub fn paint_rectangle(&mut self, rect: Rect, color: Color) -> io::Result<()> {
+        write!(self.output,
+               "{} {} {} sc {} {} {} {} re f\n",
+               color.r, color.g, color.b,
+               rect.x, rect.y, rect.width, rect.height)
     }
 }
