@@ -107,7 +107,10 @@ impl<I: Iterator<Item=Command>> Iterator for Simplify<I> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|next| match next {
-            Move { origin, to } => {
+            Move { mut origin, to } => {
+                if self.current_point.is_none() {
+                    origin = Absolute
+                }
                 let to = self.to_absolute(to, origin);
                 self.subpath_start_point = to;
                 self.current_point = Some(to);
