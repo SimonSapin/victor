@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use svg::geometry::Pair;
+use svg::geometry::{Pair, Matrix2x2};
 use svg::path::SimpleCommand;
 
 #[derive(Copy, Clone, Debug)]
@@ -37,14 +37,36 @@ pub fn to_cubic_bezier(from: Pair, arc: &EllipticalArcCommand)
         return ArrayPrefix { len: 0, array: [dummy, dummy, dummy, dummy] }
     }
 
-    // https://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
+    // Steps 1 of https://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
     if arc.radius.x == 0. || arc.radius.y == 0. {
         // Same as `dummy`, but meaningful.
         let line = SimpleCommand::Line { to: arc.to };
         return ArrayPrefix { len: 1, array: [line, dummy, dummy, dummy] }
     }
-    let rx = arc.radius.x.abs();
-    let ry = arc.radius.y.abs();
+
+    // Steps 2 of https://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
+    let mut rx = arc.radius.x.abs();
+    let mut ry = arc.radius.y.abs();
+
+    // (F.6.5.1) https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter
+    let half_middle = (from - arc.to) / 2.;  // (x1 - x2) / 2
+    let cos = arc.x_axis_rotation.cos();
+    let sin = arc.x_axis_rotation.sin();
+    let rotation = Matrix2x2(
+        cos, sin,
+        -sin, cos,
+    );
+    let one_prime: Pair = rotation * half_middle;  // (x1', y1')
+
+    // Step 3 of https://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
+    let ratio = Pair { x: one_prime.x / rx, y: one_prime.y / ry };
+    let sum_of_square_ratios = ratio.x * ratio.x + ratio.y * ratio.y;
+    if sum_of_square_ratios > 1. {
+        // The ellipse was not big enough to reach connect `from` and `arc.to`.
+        let root = sum_of_square_ratios.sqrt();
+        rx *= root;
+        ry *= root;
+    }
 
     unimplemented!()
 }
