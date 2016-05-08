@@ -1,4 +1,6 @@
-use std::io::{self, Write};
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
+use std::path::Path;
 use pdf::file_structure::{PdfFile, CountingWriter, ObjectId};
 
 fn px_to_pt(value: f64) -> f64 {
@@ -24,6 +26,12 @@ pub struct PdfDocument<W: Write> {
     file: PdfFile<W>,
     page_tree_id: ObjectId,
     page_objects_ids: Vec<ObjectId>,
+}
+
+impl PdfDocument<BufWriter<File>> {
+    pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        PdfDocument::new(BufWriter::new(try!(File::create(path))))
+    }
 }
 
 impl<W: Write> PdfDocument<W> {
