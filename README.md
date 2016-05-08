@@ -7,8 +7,9 @@ without rasterizing them or using an existing PDF library.
 
 In his [Let's build a browser engine!] blog post series,
 Matt Brubeck explains how toy projects are useful for learning
-even if they take shortcuts and do many things wrong,
-and goes through the making of Robinson, his toy HTML and CSS rendering engine.
+even if they take shortcuts
+and skip many things that would be essential in something people actually use.
+He goes through the making of Robinson, his toy HTML and CSS rendering engine.
 My own experimentations with PDF in Rust began by [contributing to Robinson],
 but since my goals aren’t necessarily the same I’ve moved to a separate project and repository.
 
