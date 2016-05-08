@@ -119,8 +119,16 @@ pub struct Page<'a, W: 'a + Write> {
 }
 
 impl<'a, W: Write> Page<'a, W> {
+    pub fn line_width(&mut self, width: f32) -> io::Result<()> {
+        write!(self.output, "{} w\n", width)
+    }
+
     pub fn non_stroking_color(&mut self, red: f32, green: f32, blue: f32) -> io::Result<()> {
         write!(self.output, "{} {} {} sc\n", red, green, blue)
+    }
+
+    pub fn stroking_color(&mut self, red: f32, green: f32, blue: f32) -> io::Result<()> {
+        write!(self.output, "{} {} {} SC\n", red, green, blue)
     }
 
     pub fn move_to(&mut self, point: Pair) -> io::Result<()> {
@@ -146,5 +154,13 @@ impl<'a, W: Write> Page<'a, W> {
 
     pub fn fill(&mut self) -> io::Result<()> {
         write!(self.output, "f\n")
+    }
+
+    pub fn stroke(&mut self) -> io::Result<()> {
+        write!(self.output, "S\n")
+    }
+
+    pub fn fill_and_stroke(&mut self) -> io::Result<()> {
+        write!(self.output, "B\n")
     }
 }
