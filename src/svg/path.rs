@@ -6,7 +6,7 @@ use svg::geometry::Pair;
 
 #[path = "simple_path.rs"]
 mod simple_path;
-pub use self::simple_path::{Simplify, simplify};
+pub use self::simple_path::{SimpleCommand, Simplify, simplify};
 
 /// Parse the given string as SVG path data. Returns a value that both:
 ///
@@ -96,16 +96,18 @@ pub enum Command {
         origin: Origin,
         to: Pair,
     },
-    EllipticalArc {
-        origin: Origin,
-        /// Non-negative
-        radius: Pair,
-        x_axis_rotation: f64,
-        large_arc: bool,
-        sweep: bool,
-        to: Pair,
-    },
+    EllipticalArc(Origin, EllipticalArcCommand),
     ClosePath
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct EllipticalArcCommand {
+    /// Non-negative
+    pub radius: Pair,
+    pub x_axis_rotation: f64,
+    pub large_arc: bool,
+    pub sweep: bool,
+    pub to: Pair,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -390,8 +392,7 @@ impl<'input> Parser<'input> {
 
         let to = try!(self.parse_coordinate_pair());
         self.state = AfterEllipticalArc(origin);
-        Ok(Some(EllipticalArc {
-            origin: origin,
+        Ok(Some(EllipticalArc(origin, EllipticalArcCommand {
             radius: Pair {
                 x: rx,
                 y: ry,
@@ -400,7 +401,7 @@ impl<'input> Parser<'input> {
             large_arc: large_arc,
             sweep: sweep,
             to: to,
-        }))
+        })))
     }
 
     fn parse_coordinate_pair(&mut self) -> Result<Pair, &'static str> {

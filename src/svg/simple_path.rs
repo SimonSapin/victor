@@ -1,6 +1,6 @@
 use std::fmt;
 use svg::geometry::Pair;
-use svg::path::{Command, Origin, Parser, Error};
+use svg::path::{Command, EllipticalArcCommand, Origin, Parser, Error};
 use svg::path::Command::*;
 use svg::path::Origin::*;
 
@@ -25,14 +25,7 @@ pub enum SimpleCommand {
         control_2: Pair,
         to: Pair,
     },
-    EllipticalArc {
-        /// Non-negative
-        radius: Pair,
-        x_axis_rotation: f64,
-        large_arc: bool,
-        sweep: bool,
-        to: Pair,
-    },
+    EllipticalArc(EllipticalArcCommand),
     ClosePath
 }
 
@@ -44,7 +37,9 @@ impl fmt::Debug for SimpleCommand {
             SimpleCommand::Curve { control_1: c1, control_2: c2, to } => {
                 write!(formatter, "Curve {{ c1: {:?}, c2: {:?}, to: {:?} }}", c1, c2, to)
             }
-            SimpleCommand::EllipticalArc { radius, x_axis_rotation, large_arc, sweep, to } => {
+            SimpleCommand::EllipticalArc(EllipticalArcCommand {
+                radius, x_axis_rotation, large_arc, sweep, to
+            }) => {
                 fn flag(b: bool) -> &'static str {
                     if b { "✓" } else { "✗" }
                 }
@@ -247,18 +242,12 @@ impl<I: Iterator<Item=Command>> Iterator for Simplify<I> {
                     to: to,
                 }
             }
-            EllipticalArc { origin, radius, x_axis_rotation, large_arc, sweep, to } => {
-                let to = self.to_absolute(to, origin);
-                self.current_point = to;
-                self.previous_cubic_control_2 = to;
-                self.previous_quadratic_control = to;
-                SimpleCommand::EllipticalArc {
-                    radius: radius,
-                    x_axis_rotation: x_axis_rotation,
-                    large_arc: large_arc,
-                    sweep: sweep,
-                    to: to,
-                }
+            EllipticalArc(origin, mut arc) => {
+                arc.to = self.to_absolute(arc.to, origin);
+                self.current_point = arc.to;
+                self.previous_cubic_control_2 = arc.to;
+                self.previous_quadratic_control = arc.to;
+                SimpleCommand::EllipticalArc(arc)
             }
             ClosePath => {
                 self.current_point = self.subpath_start_point;
