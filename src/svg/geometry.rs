@@ -76,6 +76,7 @@ pub fn square(x: f64) -> f64 {
     x * x
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub struct Matrix2x2(
     pub f64, pub f64,
     pub f64, pub f64,
@@ -134,6 +135,10 @@ impl Angle {
     pub fn cos(self) -> f64 {
         self.radians.cos()
     }
+
+    pub fn tan(self) -> f64 {
+        self.radians.tan()
+    }
 }
 
 impl fmt::Debug for Angle {
@@ -165,5 +170,12 @@ impl AddAssign for Angle {
 impl SubAssign for Angle {
     fn sub_assign(&mut self, other: Angle) {
         self.radians -= other.radians
+    }
+}
+
+impl Div<f64> for Angle {
+    type Output = Angle;
+    fn div(self, factor: f64) -> Angle {
+        Angle { radians: self.radians/ factor }
     }
 }

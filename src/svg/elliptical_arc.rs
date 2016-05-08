@@ -133,6 +133,8 @@ impl ByEndPoint {
     /// Return a sequence of up to four cubic bezier curve (and in some cases line) commands
     /// that approximate the given SVG elliptical arc.
     ///
+    /// https://www.spaceroots.org/documents/ellipse/
+    ///
     /// All coordinates are absolute.
     /// The return type dereferences to `&[SimpleCommand]`.
     ///
@@ -163,9 +165,30 @@ impl ByEndPoint {
             return ArrayPrefix { len: 1, array: [line, dummy, dummy, dummy] }
         }
 
-        let _arc = self.to_center_parameterization(start_point);
+        let by_center = self.to_center_parameterization(start_point);
 
-        unimplemented!()
+        // Bottom https://www.spaceroots.org/documents/ellipse/node22.html
+        let thing = 4. + 3. * square((by_center.sweep_angle / 2.).tan());
+        let alpha = by_center.sweep_angle.sin() * (thing.sqrt() - 1.) / 3.;
+
+        let cos = self.x_axis_rotation.cos();
+        let sin = self.x_axis_rotation.sin();
+        let radius = by_center.radius;
+        let rotation = Matrix2x2(
+            -radius.x * cos, -radius.y * sin,
+            -radius.x * sin,  radius.y * cos,
+        );
+        let derivative = |angle: Angle| rotation * Pair { x: angle.sin(), y: angle.cos() };
+
+        let end_angle = by_center.start_angle + by_center.sweep_angle;
+        let curve = SimpleCommand::Curve {
+            control_1: start_point + derivative(by_center.start_angle) * alpha,
+            control_2: self.to - derivative(end_angle) * alpha,
+            to: self.to,
+        };
+
+        // FIXME: split up into more than one piece? How many?
+        ArrayPrefix { len: 1, array: [curve, dummy, dummy, dummy] }
     }
 }
 
@@ -191,7 +214,7 @@ impl<'a, A: Array> IntoIterator for &'a ArrayPrefix<A> {
     type IntoIter = <&'a [A::Item] as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.array.as_slice().iter()
+        self.array.as_slice()[..self.len].iter()
     }
 }
 
