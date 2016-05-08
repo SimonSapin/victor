@@ -1,6 +1,9 @@
+extern crate cssparser;
 #[macro_use] extern crate string_cache;
 extern crate victor;
 
+use cssparser::Color;
+use cssparser::Parser as CssParser;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use victor::xml;
@@ -27,6 +30,12 @@ fn render_doc() -> xml::Result<()> {
 
 fn render_node<W: Write>(node: xml::Ref, page: &mut pdf::Page<W>) -> io::Result<()> {
     if let Some(element) = node.as_element() {
+        if let Some(fill) = element.attribute(&atom!("fill")) {
+            match CssParser::new(fill).parse_entirely(Color::parse) {
+                Ok(Color::RGBA(c)) => try!(page.non_stroking_color(c.red, c.green, c.blue)),
+                Ok(Color::CurrentColor) | Err(()) => {}
+            }
+        }
         if element.data.name == qualname!(svg, "path") {
             if let Some(d_attribute) = element.attribute(&atom!("d")) {
                 try!(render_path(d_attribute, page));

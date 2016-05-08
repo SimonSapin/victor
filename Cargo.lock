@@ -2,6 +2,7 @@
 name = "victor"
 version = "0.1.0"
 dependencies = [
+ "cssparser 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "matches 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "selectors 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "string_cache 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
