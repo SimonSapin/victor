@@ -106,7 +106,11 @@ impl<W: Write> PdfDocument<W> {
             try!(write!(output, ">>\n"));
             Ok(())
         }));
-        self.file.finish(catalog_id, None)
+        let info_id = self.file.assign_object_id();
+        try!(self.file.write_object(info_id, |output| {
+            write!(output, "<< /Producer (Victor (https://github.com/SimonSapin/victor)) >>\n")
+        }));
+        self.file.finish(catalog_id, Some(info_id))
     }
 }
 
