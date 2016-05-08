@@ -1,6 +1,7 @@
 use std::fmt;
+use svg::elliptical_arc::EllipticalArcCommand;
 use svg::geometry::Pair;
-use svg::path::{Command, EllipticalArcCommand, Origin, Parser, Error};
+use svg::path::{Command, Origin, Parser, Error};
 use svg::path::Command::*;
 use svg::path::Origin::*;
 

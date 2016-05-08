@@ -1,6 +1,16 @@
 use std::ops::Deref;
 use svg::geometry::Pair;
-use svg::path::{SimpleCommand, EllipticalArcCommand};
+use svg::path::SimpleCommand;
+
+#[derive(Copy, Clone, Debug)]
+pub struct EllipticalArcCommand {
+    /// Non-negative
+    pub radius: Pair,
+    pub x_axis_rotation: f64,
+    pub large_arc: bool,
+    pub sweep: bool,
+    pub to: Pair,
+}
 
 /// Return a sequence of up to four cubic bezier curve (and in some cases line) commands
 /// that approximate the given SVG elliptical arc.
@@ -10,8 +20,7 @@ use svg::path::{SimpleCommand, EllipticalArcCommand};
 ///
 /// ```rust
 /// # use victor::svg::geometry::Pair;
-/// # use victor::svg::path::EllipticalArcCommand;
-/// # use victor::svg::elliptical_arc::to_cubic_bezier;
+/// # use victor::svg::elliptical_arc::{EllipticalArcCommand, to_cubic_bezier};
 /// # fn foo(current_point: Pair, arc: EllipticalArcCommand) {
 /// for command in &to_cubic_bezier(current_point, &arc) {
 ///     println!("{:?}", command)

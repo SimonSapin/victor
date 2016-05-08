@@ -2,6 +2,7 @@ use self::Command::*;
 use self::Origin::*;
 use self::State::*;
 use std::str;
+use svg::elliptical_arc::EllipticalArcCommand;
 use svg::geometry::Pair;
 
 #[path = "simple_path.rs"]
@@ -98,16 +99,6 @@ pub enum Command {
     },
     EllipticalArc(Origin, EllipticalArcCommand),
     ClosePath
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct EllipticalArcCommand {
-    /// Non-negative
-    pub radius: Pair,
-    pub x_axis_rotation: f64,
-    pub large_arc: bool,
-    pub sweep: bool,
-    pub to: Pair,
 }
 
 #[derive(Copy, Clone, Debug)]
