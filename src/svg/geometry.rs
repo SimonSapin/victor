@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Add, Sub, Mul};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Pair {
     pub x: f64,
     pub y: f64,
