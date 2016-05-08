@@ -1,5 +1,5 @@
 use std::fmt;
-use svg::elliptical_arc::EllipticalArcCommand;
+use svg::elliptical_arc as arc;
 use svg::geometry::Pair;
 use svg::path::{Command, Origin, Parser, Error};
 use svg::path::Command::*;
@@ -26,7 +26,7 @@ pub enum SimpleCommand {
         control_2: Pair,
         to: Pair,
     },
-    EllipticalArc(EllipticalArcCommand),
+    EllipticalArc(arc::ByEndPoint),
     ClosePath
 }
 
@@ -38,7 +38,7 @@ impl fmt::Debug for SimpleCommand {
             SimpleCommand::Curve { control_1: c1, control_2: c2, to } => {
                 write!(formatter, "Curve {{ c1: {:?}, c2: {:?}, to: {:?} }}", c1, c2, to)
             }
-            SimpleCommand::EllipticalArc(EllipticalArcCommand {
+            SimpleCommand::EllipticalArc(arc::ByEndPoint {
                 radius, x_axis_rotation, large_arc, sweep, to
             }) => {
                 fn flag(b: bool) -> &'static str {

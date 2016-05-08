@@ -27,14 +27,13 @@ fn main() {
                 let mut current_point = None;
                 for command in &mut path {
                     use victor::svg::path::SimpleCommand::*;
-                    use victor::svg::elliptical_arc::to_cubic_bezier;
 
                     println!("    {:?}", command);
                     match command {
                         Move { to } | Line { to } | Curve { to, .. } => current_point = Some(to),
                         ClosePath => {}
                         EllipticalArc(arc) => {
-                            let approximation = to_cubic_bezier(current_point.unwrap(), &arc);
+                            let approximation = arc.to_cubic_bezier(current_point.unwrap());
                             for approximation_command in &approximation {
                                 println!("        {:?}", approximation_command)
                             }

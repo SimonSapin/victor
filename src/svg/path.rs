@@ -2,7 +2,7 @@ use self::Command::*;
 use self::Origin::*;
 use self::State::*;
 use std::str;
-use svg::elliptical_arc::EllipticalArcCommand;
+use svg::elliptical_arc as arc;
 use svg::geometry::Pair;
 
 #[path = "simple_path.rs"]
@@ -97,7 +97,7 @@ pub enum Command {
         origin: Origin,
         to: Pair,
     },
-    EllipticalArc(Origin, EllipticalArcCommand),
+    EllipticalArc(Origin, arc::ByEndPoint),
     ClosePath
 }
 
@@ -383,7 +383,7 @@ impl<'input> Parser<'input> {
 
         let to = try!(self.parse_coordinate_pair());
         self.state = AfterEllipticalArc(origin);
-        Ok(Some(EllipticalArc(origin, EllipticalArcCommand {
+        Ok(Some(EllipticalArc(origin, arc::ByEndPoint {
             radius: Pair {
                 x: rx,
                 y: ry,
