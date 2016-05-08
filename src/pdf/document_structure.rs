@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
+use svg::geometry::Pair;
 use pdf::file_structure::{PdfFile, CountingWriter, ObjectId};
 
 fn px_to_pt(value: f64) -> f64 {
@@ -116,6 +117,23 @@ pub struct Page<'a, W: 'a + Write> {
 impl<'a, W: Write> Page<'a, W> {
     pub fn non_stroking_color(&mut self, red: f32, green: f32, blue: f32) -> io::Result<()> {
         write!(self.output, "{} {} {} sc\n", red, green, blue)
+    }
+
+    pub fn move_to(&mut self, point: Pair) -> io::Result<()> {
+        write!(self.output, "{} {} m\n", point.x, point.y)
+    }
+
+    pub fn line_to(&mut self, point: Pair) -> io::Result<()> {
+        write!(self.output, "{} {} l\n", point.x, point.y)
+    }
+
+    pub fn curve_to(&mut self, control_1: Pair, control_2: Pair, end: Pair) -> io::Result<()> {
+        write!(self.output, "{} {} {} {} {} {} c\n",
+               control_1.x, control_1.y, control_2.x, control_2.y, end.x, end.y)
+    }
+
+    pub fn close_path(&mut self) -> io::Result<()> {
+        write!(self.output, "h\n")
     }
 
     pub fn rectangle(&mut self, x: f64, y: f64, width: f64, height: f64) -> io::Result<()> {

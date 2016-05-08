@@ -1,7 +1,7 @@
 use arena::Arena as GenericArena;
 use std::cell::Cell;
 use std::fs::File;
-use std::io::{Read, BufReader};
+use std::io::{self, Read, BufReader};
 use std::path::Path;
 use string_cache::{Atom, Namespace, QualName};
 use xml_rs::reader::{ParserConfig, EventReader, XmlEvent};
@@ -182,13 +182,15 @@ macro_rules! link_getters {
 impl<'arena> Node<'arena> {
     link_getters!(parent, previous_sibling, next_sibling, first_child, last_child);
 
-    pub fn iter<F: FnMut(Ref<'arena>)>(&'arena self, callback: &mut F) {
-        callback(self);
+    pub fn iter<F>(&'arena self, callback: &mut F) -> io::Result<()>
+    where F: FnMut(Ref<'arena>) -> io::Result<()> {
+        try!(callback(self));
         let mut link = self.first_child();
         while let Some(node) = link {
-            node.iter(callback);
+            try!(node.iter(callback));
             link = node.next_sibling()
         }
+        Ok(())
     }
 
     pub fn as_element(&'arena self) -> Option<Element<'arena>> {
