@@ -24,8 +24,17 @@ fn main() {
                 println!("<path>");
                 let attribute = element.attribute(&atom!("d")).unwrap();
                 let mut path = victor::svg::path::parse(attribute).simplify();
+                let mut current_point = None;
                 for command in &mut path {
-                    println!("    {:?}", command)
+                    use victor::svg::path::SimpleCommand::*;
+                    println!("    {:?}", command);
+                    match command {
+                        Move { to } | Line { to } | Curve { to, .. } => current_point = Some(to),
+                        ClosePath => {}
+                        EllipticalArc(arc) => {
+                            current_point = Some(arc.to);
+                        }
+                    }
                 }
                 if let Some(error) = path.error() {
                     println!("");
