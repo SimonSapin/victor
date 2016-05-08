@@ -9,19 +9,6 @@ fn px_to_pt(value: f64) -> f64 {
     value * 0.75
 }
 
-pub struct Rect {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-}
-
-pub struct Color {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-}
-
 pub struct PdfDocument<W: Write> {
     file: PdfFile<W>,
     page_tree_id: ObjectId,
@@ -127,10 +114,15 @@ pub struct Page<'a, W: 'a + Write> {
 }
 
 impl<'a, W: Write> Page<'a, W> {
-    pub fn paint_rectangle(&mut self, rect: Rect, color: Color) -> io::Result<()> {
-        write!(self.output,
-               "{} {} {} sc {} {} {} {} re f\n",
-               color.r, color.g, color.b,
-               rect.x, rect.y, rect.width, rect.height)
+    pub fn non_stroking_color(&mut self, red: f32, green: f32, blue: f32) -> io::Result<()> {
+        write!(self.output, "{} {} {} sc\n", red, green, blue)
+    }
+
+    pub fn rectangle(&mut self, x: f64, y: f64, width: f64, height: f64) -> io::Result<()> {
+        write!(self.output, "{} {} {} {} re\n", x, y, width, height)
+    }
+
+    pub fn fill(&mut self) -> io::Result<()> {
+        write!(self.output, "f\n")
     }
 }
