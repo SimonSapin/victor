@@ -44,7 +44,7 @@ impl fmt::Debug for SimpleCommand {
                 fn flag(b: bool) -> &'static str {
                     if b { "✓" } else { "✗" }
                 }
-                write!(formatter, "EllipticalArc {{ radius: {:?}, x_axis_rotation: {}, \
+                write!(formatter, "EllipticalArc {{ radius: {:?}, x_axis_rotation: {:?}, \
                                                     large_arc: {}, sweep: {}, to: {:?} }}",
                        radius, x_axis_rotation, flag(large_arc), flag(sweep), to)
             }

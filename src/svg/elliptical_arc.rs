@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use svg::geometry::{Pair, Matrix2x2};
+use svg::geometry::{Pair, Matrix2x2, Angle};
 use svg::path::SimpleCommand;
 
 /// Together with a starting point (typically the current point of a path),
@@ -10,7 +10,7 @@ use svg::path::SimpleCommand;
 pub struct ByEndPoint {
     /// Non-negative
     pub radius: Pair,
-    pub x_axis_rotation: f64,
+    pub x_axis_rotation: Angle,
     pub large_arc: bool,
     pub sweep: bool,
     pub to: Pair,
@@ -24,9 +24,9 @@ pub struct ByCenter {
     pub center: Pair,
     /// Non-negative
     pub radius: Pair,
-    pub x_axis_rotation: f64,
-    pub start_angle: f64,
-    pub end_angle: f64,
+    pub x_axis_rotation: Angle,
+    pub start_angle: Angle,
+    pub end_angle: Angle,
 }
 
 impl ByEndPoint {

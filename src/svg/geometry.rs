@@ -1,3 +1,4 @@
+use std::f64::consts::PI;
 use std::fmt;
 use std::ops::{Add, Sub, Mul, Div};
 
@@ -60,4 +61,41 @@ impl Mul<Pair> for Matrix2x2 {
             y: self.2 * other.x + self.3 * other.y,
         }
     }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub struct Angle {
+    radians: f64,
+}
+
+impl Angle {
+    pub fn from_radians(radians: f64) -> Self {
+        Angle { radians: radians }
+    }
+
+    pub fn as_radians(self) -> f64 {
+        self.radians
+    }
+
+    pub fn from_degrees(degrees: f64) -> Self {
+        Angle { radians: degrees * PI / 180. }
+    }
+
+    pub fn as_degrees(self) -> f64 {
+        self.radians * 180. / PI
+    }
+
+    pub fn sin(self) -> f64 {
+        self.radians.sin()
+    }
+
+    pub fn cos(self) -> f64 {
+        self.radians.cos()
+    }
+}
+
+impl fmt::Debug for Angle {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+         write!(formatter, "{}°", self.as_degrees() as f32)
+   }
 }

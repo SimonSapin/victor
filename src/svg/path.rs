@@ -3,7 +3,7 @@ use self::Origin::*;
 use self::State::*;
 use std::str;
 use svg::elliptical_arc as arc;
-use svg::geometry::Pair;
+use svg::geometry::{Pair, Angle};
 
 #[path = "simple_path.rs"]
 mod simple_path;
@@ -388,7 +388,7 @@ impl<'input> Parser<'input> {
                 x: rx,
                 y: ry,
             },
-            x_axis_rotation: x_axis_rotation,
+            x_axis_rotation: Angle::from_degrees(x_axis_rotation),
             large_arc: large_arc,
             sweep: sweep,
             to: to,
