@@ -7,7 +7,7 @@ use std::env;
 fn main() {
     let filename = match env::args().nth(1) {
         Some(arg) => PathBuf::from(arg),
-        None => Path::new(file!()).parent().unwrap().join("rust-logo").join("rust-logo-blk.svg")
+        None => Path::new(file!()).parent().unwrap().join("svg").join("rust-logo-blk.svg")
     };
     let parser = victor::xml::Parser::new();
     let doc = match parser.parse_file(filename) {

@@ -15,3 +15,5 @@ but since my goals aren’t necessarily the same I’ve moved to a separate proj
 
 [Let's build a browser engine!]: https://limpet.net/mbrubeck/2014/08/08/toy-layout-engine-1.html
 [contributing to Robinson]: https://github.com/mbrubeck/robinson/pull/8
+
+![The GhostScript Tiger rendered from SVG by Victor](victor-tiger.png)

@@ -16,12 +16,12 @@ fn main() {
 fn render_doc() -> xml::Result<()> {
     let filename = match std::env::args().nth(1) {
         Some(arg) => PathBuf::from(arg),
-        None => Path::new(file!()).parent().unwrap().join("rust-logo").join("rust-logo-blk.svg")
+        None => Path::new(file!()).parent().unwrap().join("svg").join("rust-logo-blk.svg")
     };
     let parser = xml::Parser::new();
     let doc = try!(parser.parse_file(filename));
     let mut pdf = try!(pdf::PdfDocument::create_file("out.pdf"));
-    try!(pdf.write_page(144., 144., |page| {
+    try!(pdf.write_page(900., 900., |page| {
         render_node(doc, page, &Style::default())
     }));
     try!(pdf.finish());
