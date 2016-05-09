@@ -119,6 +119,19 @@ pub struct Page<'a, W: 'a + Write> {
 }
 
 impl<'a, W: Write> Page<'a, W> {
+    pub fn save_state(&mut self) -> io::Result<()> {
+        write!(self.output, "q\n")
+    }
+
+    pub fn restore_state(&mut self) -> io::Result<()> {
+        write!(self.output, "Q\n")
+    }
+
+    pub fn transform_matrix(&mut self, a: f32, b: f32, c: f32, d: f32, e: f32, f: f32)
+                            -> io::Result<()> {
+        write!(self.output, "{} {} {} {} {} {} cm\n", a, b, c, d, e, f)
+    }
+
     pub fn line_width(&mut self, width: f32) -> io::Result<()> {
         write!(self.output, "{} w\n", width)
     }

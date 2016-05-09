@@ -37,6 +37,7 @@ struct Style {
 fn render_node<W: Write>(node: xml::Ref, page: &mut pdf::Page<W>, parent_style: &Style)
                          -> io::Result<()> {
     let mut style = parent_style.clone();
+    try!(page.save_state());
     if let Some(element) = node.as_element() {
         if let Some(attr) = element.attribute(&atom!("fill")) {
             if let Ok(c) = parse_color(attr) {
@@ -55,6 +56,11 @@ fn render_node<W: Write>(node: xml::Ref, page: &mut pdf::Page<W>, parent_style: 
                 try!(page.line_width(width))
             }
         }
+        if let Some(attr) = element.attribute(&atom!("transform")) {
+            if let Ok((a, b, c, d, e, f)) = parse_transform(attr) {
+                try!(page.transform_matrix(a, b, c, d, e, f))
+            }
+        }
         if element.data.name == qualname!(svg, "path") {
             if let Some(d_attribute) = element.attribute(&atom!("d")) {
                 try!(render_path(d_attribute, page, &style));
@@ -67,6 +73,7 @@ fn render_node<W: Write>(node: xml::Ref, page: &mut pdf::Page<W>, parent_style: 
         try!(render_node(child, page, &style));
         link = child.next_sibling()
     }
+    try!(page.restore_state());
     Ok(())
 }
 
@@ -75,6 +82,26 @@ fn parse_color(s: &str) -> Result<RGBA, ()> {
         Ok(Color::RGBA(c)) => Ok(c),
         Ok(Color::CurrentColor) | Err(()) => Err(())
     }
+}
+
+fn parse_transform(s: &str) -> Result<(f32, f32, f32, f32, f32, f32), ()> {
+    CssParser::new(s).parse_entirely(|parser| {
+        try!(parser.expect_function_matching("matrix"));
+        parser.parse_nested_block(|parser| {
+            let a = try!(parser.expect_number());
+            try!(parser.expect_comma());
+            let b = try!(parser.expect_number());
+            try!(parser.expect_comma());
+            let c = try!(parser.expect_number());
+            try!(parser.expect_comma());
+            let d = try!(parser.expect_number());
+            try!(parser.expect_comma());
+            let e = try!(parser.expect_number());
+            try!(parser.expect_comma());
+            let f = try!(parser.expect_number());
+            Ok((a, b, c, d, e, f))
+        })
+    })
 }
 
 fn render_path<W: Write>(d_attribute: &str, page: &mut pdf::Page<W>, style: &Style)
