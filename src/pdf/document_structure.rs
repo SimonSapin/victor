@@ -88,22 +88,21 @@ impl<W: Write> PdfDocument<W> {
     pub fn finish(mut self) -> io::Result<W> {
         let page_objects_ids = &self.page_objects_ids;
         try!(self.file.write_object(self.page_tree_id, |output| {
-            try!(write!(output, "<<  /Type /Pages\n"));
-            try!(write!(output, "    /Count {}\n", page_objects_ids.len()));
-            try!(write!(output, "    /Kids [ "));
+            try!(write!(output, "<< /Type /Pages\n\
+                                    /Count {}\n\
+                                    /Kids [ ", page_objects_ids.len()));
             for &page_object_id in page_objects_ids {
                 try!(write!(output, "{} ", page_object_id));
             }
-            try!(write!(output, "]\n"));
-            try!(write!(output, ">>\n"));
+            try!(write!(output, "]\n>>\n"));
             Ok(())
         }));
         let page_tree_id = self.page_tree_id;
         let catalog_id = self.file.assign_object_id();
         try!(self.file.write_object(catalog_id, |output| {
-            try!(write!(output, "<<  /Type /Catalog\n"));
-            try!(write!(output, "    /Pages {}\n", page_tree_id));
-            try!(write!(output, ">>\n"));
+            try!(write!(output, "<<  /Type /Catalog\n\
+                                     /Pages {}\n\
+                                     >>\n", page_tree_id));
             Ok(())
         }));
         let info_id = self.file.assign_object_id();
