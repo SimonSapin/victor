@@ -18,11 +18,11 @@ fn render_doc() -> xml::Result<()> {
         Some(arg) => PathBuf::from(arg),
         None => Path::new(file!()).parent().unwrap().join("svg").join("rust-logo-blk.svg")
     };
-    let parser = xml::Parser::new();
-    let doc = try!(parser.parse_file(filename));
+    let doc = try!(xml::Node::parse_file(filename));
     let mut pdf = try!(pdf::PdfDocument::create_file("out.pdf"));
+    let cursor = doc.cursor();
     try!(pdf.write_page(900., 900., |page| {
-        render_node(doc, page, &Style::default())
+        render_element(&cursor, page, &Style::default())
     }));
     try!(pdf.finish());
     Ok(())
@@ -34,45 +34,48 @@ struct Style {
     filling: bool,
 }
 
-fn render_node<W: Write>(node: xml::Ref, page: &mut pdf::Page<W>, parent_style: &Style)
-                         -> io::Result<()> {
+fn render_element<W: Write>(cursor: &xml::Cursor, page: &mut pdf::Page<W>, parent_style: &Style)
+                            -> io::Result<()> {
+    let element = cursor.element();
     let mut style = parent_style.clone();
     try!(page.save_state());
-    if let Some(element) = node.as_element() {
-        if let Some(attr) = element.attribute(&atom!("fill")) {
-            if let Ok(c) = parse_color(attr) {
-                style.filling = true;
-                try!(page.non_stroking_color(c.red, c.green, c.blue))
-            }
+
+    if let Some(attr) = element.attribute(&atom!("fill")) {
+        if let Ok(c) = parse_color(attr) {
+            style.filling = true;
+            try!(page.non_stroking_color(c.red, c.green, c.blue))
         }
-        if let Some(attr) = element.attribute(&atom!("stroke")) {
-            if let Ok(c) = parse_color(attr) {
-                style.stroking = true;
-                try!(page.stroking_color(c.red, c.green, c.blue))
-            }
+    }
+    if let Some(attr) = element.attribute(&atom!("stroke")) {
+        if let Ok(c) = parse_color(attr) {
+            style.stroking = true;
+            try!(page.stroking_color(c.red, c.green, c.blue))
         }
-        if let Some(attr) = element.attribute(&atom!("stroke-width")) {
-            if let Ok(width) = CssParser::new(attr).parse_entirely(|p| p.expect_number()) {
-                try!(page.line_width(width))
-            }
+    }
+    if let Some(attr) = element.attribute(&atom!("stroke-width")) {
+        if let Ok(width) = CssParser::new(attr).parse_entirely(|p| p.expect_number()) {
+            try!(page.line_width(width))
         }
-        if let Some(attr) = element.attribute(&atom!("transform")) {
-            if let Ok((a, b, c, d, e, f)) = parse_transform(attr) {
-                try!(page.transform_matrix(a, b, c, d, e, f))
-            }
+    }
+    if let Some(attr) = element.attribute(&atom!("transform")) {
+        if let Ok((a, b, c, d, e, f)) = parse_transform(attr) {
+            try!(page.transform_matrix(a, b, c, d, e, f))
         }
-        if element.data.name == qualname!(svg, "path") {
-            if let Some(d_attribute) = element.attribute(&atom!("d")) {
-                try!(render_path(d_attribute, page, &style));
-            }
+    }
+    if element.name == qualname!(svg, "path") {
+        if let Some(d_attribute) = element.attribute(&atom!("d")) {
+            try!(render_path(d_attribute, page, &style));
         }
     }
 
-    let mut link = node.first_child();
-    while let Some(child) = link {
-        try!(render_node(child, page, &style));
-        link = child.next_sibling()
+    let mut child_cursor = cursor.clone();
+    if child_cursor.first_child_element() {
+        try!(render_element(&child_cursor, page, &style));
+        while child_cursor.next_sibling_element() {
+            try!(render_element(&child_cursor, page, &style));
+        }
     }
+
     try!(page.restore_state());
     Ok(())
 }
