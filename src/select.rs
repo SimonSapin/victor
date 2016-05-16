@@ -43,7 +43,7 @@ impl SelectorImpl for Impl {
 }
 
 macro_rules! traversal_methods {
-    ($($method: ident => $link: ident,)+) => {
+    ($($method: ident => $link: ident, $link_after_non_element: ident,)+) => {
         $(
             fn $method(&self) -> Option<Self> {
                 let mut link = self.node.$link();
@@ -51,7 +51,7 @@ macro_rules! traversal_methods {
                     if let Some(element) = node.as_element() {
                         return Some(element)
                     }
-                    link = node.$link()
+                    link = node.$link_after_non_element()
                 }
                 None
             }
@@ -63,11 +63,11 @@ impl<'arena> selectors::Element for Element<'arena> {
     type Impl = Impl;
 
     traversal_methods! {
-        parent_element => parent,
-        first_child_element => first_child,
-        last_child_element => last_child,
-        prev_sibling_element => previous_sibling,
-        next_sibling_element => next_sibling,
+        parent_element => parent, parent,
+        first_child_element => first_child, next_sibling,
+        last_child_element => last_child, previous_sibling,
+        prev_sibling_element => previous_sibling, previous_sibling,
+        next_sibling_element => next_sibling, next_sibling,
     }
 
     fn is_html_element_in_html_document(&self) -> bool {
@@ -127,4 +127,22 @@ impl<'arena> selectors::Element for Element<'arena> {
         }
         true
     }
+}
+
+#[test]
+fn test_selectors() {
+    use selectors::Element;
+
+    let parser = ::xml::Parser::new();
+    let source: &[u8] = b"<a>foo <b/></a>";
+    let doc = parser.parse(source).unwrap();
+    let a = doc.first_child().unwrap().as_element().unwrap();
+    assert_eq!(a.data.name.local, atom!("a"));
+
+    let b = a.first_child_element().unwrap();
+    assert_eq!(b.data.name.local, atom!("b"));
+
+    let b = a.last_child_element().unwrap();
+    assert_eq!(b.data.name.local, atom!("b"));
+
 }
