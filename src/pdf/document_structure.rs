@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
@@ -14,6 +15,7 @@ pub struct PdfDocument<W: Write> {
     file: PdfFile<W>,
     page_tree_id: ObjectId,
     page_objects_ids: Vec<ObjectId>,
+    font_objects_ids: Vec<ObjectId>,
 }
 
 impl PdfDocument<BufWriter<File>> {
@@ -27,8 +29,9 @@ impl<W: Write> PdfDocument<W> {
         let mut file = try!(PdfFile::new(output));
         Ok(PdfDocument {
             page_tree_id: file.assign_object_id(),
-            page_objects_ids: Vec::new(),
             file: file,
+            page_objects_ids: Vec::new(),
+            font_objects_ids: Vec::new(),
         })
     }
 
@@ -50,7 +53,6 @@ impl<W: Write> PdfDocument<W> {
                    /Parent {page_tree}\n\
                    /Contents {contents}\n\
                    /MediaBox [ 0 0 {width} {height} ]\n\
-                   /Resources << >>\n\
                 >>\n\
                 ",
                 page_tree = page_tree_id,
@@ -85,16 +87,32 @@ impl<W: Write> PdfDocument<W> {
         self.file.write_object(length_id, |output| write!(output, "{}\n", length.unwrap()))
     }
 
+    // FIXME: higher-level API
+    pub fn write_font<F>(&mut self, write_content: F) -> io::Result<FontId>
+    where F: FnOnce(&mut CountingWriter<W>) -> io::Result<()> {
+        let font_id = FontId(self.font_objects_ids.len());
+        let font_object_id = self.file.assign_object_id();
+        self.font_objects_ids.push(font_object_id);
+        try!(self.file.write_object(font_object_id, write_content));
+        Ok(font_id)
+    }
+
     pub fn finish(mut self) -> io::Result<W> {
         let page_objects_ids = &self.page_objects_ids;
+        let font_objects_ids = &self.font_objects_ids;
         try!(self.file.write_object(self.page_tree_id, |output| {
             try!(write!(output, "<< /Type /Pages\n\
                                     /Count {}\n\
                                     /Kids [ ", page_objects_ids.len()));
-            for &page_object_id in page_objects_ids {
-                try!(write!(output, "{} ", page_object_id));
+            for &id in page_objects_ids {
+                try!(write!(output, "{} ", id));
             }
-            try!(write!(output, "]\n>>\n"));
+            try!(write!(output, "]\n\
+                                 /Resources << /Font << "));
+            for (i, &id) in font_objects_ids.iter().enumerate() {
+                try!(write!(output, "/F{} {}", i, id));
+            }
+            try!(write!(output, ">> >>\n>>\n"));
             Ok(())
         }));
         let page_tree_id = self.page_tree_id;
@@ -110,6 +128,19 @@ impl<W: Write> PdfDocument<W> {
             write!(output, "<< /Producer (Victor (https://github.com/SimonSapin/victor)) >>\n")
         }));
         self.file.finish(catalog_id, Some(info_id))
+    }
+
+    pub fn low_level_objects(&mut self) -> &mut PdfFile<W> {
+        &mut self.file
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct FontId(usize);
+
+impl fmt::Display for FontId {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "/F{}", self.0)
     }
 }
 
@@ -174,5 +205,9 @@ impl<'a, W: Write> Page<'a, W> {
 
     pub fn fill_and_stroke(&mut self) -> io::Result<()> {
         write!(self.output, "B\n")
+    }
+
+    pub fn low_level_page_stream(&mut self) -> &mut CountingWriter<W> {
+        self.output
     }
 }
