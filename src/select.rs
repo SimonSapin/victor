@@ -1,8 +1,7 @@
 use selectors;
 use selectors::parser::{self, SelectorImpl, Selector, AttrSelector, NamespaceConstraint};
 use string_cache::{Atom, Namespace};
-use xml::{Node, Cursor};
-
+use xml::{Element, Ref, NodeData};
 
 pub struct SelectorList(Vec<Selector<Impl>>);
 
@@ -11,21 +10,26 @@ impl SelectorList {
         parser::parse_author_origin_selector_list_from_str(s).map(SelectorList)
     }
 
-    pub fn matches(&self, cursor: &Cursor) -> bool {
-        selectors::matching::matches(&self.0, cursor, None)
+    pub fn matches(&self, element: Element) -> bool {
+        selectors::matching::matches(&self.0, &element, None)
     }
 
-    /// Return the next element that matches, if any,
-    /// among this node and its successors in tree order.
-    pub fn query_next(&self, cursor: &mut Cursor) -> bool {
-        loop {
-            if self.matches(&cursor) {
-                return true
-            }
-            if !cursor.next_in_tree_order() {
-                return false
+    /// Return the first element that matches, if any,
+    /// among this node and its descendants in tree order.
+    pub fn query<'arena>(&self, node: Ref<'arena>) -> Option<Element<'arena>> {
+        if let Some(element) = node.as_element() {
+            if self.matches(element) {
+                return Some(element)
             }
         }
+        let mut link = node.first_child();
+        while let Some(child_node) = link {
+            if let Some(matching_element) = self.query(child_node) {
+                return Some(matching_element)
+            }
+            link = child_node.next_sibling()
+        }
+        None
     }
 }
 
@@ -39,29 +43,31 @@ impl SelectorImpl for Impl {
 }
 
 macro_rules! traversal_methods {
-    ($($method: ident,)+) => {
+    ($($method: ident => $link: ident, $link_after_non_element: ident,)+) => {
         $(
             fn $method(&self) -> Option<Self> {
-                let mut new_cursor = self.clone();
-                if Cursor::$method(&mut new_cursor) {
-                    Some(new_cursor)
-                } else {
-                    None
+                let mut link = self.node.$link();
+                while let Some(node) = link {
+                    if let Some(element) = node.as_element() {
+                        return Some(element)
+                    }
+                    link = node.$link_after_non_element()
                 }
+                None
             }
         )+
     }
 }
 
-impl<'document> selectors::Element for Cursor<'document> {
+impl<'arena> selectors::Element for Element<'arena> {
     type Impl = Impl;
 
     traversal_methods! {
-        parent_element,
-        first_child_element,
-        last_child_element,
-        prev_sibling_element,
-        next_sibling_element,
+        parent_element => parent, parent,
+        first_child_element => first_child, next_sibling,
+        last_child_element => last_child, previous_sibling,
+        prev_sibling_element => previous_sibling, previous_sibling,
+        next_sibling_element => next_sibling, next_sibling,
     }
 
     fn is_html_element_in_html_document(&self) -> bool {
@@ -77,29 +83,29 @@ impl<'document> selectors::Element for Cursor<'document> {
     }
 
     fn get_local_name(&self) -> &Atom {
-        &self.element().name.local
+        &self.data.name.local
     }
 
     fn get_namespace(&self) -> &Namespace {
-        &self.element().name.ns
+        &self.data.name.ns
     }
 
     fn get_id(&self) -> Option<Atom> {
-        self.element().id.clone()
+        self.data.id.clone()
     }
 
     fn has_class(&self, name: &Atom) -> bool {
-        self.element().classes.contains(name)
+        self.data.classes.contains(name)
     }
 
     fn each_class<F>(&self, mut callback: F) where F: FnMut(&Atom) {
-        for class in &self.element().classes {
+        for class in &self.data.classes {
             callback(class)
         }
     }
 
     fn match_attr<F>(&self, selector: &AttrSelector, test: F) -> bool where F: Fn(&str) -> bool {
-        self.element().attributes.iter().any(|&(ref name, ref value)| {
+        self.data.attributes.iter().any(|&(ref name, ref value)| {
             name.local == selector.name &&
             match selector.namespace {
                 NamespaceConstraint::Specific(ref selector_ns) => name.ns == *selector_ns,
@@ -110,21 +116,33 @@ impl<'document> selectors::Element for Cursor<'document> {
     }
 
     fn is_empty(&self) -> bool {
-        self.element().children.iter().all(|child| match *child {
-            Node::Element(_) => false,
-            Node::Text(ref text) => text.is_empty(),
-            _ => true,
-        })
+        let mut link = self.node.first_child();
+        while let Some(node) = link {
+            match node.data {
+                NodeData::Element(_) => return false,
+                NodeData::Text(ref text) if !text.is_empty() => return false,
+                _ => {}
+            }
+            link = node.next_sibling()
+        }
+        true
     }
 }
 
 #[test]
 fn test_selectors() {
+    use selectors::Element;
+
+    let parser = ::xml::Parser::new();
     let source: &[u8] = b"<a>foo <b/></a>";
-    let doc = Node::parse(source).unwrap();
-    let mut cursor = doc.cursor();
-    assert_eq!(cursor.element().name.local, atom!("a"));
-    assert!(cursor.first_child_element());
-    assert_eq!(cursor.element().name.local, atom!("b"));
+    let doc = parser.parse(source).unwrap();
+    let a = doc.first_child().unwrap().as_element().unwrap();
+    assert_eq!(a.data.name.local, atom!("a"));
+
+    let b = a.first_child_element().unwrap();
+    assert_eq!(b.data.name.local, atom!("b"));
+
+    let b = a.last_child_element().unwrap();
+    assert_eq!(b.data.name.local, atom!("b"));
 
 }

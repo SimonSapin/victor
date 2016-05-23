@@ -1,3 +1,5 @@
+use arena::Arena as GenericArena;
+use std::cell::Cell;
 use std::fs::File;
 use std::io::{self, Read, BufReader};
 use std::path::Path;
@@ -8,34 +10,27 @@ pub use xml_rs::attribute::OwnedAttribute;
 pub use xml_rs::name::OwnedName;
 pub use xml_rs::reader::{Error, Result};
 
-pub struct Document {
-    children: Vec<Node>,
+pub struct Parser<'arena> {
+    arena: GenericArena<Node<'arena>>
 }
 
-impl Document {
-    pub fn root_element(&self) -> Option<&Element> {
-        self.children.iter().filter_map(Node::as_element).next()
-    }
-
-    pub fn iter<F>(&self, callback: &mut F) -> io::Result<()>
-    where F: FnMut(&Node) -> io::Result<()> {
-        for child in &self.children {
-            try!(child.iter(callback))
-        }
-        Ok(())
-    }
-
-    pub fn cursor(&self) -> Cursor {
-        Cursor {
-            element: self.root_element().unwrap(),
-            ancestors: Vec::new(),
-        }
-    }
+pub struct Node<'arena> {
+    parent: Link<'arena>,
+    next_sibling: Link<'arena>,
+    previous_sibling: Link<'arena>,
+    first_child: Link<'arena>,
+    last_child: Link<'arena>,
+    pub data: NodeData,
 }
+
+pub type Ref<'arena> = &'arena Node<'arena>;
+
+type Link<'arena> = Cell<Option<Ref<'arena>>>;
 
 #[derive(Debug)]
-pub enum Node {
-    Element(Element),
+pub enum NodeData {
+    Document,
+    Element(ElementData),
     Text(String),
     ProcessingInstruction {
         name: String,
@@ -44,16 +39,14 @@ pub enum Node {
 }
 
 #[derive(Debug)]
-pub struct Element {
+pub struct ElementData {
     pub name: QualName,
     pub attributes: Vec<(QualName, String)>,
     pub id: Option<Atom>,
     pub classes: Vec<Atom>,
-
-    pub children: Vec<Node>,
 }
 
-impl Element {
+impl ElementData {
     pub fn attribute(&self, local_name: &Atom) -> Option<&str> {
         self.attributes.iter()
             .find(|&&(ref name, _)| name.local == *local_name && name.ns == ns!())
@@ -72,12 +65,18 @@ fn space_character(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '\u{0C}' | '\r')
 }
 
-impl Node {
-    pub fn parse_file<P: AsRef<Path>>(name: P) -> Result<Document> {
-        Self::parse(BufReader::new(try!(File::open(name))))
+impl<'arena> Parser<'arena> {
+    pub fn new() -> Self {
+        Parser {
+            arena: GenericArena::new()
+        }
     }
 
-    pub fn parse<R: Read>(stream: R) -> Result<Document> {
+    pub fn parse_file<P: AsRef<Path>>(&'arena self, name: P) -> Result<Ref<'arena>> {
+        self.parse(BufReader::new(try!(File::open(name))))
+    }
+
+    pub fn parse<R: Read>(&'arena self, stream: R) -> Result<Ref<'arena>> {
         let config = ParserConfig {
             trim_whitespace: false,
             whitespace_to_characters: true,
@@ -86,21 +85,21 @@ impl Node {
             coalesce_characters: true,
         };
         let mut parser = config.create_reader(stream);
-        Ok(Document {
-            children: try!(Self::parse_content(&mut parser)),
-        })
+        let document = self.new_node(NodeData::Document);
+        try!(self.parse_content(document, &mut parser));
+        Ok(document)
     }
 
-    fn parse_content<R: Read>(parser: &mut EventReader<R>) -> Result<Vec<Self>> {
-        let mut nodes = Vec::new();
+    fn parse_content<R: Read>(&'arena self, parent: Ref<'arena>, parser: &mut EventReader<R>)
+                              -> Result<()> {
         loop {
             match try!(parser.next()) {
-                XmlEvent::EndDocument | XmlEvent::EndElement { .. } => return Ok(nodes),
+                XmlEvent::EndDocument | XmlEvent::EndElement { .. } => return Ok(()),
 
                 XmlEvent::StartElement { name, attributes, .. } => {
                     let mut id = None;
                     let mut classes = Vec::new();
-                    nodes.push(Node::Element(Element {
+                    let element = self.append_to(parent, NodeData::Element(ElementData {
                         name: to_qualname(name),
                         attributes: attributes.into_iter().map(|attr| {
                             let name = to_qualname(attr.name);
@@ -122,23 +121,23 @@ impl Node {
                         }).collect(),
                         id: id,
                         classes: classes,
-                        children: try!(Self::parse_content(parser)),
-                    }))
+                    }));
+                    try!(self.parse_content(element, parser))
                 }
 
                 XmlEvent::ProcessingInstruction { name, data } => {
-                    nodes.push(Node::ProcessingInstruction{
+                    self.append_to(parent, NodeData::ProcessingInstruction{
                         name: name,
                         data: data.unwrap_or_else(String::new),
-                    })
+                    });
                 }
 
                 XmlEvent::Characters(text) => {
-                    nodes.push(Node::Text(text))
+                    self.append_to(parent, NodeData::Text(text));
                 }
 
-                XmlEvent::StartDocument { .. } => {}
-
+                XmlEvent::StartDocument { .. } if matches!(parent.data, NodeData::Document) => {}
+                XmlEvent::StartDocument { .. } |
                 XmlEvent::CData(_) |
                 XmlEvent::Comment(_) |
                 XmlEvent::Whitespace(_) => unreachable!()
@@ -146,112 +145,71 @@ impl Node {
         }
     }
 
-    pub fn iter<F>(&self, callback: &mut F) -> io::Result<()>
-    where F: FnMut(&Node) -> io::Result<()> {
+    fn new_node(&'arena self, data: NodeData) -> Ref<'arena> {
+        self.arena.push(Node {
+            parent: Cell::new(None),
+            previous_sibling: Cell::new(None),
+            next_sibling: Cell::new(None),
+            first_child: Cell::new(None),
+            last_child: Cell::new(None),
+            data: data,
+        })
+    }
+
+    fn append_to(&'arena self, parent: Ref<'arena>, new_child_data: NodeData) -> Ref<'arena> {
+        let new_child = self.new_node(new_child_data);
+        if let Some(former_last_child) = parent.last_child.get() {
+            new_child.previous_sibling.set(Some(former_last_child));
+            former_last_child.next_sibling.set(Some(new_child));
+        } else {
+            debug_assert!(parent.first_child.get().is_none());
+            parent.first_child.set(Some(new_child))
+        }
+        parent.last_child.set(Some(new_child));
+        new_child.parent.set(Some(parent));
+        new_child
+    }
+}
+
+macro_rules! link_getters {
+    ($($link: ident),+) => {
+        $(
+            #[inline] pub fn $link(&self) -> Option<Ref<'arena>> { self.$link.get() }
+        )+
+    }
+}
+
+impl<'arena> Node<'arena> {
+    link_getters!(parent, previous_sibling, next_sibling, first_child, last_child);
+
+    pub fn iter<F>(&'arena self, callback: &mut F) -> io::Result<()>
+    where F: FnMut(Ref<'arena>) -> io::Result<()> {
         try!(callback(self));
-        if let Some(element) = self.as_element() {
-            for child in &element.children {
-                try!(child.iter(callback))
-            }
+        let mut link = self.first_child();
+        while let Some(node) = link {
+            try!(node.iter(callback));
+            link = node.next_sibling()
         }
         Ok(())
     }
 
-    pub fn as_element(&self) -> Option<&Element> {
-        match *self {
-            Node::Element(ref element) => Some(element),
+    pub fn as_element(&'arena self) -> Option<Element<'arena>> {
+        match self.data {
+            NodeData::Element(ref data) => Some(Element { node: self, data: data }),
             _ => None,
         }
     }
 }
 
-#[derive(Clone)]
-pub struct Cursor<'document> {
-    element: &'document Element,
-    ancestors: Vec<(&'document Element, usize)>
+#[derive(Copy, Clone)]
+pub struct Element<'arena> {
+    pub node: Ref<'arena>,
+    pub data: &'arena ElementData,
 }
 
-impl<'document> Cursor<'document> {
-    pub fn element(&self) -> &'document Element {
-        self.element
-    }
-
-    pub fn is_root(&self) -> bool {
-        self.ancestors.is_empty()
-    }
-
-    pub fn parent_element(&mut self) -> bool {
-        if let Some((parent, _)) = self.ancestors.pop() {
-            self.element = parent;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn first_child_element(&mut self) -> bool {
-        for (i, node) in self.element.children.iter().enumerate() {
-            if let Some(element) = node.as_element() {
-                self.ancestors.push((self.element, i));
-                self.element = element;
-                return true
-            }
-        }
-        false
-    }
-
-    pub fn last_child_element(&mut self) -> bool {
-        for (i, node) in self.element.children.iter().rev().enumerate() {
-            if let Some(element) = node.as_element() {
-                self.ancestors.push((self.element, i));
-                self.element = element;
-                return true
-            }
-        }
-        false
-    }
-
-    pub fn next_sibling_element(&mut self) -> bool {
-        if let Some(&mut (parent, ref mut position)) = self.ancestors.last_mut() {
-            let mut new_position = *position + 1;
-            for child in &parent.children[new_position..] {
-                if let Some(element) = child.as_element() {
-                    *position = new_position;
-                    self.element = element;
-                    return true
-                }
-                new_position += 1;
-            }
-        }
-        false
-    }
-
-    pub fn prev_sibling_element(&mut self) -> bool {
-        if let Some(&mut (parent, ref mut position)) = self.ancestors.last_mut() {
-            let mut new_position = *position;
-            for child in parent.children[..new_position].iter().rev() {
-                new_position -= 1;
-                if let Some(element) = child.as_element() {
-                    *position = new_position;
-                    self.element = element;
-                    return true
-                }
-            }
-        }
-        false
-    }
-
-    pub fn next_in_tree_order(&mut self) -> bool {
-        if self.first_child_element() {
-            return true
-        }
-        loop {
-            if self.next_sibling_element() {
-                return true
-            }
-            if !self.parent_element() {
-                return false
-            }
-        }
+impl<'arena> Element<'arena> {
+    #[inline]
+    pub fn attribute(&self, local_name: &Atom) -> Option<&str> {
+        self.data.attribute(local_name)
     }
 }
