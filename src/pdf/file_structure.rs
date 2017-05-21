@@ -80,7 +80,7 @@ impl<W: Write> PdfFile<W> {
     /// return it wrapped in a `PdfFile` value.
     pub fn new(mut output: W) -> io::Result<Self> {
         // FIXME: Find out the lowest version that contains the features we’re using.
-        try!(output.write_all(b"%PDF-1.7\n%\xB5\xED\xAE\xFB\n"));
+        output.write_all(b"%PDF-1.7\n%\xB5\xED\xAE\xFB\n")?;
         Ok(PdfFile {
             output: CountingWriter {
                 inner: output,
@@ -105,9 +105,9 @@ impl<W: Write> PdfFile<W> {
         assert!(self.objects_positions[id.0].is_none(), "object {} is already written", id.0);
         self.objects_positions[id.0] = Some(self.output.position());
 
-        try!(write!(self.output, "{} 0 obj\n", id.0));
-        try!(write_content(&mut self.output));
-        try!(write!(self.output, "endobj\n"));
+        write!(self.output, "{} 0 obj\n", id.0)?;
+        write_content(&mut self.output)?;
+        write!(self.output, "endobj\n")?;
         Ok(())
     }
 
@@ -117,26 +117,26 @@ impl<W: Write> PdfFile<W> {
               -> io::Result<W> {
 
         let startxref = self.output.position();
-        try!(write!(self.output, "xref\n\
-                                  0 {}\n", self.objects_positions.len()));
+        write!(self.output, "xref\n\
+                             0 {}\n", self.objects_positions.len())?;
         // Object 0 is the head of the linked list of free objects, but we don’t use free objects.
-        try!(write!(self.output, "0000000000 65535 f \n"));
+        write!(self.output, "0000000000 65535 f \n")?;
         // Use [1..] to skip object 0 in self.objects_positions.
         for position in &self.objects_positions[1..] {
             let bytes = position.expect("an object was assigned but not written");
-            try!(write!(self.output, "{:010} 00000 n \n", bytes));
+            write!(self.output, "{:010} 00000 n \n", bytes)?;
         }
 
-        try!(write!(self.output, "trailer\n\
-                                  << /Size {}\n\
-                                     /Root {}\n", self.objects_positions.len(), document_catalog));
+        write!(self.output, "trailer\n\
+                             << /Size {}\n\
+                                /Root {}\n", self.objects_positions.len(), document_catalog)?;
         if let Some(info) = document_information_dictionary {
-            try!(write!(self.output, "/Info {}\n", info));
+            write!(self.output, "/Info {}\n", info)?;
         }
-        try!(write!(self.output, ">>\n\
-                                  startxref\n\
-                                  {}\n\
-                                  %%EOF\n", startxref));
+        write!(self.output, ">>\n\
+                             startxref\n\
+                             {}\n\
+                             %%EOF\n", startxref)?;
 
         Ok(self.output.inner)
     }

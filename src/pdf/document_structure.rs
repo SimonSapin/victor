@@ -20,13 +20,13 @@ pub struct PdfDocument<W: Write> {
 
 impl PdfDocument<BufWriter<File>> {
     pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        PdfDocument::new(BufWriter::new(try!(File::create(path))))
+        PdfDocument::new(BufWriter::new(File::create(path)?))
     }
 }
 
 impl<W: Write> PdfDocument<W> {
     pub fn new(output: W) -> io::Result<Self> {
-        let mut file = try!(PdfFile::new(output));
+        let mut file = PdfFile::new(output)?;
         Ok(PdfDocument {
             page_tree_id: file.assign_object_id(),
             file: file,
@@ -45,7 +45,7 @@ impl<W: Write> PdfDocument<W> {
         let page_id = self.file.assign_object_id();
         let contents_id = self.file.assign_object_id();
         self.page_objects_ids.push(page_id);
-        try!(self.file.write_object(page_id, |output| {
+        self.file.write_object(page_id, |output| {
             write!(
                 output,
                 "\
@@ -60,10 +60,10 @@ impl<W: Write> PdfDocument<W> {
                 width = width,
                 height = height
             )
-        }));
+        })?;
         self.write_stream(contents_id, |output| {
             // 0.75 (like in px_to_pt) makes the coordinate system be in CSS px units.
-            try!(write!(output, "/DeviceRGB cs /DeviceRGB CS 0.75 0 0 -0.75 0 {} cm\n", height));
+            write!(output, "/DeviceRGB cs /DeviceRGB CS 0.75 0 0 -0.75 0 {} cm\n", height)?;
             render_contents(&mut Page {
                 output: output,
             })
@@ -77,13 +77,13 @@ impl<W: Write> PdfDocument<W> {
     where F: FnOnce(&mut CountingWriter<W>) -> io::Result<()> {
         let length_id = self.file.assign_object_id();
         let mut length = None;
-        try!(self.file.write_object(id, |output| {
-            try!(write!(output, "<< /Length {} >>\nstream\n", length_id));
+        self.file.write_object(id, |output| {
+            write!(output, "<< /Length {} >>\nstream\n", length_id)?;
             let start = output.position();
-            try!(write_content(output));
+            write_content(output)?;
             length = Some(output.position() - start);
             write!(output, "endstream\n")
-        }));
+        })?;
         self.file.write_object(length_id, |output| write!(output, "{}\n", length.unwrap()))
     }
 
@@ -93,40 +93,40 @@ impl<W: Write> PdfDocument<W> {
         let font_id = FontId(self.font_objects_ids.len());
         let font_object_id = self.file.assign_object_id();
         self.font_objects_ids.push(font_object_id);
-        try!(self.file.write_object(font_object_id, write_content));
+        self.file.write_object(font_object_id, write_content)?;
         Ok(font_id)
     }
 
     pub fn finish(mut self) -> io::Result<W> {
         let page_objects_ids = &self.page_objects_ids;
         let font_objects_ids = &self.font_objects_ids;
-        try!(self.file.write_object(self.page_tree_id, |output| {
-            try!(write!(output, "<< /Type /Pages\n\
-                                    /Count {}\n\
-                                    /Kids [ ", page_objects_ids.len()));
+        self.file.write_object(self.page_tree_id, |output| {
+            write!(output, "<< /Type /Pages\n\
+                               /Count {}\n\
+                               /Kids [ ", page_objects_ids.len())?;
             for &id in page_objects_ids {
-                try!(write!(output, "{} ", id));
+                write!(output, "{} ", id)?;
             }
-            try!(write!(output, "]\n\
-                                 /Resources << /Font << "));
+            write!(output, "]\n\
+                            /Resources << /Font << ")?;
             for (i, &id) in font_objects_ids.iter().enumerate() {
-                try!(write!(output, "/F{} {}", i, id));
+                write!(output, "/F{} {}", i, id)?;
             }
-            try!(write!(output, ">> >>\n>>\n"));
+            write!(output, ">> >>\n>>\n")?;
             Ok(())
-        }));
+        })?;
         let page_tree_id = self.page_tree_id;
         let catalog_id = self.file.assign_object_id();
-        try!(self.file.write_object(catalog_id, |output| {
-            try!(write!(output, "<<  /Type /Catalog\n\
-                                     /Pages {}\n\
-                                     >>\n", page_tree_id));
+        self.file.write_object(catalog_id, |output| {
+            write!(output, "<<  /Type /Catalog\n\
+                                /Pages {}\n\
+                                >>\n", page_tree_id)?;
             Ok(())
-        }));
+        })?;
         let info_id = self.file.assign_object_id();
-        try!(self.file.write_object(info_id, |output| {
+        self.file.write_object(info_id, |output| {
             write!(output, "<< /Producer (Victor (https://github.com/SimonSapin/victor)) >>\n")
-        }));
+        })?;
         self.file.finish(catalog_id, Some(info_id))
     }
 

@@ -5,17 +5,17 @@ fn main() {
 }
 
 fn render() -> std::io::Result<()> {
-    let mut pdf = try!(victor::pdf::document_structure::PdfDocument::create_file("out.pdf"));
-    try!(pdf.write_page(800., 600., |page| {
-        try!(page.non_stroking_color(0., 1., 0.));
-        try!(page.rectangle(100., 100., 200., 200.));
-        try!(page.fill());
+    let mut pdf = victor::pdf::document_structure::PdfDocument::create_file("out.pdf")?;
+    pdf.write_page(800., 600., |page| {
+        page.non_stroking_color(0., 1., 0.)?;
+        page.rectangle(100., 100., 200., 200.)?;
+        page.fill()?;
 
-        try!(page.non_stroking_color(0., 0., 1.));
-        try!(page.rectangle(200., 150., 150., 250.));
-        try!(page.fill());
+        page.non_stroking_color(0., 0., 1.)?;
+        page.rectangle(200., 150., 150., 250.)?;
+        page.fill()?;
         Ok(())
-    }));
-    try!(pdf.finish());
+    })?;
+    pdf.finish()?;
     Ok(())
 }

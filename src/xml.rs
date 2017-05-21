@@ -73,7 +73,7 @@ impl<'arena> Parser<'arena> {
     }
 
     pub fn parse_file<P: AsRef<Path>>(&'arena self, name: P) -> Result<Ref<'arena>> {
-        self.parse(BufReader::new(try!(File::open(name))))
+        self.parse(BufReader::new(File::open(name)?))
     }
 
     pub fn parse<R: Read>(&'arena self, stream: R) -> Result<Ref<'arena>> {
@@ -86,14 +86,14 @@ impl<'arena> Parser<'arena> {
         };
         let mut parser = config.create_reader(stream);
         let document = self.new_node(NodeData::Document);
-        try!(self.parse_content(document, &mut parser));
+        self.parse_content(document, &mut parser)?;
         Ok(document)
     }
 
     fn parse_content<R: Read>(&'arena self, parent: Ref<'arena>, parser: &mut EventReader<R>)
                               -> Result<()> {
         loop {
-            match try!(parser.next()) {
+            match parser.next()? {
                 XmlEvent::EndDocument | XmlEvent::EndElement { .. } => return Ok(()),
 
                 XmlEvent::StartElement { name, attributes, .. } => {
@@ -122,7 +122,7 @@ impl<'arena> Parser<'arena> {
                         id: id,
                         classes: classes,
                     }));
-                    try!(self.parse_content(element, parser))
+                    self.parse_content(element, parser)?
                 }
 
                 XmlEvent::ProcessingInstruction { name, data } => {
@@ -184,10 +184,10 @@ impl<'arena> Node<'arena> {
 
     pub fn iter<F>(&'arena self, callback: &mut F) -> io::Result<()>
     where F: FnMut(Ref<'arena>) -> io::Result<()> {
-        try!(callback(self));
+        callback(self)?;
         let mut link = self.first_child();
         while let Some(node) = link {
-            try!(node.iter(callback));
+            node.iter(callback)?;
             link = node.next_sibling()
         }
         Ok(())
