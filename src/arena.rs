@@ -1,13 +1,13 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::mem;
-use std::ptr;
-use std::slice;
 
 pub struct Arena<T> {
-    current_block_start: Cell<*mut T>,
-    current_block_next: Cell<*mut T>,
-    current_block_end: Cell<*mut T>,
-    previous_blocks: RefCell<Vec<Box<[T]>>>
+    refcell: RefCell<ArenaInner<T>>,
+}
+
+struct ArenaInner<T> {
+    current_block: Vec<T>,
+    previous_blocks: Vec<Vec<T>>,
 }
 
 impl<T> Arena<T> {
@@ -16,82 +16,58 @@ impl<T> Arena<T> {
     }
 
     pub fn with_capacity(mut capacity: usize) -> Self {
-        assert!(mem::size_of::<T>() > 0, "Arena does not support zero-sized types");
         if capacity == 0 {
             capacity = 1;  // So that it grows with `* 2`
         }
-        let start_ptr = allocate::<T>(capacity);
-        let end_ptr = unsafe {
-            start_ptr.offset(capacity as isize)
-        };
         Arena {
-            current_block_start: Cell::new(start_ptr),
-            current_block_next: Cell::new(start_ptr),
-            current_block_end: Cell::new(end_ptr),
-            previous_blocks: RefCell::new(Vec::new()),
+            refcell: RefCell::new(ArenaInner {
+                current_block: Vec::with_capacity(capacity),
+                previous_blocks: Vec::new(),
+            })
         }
     }
 
     pub fn push(&self, item: T) -> &mut T {
-        unsafe {
-            let next = self.current_block_next.get();
-            if next != self.current_block_end.get() {
-                self.current_block_next.set(next.offset(1));
-                ptr::write(next, item);
-                return &mut *next
-            } else {
-                self.push_into_new_block(item)
+        let mut inner = self.refcell.borrow_mut();
+        if inner.current_block.len() == inner.current_block.capacity() {
+            #[inline(never)]
+            #[cold]
+            fn new_block<T>(inner: &mut ArenaInner<T>) {
+                let new_capacity = inner.current_block.capacity().saturating_mul(2);
+                let new_block = Vec::with_capacity(new_capacity);
+                inner.previous_blocks.push(mem::replace(&mut inner.current_block, new_block));
             }
+            new_block(&mut inner)
         }
-    }
+        inner.current_block.push(item);
+        let last_mut = inner.current_block.last_mut().unwrap();
 
-    /// Must only be called when self.current_block_next == self.current_block_end
-    #[inline(never)]
-    #[cold]
-    unsafe fn push_into_new_block(&self, item: T) -> &mut T {
-        let start = self.current_block_start.get();
-        let len = ptr_pair_len(start, self.current_block_end.get());
-        let slice = slice::from_raw_parts_mut(start, len);
-        self.previous_blocks.borrow_mut().push(Box::from_raw(slice));
-
-        let new_len = len.saturating_mul(2);
-        let new_start = allocate::<T>(new_len);
-        self.current_block_start.set(new_start);
-        self.current_block_next.set(new_start.offset(1));
-        self.current_block_end.set(new_start.offset(new_len as isize));
-
-        ptr::write(new_start, item);
-        &mut *new_start
-    }
-}
-
-// Safety: Vec<T> uses #[may_dangle] in the same way.
-unsafe impl<#[may_dangle] T> Drop for Arena<T> {
-    fn drop(&mut self) {
-        let start = self.current_block_start.get();
-        let length = ptr_pair_len(start, self.current_block_next.get());
-        let capacity = ptr_pair_len(start, self.current_block_end.get());
+        // Extend the reference’s lifetime from that of `inner` to that of `self`.
+        // This is safe because:
+        //
+        // * We’re careful to never push a block’s `Vec` beyond its initial capacity
+        //   (creating new blocks as necessary, instead),
+        //   so that it never reallocates and its items are never moved:
+        //   the pointer’s address remains valid until the `Vec` is dropped,
+        //   which is when `self` is dropped.
+        // * We never give out another reference to the same item:
+        //   the reference returned from `push` is exclusive.
+        //   If a mechanism (such as indexing) is ever added that gives out references to items,
+        //   the reference returned from `push` would no longer be exclusive,
+        //   its type would need to be changed from `&mut T` to `&T`.
         unsafe {
-            mem::drop(Vec::from_raw_parts(start, length, capacity))
+            mem::transmute::<&mut T, &mut T>(last_mut)
         }
-        // No need to deal with self.previous_blocks: dropping Box<[T]> does the right thing.
     }
 }
 
-fn allocate<T>(capacity: usize) -> *mut T {
-    let mut vec = Vec::<T>::with_capacity(capacity);
-    let ptr = vec.as_mut_ptr();
-    mem::forget(vec);
-    ptr
-}
-
-fn ptr_pair_len<T>(start: *const T, end: *const T) -> usize {
-    let diff = (end as usize) - (start as usize);
-    diff / mem::size_of::<T>()
+impl<T> ArenaInner<T> {
 }
 
 #[test]
 fn track_drop() {
+    use std::cell::Cell;
+
     #[derive(PartialEq, Debug)]
     struct DropTracker<'a>(&'a Cell<u32>);
     impl<'a> Drop for DropTracker<'a> {
@@ -108,16 +84,16 @@ fn track_drop() {
         let arena = Arena::with_capacity(2);
 
         let mut node: &Node = arena.push(Node(None, 1, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 0);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 0);
 
         node = arena.push(Node(Some(node), 2, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 0);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 0);
 
         node = arena.push(Node(Some(node), 3, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 1);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 1);
 
         node = arena.push(Node(Some(node), 4, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 1);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 1);
 
         assert_eq!(node.1, 4);
         assert_eq!(node.0.unwrap().1, 3);
@@ -129,13 +105,13 @@ fn track_drop() {
         assert_eq!(drop_counter.get(), 0);
 
         let mut node: &Node = arena.push(Node(None, 5, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 1);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 1);
 
         node = arena.push(Node(Some(node), 6, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 1);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 1);
 
         node = arena.push(Node(Some(node), 7, DropTracker(&drop_counter)));
-        assert_eq!(arena.previous_blocks.borrow().len(), 2);
+        assert_eq!(arena.refcell.borrow().previous_blocks.len(), 2);
 
         assert_eq!(drop_counter.get(), 0);
 
@@ -151,6 +127,8 @@ fn track_drop() {
 
 #[test]
 fn cycle() {
+    use std::cell::Cell;
+
     struct Node<'a>(Cell<Option<&'a Node<'a>>>, Box<u32>);
     let arena = Arena::new();
     let a = arena.push(Node(Cell::new(None), Box::new(1)));

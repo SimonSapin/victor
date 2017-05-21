@@ -1,5 +1,3 @@
-#![feature(dropck_eyepatch, generic_param_attrs)]
-
 #[macro_use] extern crate matches;
 extern crate selectors;
 #[macro_use] extern crate string_cache;
