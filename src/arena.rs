@@ -65,10 +65,8 @@ impl<T> Arena<T> {
     }
 }
 
-impl<T> Drop for Arena<T> {
-    // If unsafe_destructor_blind_to_params is OK for Vec::drop it’s probably OK here
-    // where we only touch T by dropping a Vec.
-    #[unsafe_destructor_blind_to_params]
+// Safety: Vec<T> uses #[may_dangle] in the same way.
+unsafe impl<#[may_dangle] T> Drop for Arena<T> {
     fn drop(&mut self) {
         let start = self.current_block_start.get();
         let length = ptr_pair_len(start, self.current_block_next.get());
