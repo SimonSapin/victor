@@ -1,6 +1,7 @@
 extern crate lester;
 
 use lester::CairoImageSurface;
+use std::error::Error;
 use std::io;
 
 #[test]
@@ -32,9 +33,19 @@ fn round_trip_png() {
 }
 
 #[test]
-fn empty_png_fails() {
+fn empty_png() {
     expect_io_error_kind(CairoImageSurface::read_from_png("".as_bytes()),
                          io::ErrorKind::UnexpectedEof)
+}
+
+#[test]
+fn invalid_png() {
+    let bytes: &[u8] = b"\x89PNG\rnot";
+    match CairoImageSurface::read_from_png(bytes) {
+        Err(lester::Error::Cairo(ref err)) if err.description() == "out of memory" => {}
+        Err(err) => panic!("expected 'out of memory' error, got {:?}", err),
+        Ok(_) => panic!("expected error")
+    }
 }
 
 #[test]
