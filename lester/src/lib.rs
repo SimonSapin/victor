@@ -4,6 +4,7 @@ use std::error::Error as StdError;
 use std::ffi::CStr;
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::marker::PhantomData;
 use std::mem;
 use std::os::raw::*;
 use std::panic;
@@ -13,10 +14,45 @@ use poppler_ffi::*;
 mod cairo_ffi;  // Not public or re-exported
 mod poppler_ffi;  // Not public or re-exported
 
-pub struct Argb32Image<'a> {
+pub struct PdfDocument<'data> {
+    ptr: *mut PopplerDocument,
+    phatom: PhantomData<&'data [u8]>,
+}
+
+impl<'data> PdfDocument<'data> {
+    pub fn from_bytes(bytes: &'data [u8]) -> Result<Self, GlibError> {
+        let mut error = 0 as *mut GError;
+        let ptr = unsafe {
+            poppler_document_new_from_data(
+                // Although this function takes *mut c_char rather than *const c_char,
+                // that pointer is only passed to Poppler’s `MemStream` abstraction
+                // which appears to only provide read access.
+                bytes.as_ptr() as *const c_char as *mut c_char,
+                bytes.len() as c_int,
+                0 as *const c_char,
+                &mut error
+            )
+        };
+        if ptr.is_null() {
+            Err(GlibError { ptr: error })
+        } else {
+            Ok(PdfDocument { ptr, phatom: PhantomData })
+        }
+    }
+}
+
+impl<'data> Drop for PdfDocument<'data> {
+    fn drop(&mut self) {
+        unsafe {
+            g_object_unref(self.ptr as *mut c_void)
+        }
+    }
+}
+
+pub struct Argb32Image<'data> {
     pub width: usize,
     pub height: usize,
-    pub pixels: &'a mut [u32],
+    pub pixels: &'data mut [u32],
 }
 
 pub struct ImageSurface {
@@ -53,7 +89,7 @@ impl ImageSurface {
         CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
 
-    pub fn as_image(&mut self) -> Argb32Image {
+    pub fn as_image<'data>(&'data mut self) -> Argb32Image<'data> {
         unsafe {
             let data = cairo_image_surface_get_data(self.ptr);
             let width = cairo_image_surface_get_width(self.ptr);

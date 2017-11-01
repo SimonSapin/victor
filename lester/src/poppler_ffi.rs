@@ -3,13 +3,23 @@
 use std::os::raw::*;
 
 extern "C" {
+    pub fn poppler_document_new_from_data(data: *mut c_char,
+                                          length: c_int,
+                                          password: *const c_char,
+                                          error: *mut *mut GError)
+                                          -> *mut PopplerDocument;
     pub fn g_error_free(error: *mut GError);
+    pub fn g_object_unref(object: gpointer);
 }
 
+pub type gpointer = *mut c_void;
 pub type gchar = c_char;
 pub type gint = c_int;
 pub type guint32 = c_uint;
 pub type GQuark = guint32;
+
+#[repr(C)]
+pub struct PopplerDocument { opaque: [u8; 0] }
 
 #[repr(C)]
 pub struct GError {
