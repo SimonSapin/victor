@@ -60,93 +60,86 @@ impl CairoImageSurface {
             }
         }
     }
+}
 
-    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
-        struct ClosureData<R> {
-            stream: R,
-            status: Result<(), io::Error>,
+macro_rules! with_c_callback {
+    (
+        $stream: ident : $StreamType: ty : $StreamTrait: ident;
+        fn callback($($closure_args: tt)*) -> $ErrorConst: ident $body: block
+        ($wrap: expr)($function: ident($($function_args: tt)*))
+    ) => {{
+        struct ClosureData<Stream> {
+            stream: Stream,
+            stream_result: Result<(), io::Error>,
         };
         let mut closure_data = ClosureData {
-            stream,
-            status: Ok(()),
+            stream: $stream,
+            stream_result: Ok(()),
         };
-        let closure_ptr: *mut ClosureData<R> = &mut closure_data;
+        let closure_data_ptr: *mut ClosureData<$StreamType> = &mut closure_data;
 
-        unsafe extern "C" fn read_callback<R: Read>(
-            closure_ptr: *mut c_void, buffer: *mut c_uchar, length: c_uint,
+        unsafe extern "C" fn callback<Stream: $StreamTrait>(
+            closure_data_ptr: *mut c_void, $($closure_args)*
         ) -> cairo_status_t {
             // FIXME: catch panics
 
-            let closure_data = &mut *(closure_ptr as *mut ClosureData<R>);
-            if closure_data.status.is_err() {
-                return CAIRO_STATUS_READ_ERROR
+            let closure_data = &mut *(closure_data_ptr as *mut ClosureData<Stream>);
+            if closure_data.stream_result.is_err() {
+                return $ErrorConst
             }
 
-            // FIXME: checked conversion
-            let slice = slice::from_raw_parts_mut(buffer, length as usize);
-
-            match closure_data.stream.read_exact(slice) {
+            let $stream = &mut closure_data.stream;
+            match $body {
                 Ok(()) => {
                     CAIRO_STATUS_SUCCESS
                 }
                 Err(error) => {
-                    closure_data.status = Err(error);
-                    CAIRO_STATUS_READ_ERROR
+                    closure_data.stream_result = Err(error);
+                    $ErrorConst
                 }
             }
         }
 
-        let ptr = unsafe {
-            cairo_image_surface_create_from_png_stream(read_callback::<R>, closure_ptr as *mut c_void)
+        let result = unsafe {
+            $wrap($function(
+                $($function_args)*
+                callback::<$StreamType>,
+                closure_data_ptr as *mut c_void
+            ))
         };
-        let surface = CairoImageSurface { ptr };
-        closure_data.status?;
+        closure_data.stream_result?;
+        result
+    }}
+}
+
+
+impl CairoImageSurface {
+    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
+        let surface = with_c_callback! {
+            stream: R: Read;
+            fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
+                // FIXME: checked conversion
+                let slice = slice::from_raw_parts_mut(buffer, length as usize);
+                stream.read_exact(slice)
+            }
+            (|ptr| CairoImageSurface { ptr })(cairo_image_surface_create_from_png_stream())
+        };
+
         surface.check_status()?;
         Ok(surface)
     }
 
     pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), Error> {
-        struct ClosureData<W> {
-            stream: W,
-            status: Result<(), io::Error>,
-        };
-        let mut closure_data = ClosureData {
-            stream,
-            status: Ok(()),
-        };
-        let closure_ptr: *mut ClosureData<W> = &mut closure_data;
-
-        unsafe extern "C" fn write_callback<W: Write>(
-            closure_ptr: *mut c_void, buffer: *const c_uchar, length: c_uint,
-        ) -> cairo_status_t {
-            // FIXME: catch panics
-
-            let closure_data = &mut *(closure_ptr as *mut ClosureData<W>);
-            if closure_data.status.is_err() {
-                return CAIRO_STATUS_READ_ERROR
+        let status = with_c_callback! {
+            stream: W: Write;
+            fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {
+                // FIXME: checked conversion
+                let slice = slice::from_raw_parts(buffer, length as usize);
+                stream.write_all(slice)
             }
-
-            // FIXME: checked conversion
-            let slice = slice::from_raw_parts(buffer, length as usize);
-
-            match closure_data.stream.write_all(slice) {
-                Ok(()) => {
-                    CAIRO_STATUS_SUCCESS
-                }
-                Err(error) => {
-                    closure_data.status = Err(error);
-                    CAIRO_STATUS_READ_ERROR
-                }
-            }
-        }
-
-        let status = unsafe {
-            cairo_surface_write_to_png_stream(
-                self.ptr,
-                write_callback::<W>,
-                closure_ptr as *mut c_void
-            )
+            (|s| s)(cairo_surface_write_to_png_stream(self.ptr,))
         };
+
         CairoError::check(status)?;
         Ok(())
     }

@@ -24,6 +24,7 @@ pub type cairo_format_t = c_int;
 
 pub const CAIRO_STATUS_SUCCESS: cairo_status_t = 0;
 pub const CAIRO_STATUS_READ_ERROR: cairo_status_t = 10;
+pub const CAIRO_STATUS_WRITE_ERROR: cairo_status_t = 11;
 
 pub const CAIRO_FORMAT_ARGB32: cairo_format_t = 0;
 pub const CAIRO_FORMAT_RGB24: cairo_format_t = 1;
