@@ -12,6 +12,16 @@ fn zero_bytes_pdf() {
     }
 }
 
+macro_rules! assert_approx_eq {
+    ($a: expr, $b: expr) => {
+        {
+            let a = ($a * 1000.).round() / 1000.;
+            let b = ($b * 1000.).round() / 1000.;
+            assert_eq!(a, b)
+        }
+    }
+}
+
 #[test]
 fn blank_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("A4_one_empty_page.pdf");
@@ -19,5 +29,13 @@ fn blank_pdf() {
     assert_eq!(doc.page_count(), 1);
     assert!(doc.get_page(1).is_none());
     assert!(doc.get_page(2).is_none());
-    let _page = doc.get_page(0).unwrap();
+    let page = doc.get_page(0).unwrap();
+    let (width, height) = page.size();
+    assert_approx_eq!(width, millimeters_to_poscript_points(210.));
+    assert_approx_eq!(height, millimeters_to_poscript_points(297.));
+}
+
+fn millimeters_to_poscript_points(mm: f64) -> f64 {
+    let inches = mm / 25.4;
+    inches * 72.
 }

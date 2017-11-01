@@ -75,6 +75,17 @@ pub struct PdfPage<'doc> {
     phantom: PhantomData<&'doc ()>,
 }
 
+impl<'doc> PdfPage<'doc> {
+    pub fn size(&self) -> (f64, f64) {
+        let mut width = 0.;
+        let mut height = 0.;
+        unsafe {
+            poppler_page_get_size(self.ptr, &mut width, &mut height)
+        }
+        (width, height)
+    }
+}
+
 impl<'doc> Drop for PdfPage<'doc> {
     fn drop(&mut self) {
         unsafe {
