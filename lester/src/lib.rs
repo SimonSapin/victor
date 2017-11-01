@@ -13,13 +13,6 @@ use poppler_ffi::*;
 mod cairo_ffi;  // Not public or re-exported
 mod poppler_ffi;  // Not public or re-exported
 
-pub fn poppler_version() -> &'static str {
-    let cstr = unsafe {
-        CStr::from_ptr(poppler_get_version())
-    };
-    cstr.to_str().unwrap()
-}
-
 pub struct Argb32Image<'a> {
     pub width: usize,
     pub height: usize,
@@ -186,6 +179,32 @@ impl CairoImageSurface {
     }
 }
 
+macro_rules! c_error_impls {
+    ($T: ty = |$self_: ident| $get_c_str_ptr: expr) => {
+        impl StdError for $T {
+            fn description(&self) -> &str {
+                let cstr = unsafe {
+                    let $self_ = self;
+                    CStr::from_ptr($get_c_str_ptr)
+                };
+                cstr.to_str().unwrap()
+            }
+        }
+
+        impl fmt::Display for $T {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str(self.description())
+            }
+        }
+
+        impl fmt::Debug for $T {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str(self.description())
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CairoError {
     status: cairo_status_t,
@@ -201,41 +220,47 @@ impl CairoError {
     }
 }
 
-impl StdError for CairoError {
-    fn description(&self) -> &str {
-        let cstr = unsafe {
-            CStr::from_ptr(cairo_status_to_string(self.status))
-        };
-        cstr.to_str().unwrap()
+c_error_impls! {
+    CairoError = |self_| cairo_status_to_string(self_.status)
+}
+
+pub struct GlibError {
+    ptr: *mut GError,
+}
+
+impl Drop for GlibError {
+    fn drop(&mut self) {
+        unsafe {
+            g_error_free(self.ptr)
+        }
     }
 }
 
-impl fmt::Display for CairoError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.description())
+c_error_impls! {
+    GlibError = |self_| (*self_.ptr).message
+}
+
+macro_rules! error_enum {
+    ($( $Variant: ident ($Type: ty), )+) => {
+        #[derive(Debug)]
+        pub enum Error {
+            $(
+                $Variant($Type),
+            )+
+        }
+
+        $(
+            impl From<$Type> for Error {
+                fn from(e: $Type) -> Self {
+                    Error::$Variant(e)
+                }
+            }
+        )+
     }
 }
 
-impl fmt::Debug for CairoError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.description())
-    }
-}
-
-#[derive(Debug)]
-pub enum Error {
+error_enum! {
     Io(io::Error),
     Cairo(CairoError),
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::Io(e)
-    }
-}
-
-impl From<CairoError> for Error {
-    fn from(e: CairoError) -> Self {
-        Error::Cairo(e)
-    }
+    Glib(GlibError),
 }
