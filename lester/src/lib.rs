@@ -39,6 +39,12 @@ impl<'data> PdfDocument<'data> {
             Ok(PdfDocument { ptr, phatom: PhantomData })
         }
     }
+
+    pub fn page_count(&self) -> usize {
+        unsafe {
+            poppler_document_get_n_pages(self.ptr) as usize
+        }
+    }
 }
 
 impl<'data> Drop for PdfDocument<'data> {

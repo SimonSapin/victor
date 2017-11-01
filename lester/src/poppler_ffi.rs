@@ -8,6 +8,7 @@ extern "C" {
                                           password: *const c_char,
                                           error: *mut *mut GError)
                                           -> *mut PopplerDocument;
+    pub fn poppler_document_get_n_pages(document: *mut PopplerDocument) -> c_int;
     pub fn g_error_free(error: *mut GError);
     pub fn g_object_unref(object: gpointer);
 }
