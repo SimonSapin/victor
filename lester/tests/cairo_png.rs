@@ -1,13 +1,13 @@
 extern crate lester;
 
-use lester::CairoImageSurface;
+use lester::ImageSurface;
 use std::error::Error;
 use std::io;
 
 #[test]
 fn round_trip_png() {
     static PNG_BYTES: &[u8] = include_bytes!("pattern_4x4.png");
-    let mut surface = CairoImageSurface::read_from_png(PNG_BYTES).unwrap();
+    let mut surface = ImageSurface::read_from_png(PNG_BYTES).unwrap();
 
     fn assert_expected_image(image: lester::Argb32Image) {
         assert_eq!(image.width, 4);
@@ -28,20 +28,20 @@ fn round_trip_png() {
     let mut bytes = Vec::new();
     surface.write_to_png(&mut bytes).unwrap();
 
-    let mut surface2 = CairoImageSurface::read_from_png(&*bytes).unwrap();
+    let mut surface2 = ImageSurface::read_from_png(&*bytes).unwrap();
     assert_expected_image(surface2.as_image());
 }
 
 #[test]
 fn empty_png() {
-    expect_io_error_kind(CairoImageSurface::read_from_png("".as_bytes()),
+    expect_io_error_kind(ImageSurface::read_from_png("".as_bytes()),
                          io::ErrorKind::UnexpectedEof)
 }
 
 #[test]
 fn invalid_png() {
     let bytes: &[u8] = b"\x89PNG\rnot";
-    match CairoImageSurface::read_from_png(bytes) {
+    match ImageSurface::read_from_png(bytes) {
         Err(lester::Error::Cairo(ref err)) if err.description() == "out of memory" => {}
         Err(err) => panic!("expected 'out of memory' error, got {:?}", err),
         Ok(_) => panic!("expected error")
@@ -58,7 +58,7 @@ fn forward_read_error() {
         }
     }
 
-    expect_io_error_kind(CairoImageSurface::read_from_png(InvalidDataRead),
+    expect_io_error_kind(ImageSurface::read_from_png(InvalidDataRead),
                          io::ErrorKind::InvalidData)
 }
 
@@ -75,7 +75,7 @@ fn forward_write_error() {
         }
     }
 
-    let surface = CairoImageSurface::new_rgb24(4, 4).unwrap();
+    let surface = ImageSurface::new_rgb24(4, 4).unwrap();
     expect_io_error_kind(surface.write_to_png(InvalidDataWrite),
                          io::ErrorKind::InvalidData)
 }
@@ -101,7 +101,7 @@ fn forward_read_panic() {
         }
     }
 
-    unreachable!(CairoImageSurface::read_from_png(PanickingRead).is_ok())
+    unreachable!(ImageSurface::read_from_png(PanickingRead).is_ok())
 }
 
 #[test]
@@ -118,6 +118,6 @@ fn forward_write_panic() {
         }
     }
 
-   let surface = CairoImageSurface::new_rgb24(4, 4).unwrap();
+   let surface = ImageSurface::new_rgb24(4, 4).unwrap();
    unreachable!(surface.write_to_png(PanickingWrite).is_ok())
 }

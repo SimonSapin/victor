@@ -19,11 +19,11 @@ pub struct Argb32Image<'a> {
     pub pixels: &'a mut [u32],
 }
 
-pub struct CairoImageSurface {
+pub struct ImageSurface {
     ptr: *mut cairo_surface_t,
 }
 
-impl Drop for CairoImageSurface {
+impl Drop for ImageSurface {
     fn drop(&mut self) {
         unsafe {
             cairo_surface_destroy(self.ptr);
@@ -31,7 +31,7 @@ impl Drop for CairoImageSurface {
     }
 }
 
-impl CairoImageSurface {
+impl ImageSurface {
     pub fn new_rgb24(width: usize, height: usize) -> Result<Self, CairoError> {
         Self::new(CAIRO_FORMAT_RGB24, width, height)
     }
@@ -43,7 +43,7 @@ impl CairoImageSurface {
     fn new(format: cairo_format_t, width: usize, height: usize) -> Result<Self, CairoError> {
         unsafe {
             let ptr = cairo_image_surface_create(format, width as _, height as _);
-            let surface = CairoImageSurface { ptr };
+            let surface = ImageSurface { ptr };
             surface.check_status()?;
             Ok(surface)
         }
@@ -147,7 +147,7 @@ macro_rules! with_c_callback {
 }
 
 
-impl CairoImageSurface {
+impl ImageSurface {
     pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
         let surface = with_c_callback! {
             stream: R: Read;
@@ -156,7 +156,7 @@ impl CairoImageSurface {
                 let slice = slice::from_raw_parts_mut(buffer, length as usize);
                 stream.read_exact(slice)
             }
-            (|ptr| CairoImageSurface { ptr })(cairo_image_surface_create_from_png_stream())
+            (|ptr| ImageSurface { ptr })(cairo_image_surface_create_from_png_stream())
         };
 
         surface.check_status()?;
