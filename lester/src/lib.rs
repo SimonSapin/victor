@@ -11,7 +11,7 @@ pub struct Argb32Image<'a> {
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
-    Cairo(cairo::Error),
+    Cairo(cairo::CairoError),
 }
 
 impl From<io::Error> for Error {
@@ -20,8 +20,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<cairo::Error> for Error {
-    fn from(e: cairo::Error) -> Self {
+impl From<cairo::CairoError> for Error {
+    fn from(e: cairo::CairoError) -> Self {
         Error::Cairo(e)
     }
 }

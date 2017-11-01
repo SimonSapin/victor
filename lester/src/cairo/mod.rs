@@ -1,4 +1,5 @@
 use Argb32Image;
+use Error;
 use self::ffi::*;
 use std::error::Error as StdError;
 use std::ffi::CStr;
@@ -10,11 +11,11 @@ use std::slice;
 
 mod ffi;  // Not public or re-exported
 
-pub struct ImageSurface {
+pub struct CairoImageSurface {
     ptr: *mut cairo_surface_t,
 }
 
-impl Drop for ImageSurface {
+impl Drop for CairoImageSurface {
     fn drop(&mut self) {
         unsafe {
             cairo_surface_destroy(self.ptr);
@@ -22,9 +23,9 @@ impl Drop for ImageSurface {
     }
 }
 
-impl ImageSurface {
-    fn check_status(&self) -> Result<(), Error> {
-        Error::check(unsafe { cairo_surface_status(self.ptr) })
+impl CairoImageSurface {
+    fn check_status(&self) -> Result<(), CairoError> {
+        CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
 
     pub fn as_image(&mut self) -> Argb32Image {
@@ -56,7 +57,7 @@ impl ImageSurface {
         }
     }
 
-    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, ::Error> {
+    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
         struct ClosureData<R> {
             stream: R,
             status: Result<(), io::Error>,
@@ -94,13 +95,13 @@ impl ImageSurface {
         let ptr = unsafe {
             cairo_image_surface_create_from_png_stream(read_callback::<R>, closure_ptr as *mut c_void)
         };
-        let surface = ImageSurface { ptr };
+        let surface = CairoImageSurface { ptr };
         closure_data.status?;
         surface.check_status()?;
         Ok(surface)
     }
 
-    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), ::Error> {
+    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), Error> {
         struct ClosureData<W> {
             stream: W,
             status: Result<(), io::Error>,
@@ -142,27 +143,27 @@ impl ImageSurface {
                 closure_ptr as *mut c_void
             )
         };
-        Error::check(status)?;
+        CairoError::check(status)?;
         Ok(())
     }
 }
 
 #[derive(Clone)]
-pub struct Error {
+pub struct CairoError {
     status: cairo_status_t,
 }
 
-impl Error {
-    fn check(status: cairo_status_t) -> Result<(), Error> {
+impl CairoError {
+    fn check(status: cairo_status_t) -> Result<(), Self> {
         if status == CAIRO_STATUS_SUCCESS {
             Ok(())
         } else {
-            Err(Error { status })
+            Err(CairoError { status })
         }
     }
 }
 
-impl StdError for Error {
+impl StdError for CairoError {
     fn description(&self) -> &str {
         let cstr = unsafe {
             CStr::from_ptr(cairo_status_to_string(self.status))
@@ -171,13 +172,13 @@ impl StdError for Error {
     }
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for CairoError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.description())
     }
 }
 
-impl fmt::Debug for Error {
+impl fmt::Debug for CairoError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.description())
     }

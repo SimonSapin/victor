@@ -1,11 +1,11 @@
 extern crate lester;
 
-use lester::cairo::ImageSurface;
+use lester::cairo::CairoImageSurface;
 use std::io;
 
 #[test]
 fn empty_png_fails() {
-    match ImageSurface::read_from_png("".as_bytes()) {
+    match CairoImageSurface::read_from_png("".as_bytes()) {
         Err(lester::Error::Io(err)) => {
             match err.kind() {
                 io::ErrorKind::UnexpectedEof => {}
@@ -20,7 +20,7 @@ fn empty_png_fails() {
 #[test]
 fn round_trip_png() {
     static PNG_BYTES: &[u8] = include_bytes!("pattern_4x4.png");
-    let mut surface = ImageSurface::read_from_png(PNG_BYTES).unwrap();
+    let mut surface = CairoImageSurface::read_from_png(PNG_BYTES).unwrap();
 
     fn assert_expected_image(image: lester::Argb32Image) {
         assert_eq!(image.width, 4);
@@ -41,6 +41,6 @@ fn round_trip_png() {
     let mut bytes = Vec::new();
     surface.write_to_png(&mut bytes).unwrap();
 
-    let mut surface2 = ImageSurface::read_from_png(&*bytes).unwrap();
+    let mut surface2 = CairoImageSurface::read_from_png(&*bytes).unwrap();
     assert_expected_image(surface2.as_image());
 }
