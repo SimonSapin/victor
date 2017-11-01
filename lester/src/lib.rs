@@ -1,10 +1,12 @@
 use cairo_ffi::*;
+use std::any::Any;
 use std::error::Error as StdError;
 use std::ffi::CStr;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::os::raw::*;
+use std::panic;
 use std::slice;
 
 mod cairo_ffi;  // Not public or re-exported
@@ -88,30 +90,40 @@ macro_rules! with_c_callback {
         struct ClosureData<Stream> {
             stream: Stream,
             stream_result: Result<(), io::Error>,
+            panic_payload: Option<Box<Any + Send + 'static>>
         };
         let mut closure_data = ClosureData {
             stream: $stream,
             stream_result: Ok(()),
+            panic_payload: None,
         };
         let closure_data_ptr: *mut ClosureData<$StreamType> = &mut closure_data;
 
         unsafe extern "C" fn callback<Stream: $StreamTrait>(
             closure_data_ptr: *mut c_void, $($closure_args)*
         ) -> cairo_status_t {
-            // FIXME: catch panics
-
-            let closure_data = &mut *(closure_data_ptr as *mut ClosureData<Stream>);
-            if closure_data.stream_result.is_err() {
-                return $ErrorConst
-            }
-
-            let $stream = &mut closure_data.stream;
-            match $body {
-                Ok(()) => {
-                    CAIRO_STATUS_SUCCESS
+            let panic_result = panic::catch_unwind(|| {
+                let closure_data = &mut *(closure_data_ptr as *mut ClosureData<Stream>);
+                if closure_data.stream_result.is_err() {
+                    return $ErrorConst
                 }
-                Err(error) => {
-                    closure_data.stream_result = Err(error);
+
+                let $stream = &mut closure_data.stream;
+                match $body {
+                    Ok(()) => {
+                        CAIRO_STATUS_SUCCESS
+                    }
+                    Err(error) => {
+                        closure_data.stream_result = Err(error);
+                        $ErrorConst
+                    }
+                }
+            });
+            match panic_result {
+                Ok(value) => value,
+                Err(panic_payload) => {
+                    let closure_data = &mut *(closure_data_ptr as *mut ClosureData<Stream>);
+                    closure_data.panic_payload = Some(panic_payload);
                     $ErrorConst
                 }
             }
@@ -124,6 +136,9 @@ macro_rules! with_c_callback {
                 closure_data_ptr as *mut c_void
             ))
         };
+        if let Some(panic_payload) = closure_data.panic_payload {
+            panic::resume_unwind(panic_payload)
+        }
         closure_data.stream_result?;
         result
     }}

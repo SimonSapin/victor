@@ -78,3 +78,35 @@ fn expect_io_error_kind<T>(result: Result<T, lester::Error>, expected_kind: io::
         Ok(_) => panic!("Expected an error"),
     }
 }
+
+#[test]
+#[should_panic(expected = "panicking during read callback")]
+fn forward_read_panic() {
+    struct PanickingRead;
+
+    impl io::Read for PanickingRead {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            panic!("panicking during read callback")
+        }
+    }
+
+    unreachable!(CairoImageSurface::read_from_png(PanickingRead).is_ok())
+}
+
+#[test]
+#[should_panic(expected = "panicking during write callback")]
+fn forward_write_panic() {
+    struct PanickingWrite;
+
+    impl io::Write for PanickingWrite {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            panic!("panicking during write callback")
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+   let surface = CairoImageSurface::new_rgb24(4, 4).unwrap();
+   unreachable!(surface.write_to_png(PanickingWrite).is_ok())
+}
