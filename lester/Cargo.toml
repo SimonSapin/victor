@@ -5,3 +5,6 @@ authors = ["Simon Sapin <simon.sapin@exyr.org>"]
 license = "MIT"
 description = "Lester, Victor’s cousin, makes raster graphics"
 repository = "https://github.com/SimonSapin/victor"
+
+[build-dependencies]
+pkg-config = "0.3.9"
