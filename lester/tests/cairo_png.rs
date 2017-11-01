@@ -33,7 +33,7 @@ fn round_trip_png() {
 }
 
 #[test]
-fn empty_png() {
+fn zero_bytes_png() {
     expect_io_error_kind(ImageSurface::read_from_png("".as_bytes()),
                          io::ErrorKind::UnexpectedEof)
 }
