@@ -5,6 +5,8 @@ use std::os::raw::*;
 extern "C" {
     pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
     pub fn cairo_surface_status(surface: *mut cairo_surface_t) -> cairo_status_t;
+    pub fn cairo_image_surface_create(format: cairo_format_t,
+                                      width: c_int, height: c_int) -> *mut cairo_surface_t;
     pub fn cairo_image_surface_get_width(surface: *mut cairo_surface_t) -> c_int;
     pub fn cairo_image_surface_get_height(surface: *mut cairo_surface_t) -> c_int;
     pub fn cairo_image_surface_get_stride(surface: *mut cairo_surface_t) -> c_int;

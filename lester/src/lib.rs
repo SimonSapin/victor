@@ -28,6 +28,23 @@ impl Drop for CairoImageSurface {
 }
 
 impl CairoImageSurface {
+    pub fn new_rgb24(width: usize, height: usize) -> Result<Self, CairoError> {
+        Self::new(CAIRO_FORMAT_RGB24, width, height)
+    }
+
+    pub fn new_argb32(width: usize, height: usize) -> Result<Self, CairoError> {
+        Self::new(CAIRO_FORMAT_ARGB32, width, height)
+    }
+
+    fn new(format: cairo_format_t, width: usize, height: usize) -> Result<Self, CairoError> {
+        unsafe {
+            let ptr = cairo_image_surface_create(format, width as _, height as _);
+            let surface = CairoImageSurface { ptr };
+            surface.check_status()?;
+            Ok(surface)
+        }
+    }
+
     fn check_status(&self) -> Result<(), CairoError> {
         CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
