@@ -98,6 +98,7 @@ impl<'doc> PdfPage<'doc> {
         let context = surface.context()?;
         unsafe {
             cairo_scale(context.ptr, scale_x, scale_y);
+            cairo_set_antialias(context.ptr, CAIRO_ANTIALIAS_NONE);
             poppler_page_render(self.ptr, context.ptr);
             cairo_surface_flush(surface.ptr);
         }

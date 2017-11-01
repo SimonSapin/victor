@@ -66,7 +66,6 @@ fn pattern_4x4_pdf() {
     assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
 
     let mut surface = ImageSurface::new_rgb24(4, 4).unwrap();
-    // FIXME: render with nearest-neighbor
     page.render_96dpi(&mut surface).unwrap();
     const RED: u32 = 0xFFFF_0000;
     const BLUE: u32 = 0xFF00_00FF;
@@ -78,5 +77,12 @@ fn pattern_4x4_pdf() {
         MID_1, MID_2, BLUE, BLUE,
         BLUE,  BLUE, MID_3, BLUE,
         BLUE,  BLUE, BLUE, BLUE,
+
+    // FIXME: render with nearest-neighbor to obtain this instead,
+    // not not rely on exact output of another interpolation algorithm:
+//        RED,  BLUE, BLUE, BLUE,
+//        BLUE, BLUE, BLUE, BLUE,
+//        BLUE, BLUE, BLUE, BLUE,
+//        BLUE, BLUE, BLUE, BLUE,
     ]);
 }

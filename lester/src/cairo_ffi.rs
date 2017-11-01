@@ -21,6 +21,7 @@ extern "C" {
 
     pub fn cairo_create(target: *mut cairo_surface_t) -> *mut cairo_t;
     pub fn cairo_scale(cr: *mut cairo_t, sx: f64, sy: f64);
+    pub fn cairo_set_antialias(cr: *mut cairo_t, antialias: cairo_antialias_t);
     pub fn cairo_status(cr: *mut cairo_t) -> cairo_status_t;
     pub fn cairo_destroy(cr: *mut cairo_t);
 
@@ -29,10 +30,12 @@ extern "C" {
 
 pub type cairo_status_t = c_uint;
 pub type cairo_format_t = c_int;
+pub type cairo_antialias_t = c_uint;
 
 pub const CAIRO_STATUS_SUCCESS: cairo_status_t = 0;
 pub const CAIRO_STATUS_READ_ERROR: cairo_status_t = 10;
 pub const CAIRO_STATUS_WRITE_ERROR: cairo_status_t = 11;
+pub const CAIRO_ANTIALIAS_NONE: cairo_antialias_t = 1;
 
 pub const CAIRO_FORMAT_ARGB32: cairo_format_t = 0;
 pub const CAIRO_FORMAT_RGB24: cairo_format_t = 1;
