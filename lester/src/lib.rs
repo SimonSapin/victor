@@ -3,11 +3,13 @@ use std::any::Any;
 use std::error::Error as StdError;
 use std::ffi::CStr;
 use std::fmt;
+use std::fs;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
 use std::os::raw::*;
 use std::panic;
+use std::path;
 use std::slice;
 use poppler_ffi::*;
 
@@ -179,6 +181,10 @@ impl ImageSurface {
                 pixels: slice::from_raw_parts_mut(data as *mut u32, (width * height) as usize)
             }
         }
+    }
+
+    pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), Error> {
+        self.write_to_png(io::BufWriter::new(fs::File::create(filename)?))
     }
 }
 
