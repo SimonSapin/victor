@@ -2,18 +2,8 @@
 
 Victor makes vectors.
 
-This is a *toy* project for rendering vector-based things to PDF,
-without rasterizing them or using an existing PDF library.
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
 
-In his [Let's build a browser engine!] blog post series,
-Matt Brubeck explains how toy projects are useful for learning
-even if they take shortcuts
-and skip many things that would be essential in something people actually use.
-He goes through the making of Robinson, his toy HTML and CSS rendering engine.
-My own experimentations with PDF in Rust began by [contributing to Robinson],
-but since my goals aren’t necessarily the same I’ve moved to a separate project and repository.
-
-[Let's build a browser engine!]: https://limpet.net/mbrubeck/2014/08/08/toy-layout-engine-1.html
-[contributing to Robinson]: https://github.com/mbrubeck/robinson/pull/8
-
-![The GhostScript Tiger rendered from SVG by Victor](victor-tiger.png)
+This repository contains some experiments that may or may not become real projects later.
+Use at your own risk.
+Bug reports, feature requests, and pull requests will likely be ignored.
