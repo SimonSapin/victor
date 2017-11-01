@@ -1,6 +1,6 @@
 extern crate lester;
 
-use lester::PdfDocument;
+use lester::{PdfDocument, ImageSurface};
 use std::error::Error;
 
 #[test]
@@ -38,4 +38,16 @@ fn blank_pdf() {
 fn millimeters_to_poscript_points(mm: f64) -> f64 {
     let inches = mm / 25.4;
     inches * 72.
+}
+
+#[test]
+fn pattern_4x4_pdf() {
+    static PDF_BYTES: &[u8] = include_bytes!("pattern_4x4.pdf");
+    let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
+    assert_eq!(doc.page_count(), 1);
+    let page = doc.get_page(0).unwrap();
+    assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
+
+    let mut surface = ImageSurface::new_rgb24(4, 4).unwrap();
+    page.render(&mut surface).unwrap();
 }

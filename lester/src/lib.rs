@@ -84,6 +84,16 @@ impl<'doc> PdfPage<'doc> {
         }
         (width, height)
     }
+
+    pub fn render(&self, surface: &mut ImageSurface) -> Result<(), CairoError> {
+        let context = surface.context()?;
+        unsafe {
+            poppler_page_render(self.ptr, context.ptr);
+            cairo_surface_flush(surface.ptr);
+        }
+        context.check_status()?;
+        Ok(())
+    }
 }
 
 impl<'doc> Drop for PdfPage<'doc> {
@@ -134,6 +144,14 @@ impl ImageSurface {
         CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
 
+    fn context(&self) -> Result<CairoContext, CairoError> {
+        unsafe {
+            let context = CairoContext { ptr: cairo_create(self.ptr) };
+            context.check_status()?;
+            Ok(context)
+        }
+    }
+
     pub fn as_image<'data>(&'data mut self) -> Argb32Image<'data> {
         unsafe {
             let data = cairo_image_surface_get_data(self.ptr);
@@ -160,6 +178,25 @@ impl ImageSurface {
                 height: height as usize,
                 pixels: slice::from_raw_parts_mut(data as *mut u32, (width * height) as usize)
             }
+        }
+    }
+}
+
+// Private
+struct CairoContext {
+    ptr: *mut cairo_t,
+}
+
+impl CairoContext {
+    fn check_status(&self) -> Result<(), CairoError> {
+        CairoError::check(unsafe { cairo_status(self.ptr) })
+    }
+}
+
+impl Drop for CairoContext {
+    fn drop(&mut self) {
+        unsafe {
+            cairo_destroy(self.ptr);
         }
     }
 }

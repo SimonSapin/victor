@@ -17,6 +17,11 @@ extern "C" {
     pub fn cairo_surface_write_to_png_stream(surface: *mut cairo_surface_t,
                                              write_func: cairo_write_func_t,
                                              closure: *mut c_void) -> cairo_status_t;
+    pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
+
+    pub fn cairo_create(target: *mut cairo_surface_t) -> *mut cairo_t;
+    pub fn cairo_status(cr: *mut cairo_t) -> cairo_status_t;
+    pub fn cairo_destroy(cr: *mut cairo_t);
 
     pub fn cairo_status_to_string(status: cairo_status_t) -> *const c_char;
 }
@@ -39,3 +44,6 @@ pub type cairo_write_func_t = unsafe extern "C" fn(closure: *mut c_void, data: *
 
 #[repr(C)]
 pub struct cairo_surface_t { opaque: [u8; 0] }
+
+#[repr(C)]
+pub struct cairo_t { opaque: [u8; 0] }

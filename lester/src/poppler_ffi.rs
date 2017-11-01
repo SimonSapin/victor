@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+use cairo_ffi::cairo_t;
 use std::os::raw::*;
 
 extern "C" {
@@ -12,6 +13,7 @@ extern "C" {
     pub fn poppler_document_get_page(document: *mut PopplerDocument, index: c_int) -> *mut PopplerPage;
 
     pub fn poppler_page_get_size(page: *mut PopplerPage, width: *mut f64, height: *mut f64);
+    pub fn poppler_page_render(page: *mut PopplerPage, cairo: *mut cairo_t);
 
     pub fn g_error_free(error: *mut GError);
     pub fn g_object_unref(object: gpointer);
