@@ -40,6 +40,23 @@ fn millimeters_to_poscript_points(mm: f64) -> f64 {
     inches * 72.
 }
 
+macro_rules! assert_pixels_eq {
+    ($a: expr, $b: expr) => {
+        {
+            let a = $a;
+            let b = $b;
+            if a != b {
+                panic!("{} != {}\n[{}]\n[{}]", stringify!($a), stringify!($b),
+                       hex(a), hex(b))
+            }
+        }
+    }
+}
+
+fn hex(pixels: &[u32]) -> String {
+    pixels.iter().map(|p| format!("{:08X}", p)).collect::<Vec<_>>().join(", ")
+}
+
 #[test]
 fn pattern_4x4_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("pattern_4x4.pdf");
@@ -49,5 +66,17 @@ fn pattern_4x4_pdf() {
     assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
 
     let mut surface = ImageSurface::new_rgb24(4, 4).unwrap();
+    // FIXME: render with nearest-neighbor
     page.render_96dpi(&mut surface).unwrap();
+    const RED: u32 = 0xFFFF_0000;
+    const BLUE: u32 = 0xFF00_00FF;
+    const MID_1: u32 = 0xFF5C_00A3;
+    const MID_2: u32 = 0xFF1E_00E1;
+    const MID_3: u32 = 0xFF01_00FE;
+    assert_pixels_eq!(surface.as_image().pixels, &[
+        RED,   MID_1, BLUE, BLUE,
+        MID_1, MID_2, BLUE, BLUE,
+        BLUE,  BLUE, MID_3, BLUE,
+        BLUE,  BLUE, BLUE, BLUE,
+    ]);
 }
