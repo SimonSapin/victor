@@ -1,13 +1,27 @@
-use std::os::raw::c_int;
+use std::io;
 
-extern "C" {
-    pub fn cairo_version() -> c_int;
+pub mod cairo;
+
+pub struct Argb32Image<'a> {
+    pub width: usize,
+    pub height: usize,
+    pub pixels: &'a mut [u32],
 }
 
-#[test]
-fn it_works() {
-    unsafe {
-        assert!(cairo_version() > 1_12_00);
-        assert!(cairo_version() < 1_17_00);
+#[derive(Debug)]
+pub enum Error {
+    Io(io::Error),
+    Cairo(cairo::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Io(e)
+    }
+}
+
+impl From<cairo::Error> for Error {
+    fn from(e: cairo::Error) -> Self {
+        Error::Cairo(e)
     }
 }
