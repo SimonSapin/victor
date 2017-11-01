@@ -8,8 +8,17 @@ use std::mem;
 use std::os::raw::*;
 use std::panic;
 use std::slice;
+use poppler_ffi::*;
 
 mod cairo_ffi;  // Not public or re-exported
+mod poppler_ffi;  // Not public or re-exported
+
+pub fn poppler_version() -> &'static str {
+    let cstr = unsafe {
+        CStr::from_ptr(poppler_get_version())
+    };
+    cstr.to_str().unwrap()
+}
 
 pub struct Argb32Image<'a> {
     pub width: usize,
