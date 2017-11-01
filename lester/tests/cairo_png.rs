@@ -4,20 +4,6 @@ use lester::CairoImageSurface;
 use std::io;
 
 #[test]
-fn empty_png_fails() {
-    match CairoImageSurface::read_from_png("".as_bytes()) {
-        Err(lester::Error::Io(err)) => {
-            match err.kind() {
-                io::ErrorKind::UnexpectedEof => {}
-                _ => panic!("Expected an UnexpectedEof error, got {:?}", err)
-            }
-        }
-        Err(err) => panic!("Expected an IO error, got {:?}", err),
-        _ => panic!("Expected an error"),
-    }
-}
-
-#[test]
 fn round_trip_png() {
     static PNG_BYTES: &[u8] = include_bytes!("pattern_4x4.png");
     let mut surface = CairoImageSurface::read_from_png(PNG_BYTES).unwrap();
@@ -43,4 +29,52 @@ fn round_trip_png() {
 
     let mut surface2 = CairoImageSurface::read_from_png(&*bytes).unwrap();
     assert_expected_image(surface2.as_image());
+}
+
+#[test]
+fn empty_png_fails() {
+    expect_io_error_kind(CairoImageSurface::read_from_png("".as_bytes()),
+                         io::ErrorKind::UnexpectedEof)
+}
+
+#[test]
+fn forward_read_error() {
+    struct InvalidDataRead;
+
+    impl io::Read for InvalidDataRead {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::ErrorKind::InvalidData.into())
+        }
+    }
+
+    expect_io_error_kind(CairoImageSurface::read_from_png(InvalidDataRead),
+                         io::ErrorKind::InvalidData)
+}
+
+#[test]
+fn forward_write_error() {
+    struct InvalidDataWrite;
+
+    impl io::Write for InvalidDataWrite {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::ErrorKind::InvalidData.into())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let surface = CairoImageSurface::new_rgb24(4, 4).unwrap();
+    expect_io_error_kind(surface.write_to_png(InvalidDataWrite),
+                         io::ErrorKind::InvalidData)
+}
+
+fn expect_io_error_kind<T>(result: Result<T, lester::Error>, expected_kind: io::ErrorKind) {
+    match result {
+        Err(lester::Error::Io(err)) => {
+            assert_eq!(err.kind(), expected_kind, "Expected {:?} error, got {:?}", expected_kind, err)
+        }
+        Err(err) => panic!("Expected an IO error, got {:?}", err),
+        Ok(_) => panic!("Expected an error"),
+    }
 }
