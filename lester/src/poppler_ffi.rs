@@ -9,6 +9,8 @@ extern "C" {
                                           error: *mut *mut GError)
                                           -> *mut PopplerDocument;
     pub fn poppler_document_get_n_pages(document: *mut PopplerDocument) -> c_int;
+    pub fn poppler_document_get_page(document: *mut PopplerDocument, index: c_int) -> *mut PopplerPage;
+
     pub fn g_error_free(error: *mut GError);
     pub fn g_object_unref(object: gpointer);
 }
@@ -21,6 +23,9 @@ pub type GQuark = guint32;
 
 #[repr(C)]
 pub struct PopplerDocument { opaque: [u8; 0] }
+
+#[repr(C)]
+pub struct PopplerPage { opaque: [u8; 0] }
 
 #[repr(C)]
 pub struct GError {

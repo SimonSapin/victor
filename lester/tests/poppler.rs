@@ -17,4 +17,7 @@ fn blank_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("A4_one_empty_page.pdf");
     let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
     assert_eq!(doc.page_count(), 1);
+    assert!(doc.get_page(1).is_none());
+    assert!(doc.get_page(2).is_none());
+    let _page = doc.get_page(0).unwrap();
 }

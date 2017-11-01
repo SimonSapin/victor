@@ -16,7 +16,7 @@ mod poppler_ffi;  // Not public or re-exported
 
 pub struct PdfDocument<'data> {
     ptr: *mut PopplerDocument,
-    phatom: PhantomData<&'data [u8]>,
+    phantom: PhantomData<&'data [u8]>,
 }
 
 impl<'data> PdfDocument<'data> {
@@ -36,7 +36,7 @@ impl<'data> PdfDocument<'data> {
         if ptr.is_null() {
             Err(GlibError { ptr: error })
         } else {
-            Ok(PdfDocument { ptr, phatom: PhantomData })
+            Ok(PdfDocument { ptr, phantom: PhantomData })
         }
     }
 
@@ -45,9 +45,37 @@ impl<'data> PdfDocument<'data> {
             poppler_document_get_n_pages(self.ptr) as usize
         }
     }
+
+    pub fn get_page<'doc>(&'doc self, index: usize) -> Option<PdfPage<'doc>> {
+        let index = index as c_int;
+        let ptr = unsafe {
+            if poppler_document_get_n_pages(self.ptr) <= index {
+                return None
+            }
+            poppler_document_get_page(self.ptr, index)
+        };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(PdfPage { ptr, phantom: PhantomData })
+        }
+    }
 }
 
 impl<'data> Drop for PdfDocument<'data> {
+    fn drop(&mut self) {
+        unsafe {
+            g_object_unref(self.ptr as *mut c_void)
+        }
+    }
+}
+
+pub struct PdfPage<'doc> {
+    ptr: *mut PopplerPage,
+    phantom: PhantomData<&'doc ()>,
+}
+
+impl<'doc> Drop for PdfPage<'doc> {
     fn drop(&mut self) {
         unsafe {
             g_object_unref(self.ptr as *mut c_void)
