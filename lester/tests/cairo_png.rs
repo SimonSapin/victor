@@ -1,6 +1,6 @@
 extern crate lester;
 
-use lester::cairo::CairoImageSurface;
+use lester::CairoImageSurface;
 use std::io;
 
 #[test]
