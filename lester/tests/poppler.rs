@@ -49,5 +49,5 @@ fn pattern_4x4_pdf() {
     assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
 
     let mut surface = ImageSurface::new_rgb24(4, 4).unwrap();
-    page.render(&mut surface).unwrap();
+    page.render_96dpi(&mut surface).unwrap();
 }

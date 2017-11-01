@@ -87,9 +87,17 @@ impl<'doc> PdfPage<'doc> {
         (width, height)
     }
 
-    pub fn render(&self, surface: &mut ImageSurface) -> Result<(), CairoError> {
+    pub fn render_96dpi(&self, surface: &mut ImageSurface) -> Result<(), CairoError> {
+        self.render(surface, 96., 96.)
+    }
+
+    pub fn render(&self, surface: &mut ImageSurface, dpi_x: f64, dpi_y: f64) -> Result<(), CairoError> {
+        // PDF’s default unit is the PostScript point, wich is 1/72 inches.
+        let scale_x = dpi_x / 72.;
+        let scale_y = dpi_y / 72.;
         let context = surface.context()?;
         unsafe {
+            cairo_scale(context.ptr, scale_x, scale_y);
             poppler_page_render(self.ptr, context.ptr);
             cairo_surface_flush(surface.ptr);
         }
