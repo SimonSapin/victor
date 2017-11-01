@@ -18,19 +18,29 @@ fn empty_png_fails() {
 }
 
 #[test]
-fn read_png() {
+fn round_trip_png() {
     static PNG_BYTES: &[u8] = include_bytes!("pattern_4x4.png");
     let mut surface = ImageSurface::read_from_png(PNG_BYTES).unwrap();
-    let image = surface.as_image();
-    assert_eq!(image.width, 4);
-    assert_eq!(image.height, 4);
-    // ARGB32
-    const RED: u32 = 0xFFFF_0000;
-    const BLUE: u32 = 0xFF00_00FF;
-    assert_eq!(image.pixels, &[
-        RED,  BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-    ]);
+
+    fn assert_expected_image(image: lester::Argb32Image) {
+        assert_eq!(image.width, 4);
+        assert_eq!(image.height, 4);
+        // ARGB32
+        const RED: u32 = 0xFFFF_0000;
+        const BLUE: u32 = 0xFF00_00FF;
+        assert_eq!(image.pixels, &[
+            RED,  BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE,
+        ]);
+    }
+
+    assert_expected_image(surface.as_image());
+
+    let mut bytes = Vec::new();
+    surface.write_to_png(&mut bytes).unwrap();
+
+    let mut surface2 = ImageSurface::read_from_png(&*bytes).unwrap();
+    assert_expected_image(surface2.as_image());
 }

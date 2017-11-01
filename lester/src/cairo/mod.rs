@@ -3,7 +3,7 @@ use self::ffi::*;
 use std::error::Error as StdError;
 use std::ffi::CStr;
 use std::fmt;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::mem;
 use std::os::raw::*;
 use std::slice;
@@ -98,6 +98,52 @@ impl ImageSurface {
         closure_data.status?;
         surface.check_status()?;
         Ok(surface)
+    }
+
+    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), ::Error> {
+        struct ClosureData<W> {
+            stream: W,
+            status: Result<(), io::Error>,
+        };
+        let mut closure_data = ClosureData {
+            stream,
+            status: Ok(()),
+        };
+        let closure_ptr: *mut ClosureData<W> = &mut closure_data;
+
+        unsafe extern "C" fn write_callback<W: Write>(
+            closure_ptr: *mut c_void, buffer: *const c_uchar, length: c_uint,
+        ) -> cairo_status_t {
+            // FIXME: catch panics
+
+            let closure_data = &mut *(closure_ptr as *mut ClosureData<W>);
+            if closure_data.status.is_err() {
+                return CAIRO_STATUS_READ_ERROR
+            }
+
+            // FIXME: checked conversion
+            let slice = slice::from_raw_parts(buffer, length as usize);
+
+            match closure_data.stream.write_all(slice) {
+                Ok(()) => {
+                    CAIRO_STATUS_SUCCESS
+                }
+                Err(error) => {
+                    closure_data.status = Err(error);
+                    CAIRO_STATUS_READ_ERROR
+                }
+            }
+        }
+
+        let status = unsafe {
+            cairo_surface_write_to_png_stream(
+                self.ptr,
+                write_callback::<W>,
+                closure_ptr as *mut c_void
+            )
+        };
+        Error::check(status)?;
+        Ok(())
     }
 }
 
