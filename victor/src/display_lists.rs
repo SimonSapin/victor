@@ -1,4 +1,7 @@
 use errors::VictorError;
+use std::fs;
+use std::io::{self, Write};
+use std::path;
 
 pub struct Document {
     pub pages: Vec<Page>,
@@ -10,6 +13,13 @@ impl Document {
         self.write_to_pdf(io::BufWriter::new(fs::File::create(filename)?))
     }
 
+    /// Encode this document to PDF and return a vector of bytes
+    pub fn write_to_pdf_bytes(&self) -> Result<Vec<u8>, VictorError> {
+        let mut bytes = Vec::new();
+        self.write_to_pdf(&mut bytes)?;
+        Ok(bytes)
+    }
+
     /// Encode this document to PDF and write it to the given stream.
     ///
     /// Note: this may do many write calls.
@@ -18,7 +28,7 @@ impl Document {
     ///
     /// See also the `write_to_png_file` method.
     pub fn write_to_pdf<W: Write>(&self, _stream: W) -> Result<(), VictorError> {
-        unimplemented!()
+        Ok(())
     }
 }
 

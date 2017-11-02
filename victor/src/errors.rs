@@ -1,3 +1,5 @@
+use std::io;
+
 macro_rules! error_enum {
     ($( $Variant: ident ($Type: ty), )+) => {
         /// An error returned by Victor.
