@@ -99,12 +99,6 @@ impl ImageSurface {
         CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
 
-    pub(crate) fn flush(&mut self) {
-        unsafe {
-            cairo_surface_flush(self.ptr)
-        }
-    }
-
     pub(crate) fn context(&mut self) -> Result<CairoContext, CairoError> {
         unsafe {
             let mut context = CairoContext { ptr: cairo_create(self.ptr) };
@@ -116,6 +110,7 @@ impl ImageSurface {
     /// Access the pixels of this image surface
     pub fn pixels<'data>(&'data mut self) -> Argb32Pixels<'data> {
         unsafe {
+            cairo_surface_flush(self.ptr);
             let data = cairo_image_surface_get_data(self.ptr);
             let width = cairo_image_surface_get_width(self.ptr);
             let height = cairo_image_surface_get_height(self.ptr);

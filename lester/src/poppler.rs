@@ -135,7 +135,6 @@ impl<'data> Page<'data> {
             } else {
                 poppler_page_render(self.ptr, context.ptr)
             }
-            surface.flush()
         }
         context.check_status()?;
         Ok(())
