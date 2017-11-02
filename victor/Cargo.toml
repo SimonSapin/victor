@@ -1,0 +1,11 @@
+[package]
+name = "victor"
+version = "0.0.1"
+authors = ["Simon Sapin <simon.sapin@exyr.org>"]
+license = "MIT"
+description = "Victor makes vectors"
+repository = "https://github.com/SimonSapin/victor"
+
+[lib]
+test = false
+doctest = false

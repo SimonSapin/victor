@@ -278,9 +278,9 @@ impl ImageSurface {
 
     /// Encode this image to PNG and write it to the given stream.
     ///
-    /// Note: this may do many read calls.
+    /// Note: this may do many write calls.
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
-    /// this constructor will likely perform better with that stream wrapped in `BufWriter`.
+    /// this method will likely perform better with that stream wrapped in `BufWriter`.
     ///
     /// See also the `write_to_png_file` method.
     pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), LesterError> {
