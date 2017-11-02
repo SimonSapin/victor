@@ -2,7 +2,7 @@
 name = "lester"
 version = "0.0.1"
 authors = ["Simon Sapin <simon.sapin@exyr.org>"]
-license = "MIT"
+license = "MIT AND GPL-2.0"  # See LICENSE.md file
 description = "Lester, Victor’s cousin, makes raster graphics"
 repository = "https://github.com/SimonSapin/victor"
 
