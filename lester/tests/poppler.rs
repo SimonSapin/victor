@@ -26,10 +26,10 @@ macro_rules! assert_approx_eq {
 fn blank_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("A4_one_empty_page.pdf");
     let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
-    assert_eq!(doc.page_count(), 1);
-    assert!(doc.get_page(1).is_none());
-    assert!(doc.get_page(2).is_none());
-    let page = doc.get_page(0).unwrap();
+    assert_eq!(doc.pages().len(), 1);
+    assert!(doc.pages().nth(1).is_none());
+    assert!(doc.pages().nth(2).is_none());
+    let page = doc.pages().nth(0).unwrap();
     let (width, height) = page.size();
     assert_approx_eq!(width, millimeters_to_poscript_points(210.));
     assert_approx_eq!(height, millimeters_to_poscript_points(297.));
@@ -61,8 +61,7 @@ fn hex(pixels: &[u32]) -> String {
 fn pattern_4x4_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("pattern_4x4.pdf");
     let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
-    assert_eq!(doc.page_count(), 1);
-    let page = doc.get_page(0).unwrap();
+    let page = doc.pages().next().unwrap();
     assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
 
     let mut surface = ImageSurface::new_argb32(4, 4).unwrap();

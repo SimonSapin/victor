@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 use std::mem;
+use std::ops::Range;
 use std::os::raw::*;
 use std::panic;
 use std::path;
@@ -42,25 +43,22 @@ impl<'data> PdfDocument<'data> {
         }
     }
 
-    pub fn page_count(&self) -> usize {
-        unsafe {
-            poppler_document_get_n_pages(self.ptr) as usize
+    pub fn pages<'doc>(&'doc self) -> PagesIter<'doc, 'data> {
+        let page_count = unsafe {
+            poppler_document_get_n_pages(self.ptr)
+        };
+        PagesIter {
+            doc: self,
+            range: 0..page_count
         }
     }
 
-    pub fn get_page(&self, index: usize) -> Option<Page<'data>> {
-        let index = index as c_int;
+    fn get_page(&self, index: c_int) -> Page<'data> {
         let ptr = unsafe {
-            if poppler_document_get_n_pages(self.ptr) <= index {
-                return None
-            }
             poppler_document_get_page(self.ptr, index)
         };
-        if ptr.is_null() {
-            None
-        } else {
-            Some(Page { ptr, phantom: PhantomData })
-        }
+        assert!(!ptr.is_null());
+        Page { ptr, phantom: PhantomData }
     }
 }
 
@@ -69,6 +67,36 @@ impl<'data> Drop for PdfDocument<'data> {
         unsafe {
             g_object_unref(self.ptr as *mut c_void)
         }
+    }
+}
+
+pub struct PagesIter<'doc, 'data: 'doc> {
+    doc: &'doc PdfDocument<'data>,
+    range: Range<c_int>,
+}
+
+impl<'doc, 'data> Iterator for PagesIter<'doc, 'data> {
+    type Item = Page<'data>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.range.next().map(|index| self.doc.get_page(index))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.range.len();
+        (len, Some(len))
+    }
+}
+
+impl<'doc, 'data> DoubleEndedIterator for PagesIter<'doc, 'data> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.range.next_back().map(|index| self.doc.get_page(index))
+    }
+}
+
+impl<'doc, 'data> ExactSizeIterator for PagesIter<'doc, 'data> {
+    fn len(&self) -> usize {
+        self.range.len()
     }
 }
 
