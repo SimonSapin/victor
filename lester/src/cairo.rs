@@ -1,5 +1,5 @@
 use cairo_ffi::*;
-use errors::{CairoError, CairoOrIoError};
+use errors::{CairoError, LesterError};
 use std::any::Any;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -139,12 +139,12 @@ impl ImageSurface {
     }
 
     /// Read and decode a PNG image from the given file name and create an image surface for it.
-    pub fn read_from_png_file<P: AsRef<path::Path>>(filename: P) -> Result<Self, CairoOrIoError> {
+    pub fn read_from_png_file<P: AsRef<path::Path>>(filename: P) -> Result<Self, LesterError> {
         Self::read_from_png(io::BufReader::new(fs::File::open(filename)?))
     }
 
     /// Encode this image to PNG and write it into the file with the given name.
-    pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), CairoOrIoError> {
+    pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), LesterError> {
         self.write_to_png(io::BufWriter::new(fs::File::create(filename)?))
     }
 }
@@ -250,7 +250,7 @@ impl ImageSurface {
     /// Note: this may do many read calls.
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
     /// this constructor will likely perform better with that stream wrapped in `BufReader`.
-    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, CairoOrIoError> {
+    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, LesterError> {
         let mut surface = with_c_callback! {
             stream: R: Read;
             fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
@@ -272,7 +272,7 @@ impl ImageSurface {
     /// this constructor will likely perform better with that stream wrapped in `BufWriter`.
     ///
     /// See also the `write_to_png_file` method.
-    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), CairoOrIoError> {
+    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), LesterError> {
         let status = with_c_callback! {
             stream: W: Write;
             fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {

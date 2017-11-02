@@ -70,18 +70,18 @@ c_error_impls! {
 
 macro_rules! error_enum {
     ($( $Variant: ident ($Type: ty), )+) => {
-        /// An error either from cairo or from reading from or writing to an IO stream.
+        /// An error returned by Lester.
         #[derive(Debug)]
-        pub enum CairoOrIoError {
+        pub enum LesterError {
             $(
                 $Variant($Type),
             )+
         }
 
         $(
-            impl From<$Type> for CairoOrIoError {
+            impl From<$Type> for LesterError {
                 fn from(e: $Type) -> Self {
-                    CairoOrIoError::$Variant(e)
+                    LesterError::$Variant(e)
                 }
             }
         )+
@@ -91,4 +91,5 @@ macro_rules! error_enum {
 error_enum! {
     Io(io::Error),
     Cairo(CairoError),
+    Glib(GlibError),
 }
