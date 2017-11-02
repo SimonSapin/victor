@@ -24,7 +24,7 @@ macro_rules! antialias {
         }
 
         impl Antialias {
-            pub(crate) fn to_cairo(&self) -> cairo_antialias_t {
+            fn to_cairo(&self) -> cairo_antialias_t {
                 match *self {
                     $(
                         Antialias::$Variant => $constant,
@@ -57,7 +57,7 @@ pub struct Argb32Image<'data> {
 /// Only the RGB24 and ARGB32 pixel formats (which have compatible memory representation)
 /// are supported.
 pub struct ImageSurface {
-    pub(crate) ptr: *mut cairo_surface_t,
+    ptr: *mut cairo_surface_t,
 }
 
 impl Drop for ImageSurface {
@@ -82,19 +82,25 @@ impl ImageSurface {
     fn new(format: cairo_format_t, width: usize, height: usize) -> Result<Self, CairoError> {
         unsafe {
             let ptr = cairo_image_surface_create(format, width as _, height as _);
-            let surface = ImageSurface { ptr };
+            let mut surface = ImageSurface { ptr };
             surface.check_status()?;
             Ok(surface)
         }
     }
 
-    fn check_status(&self) -> Result<(), CairoError> {
+    fn check_status(&mut self) -> Result<(), CairoError> {
         CairoError::check(unsafe { cairo_surface_status(self.ptr) })
     }
 
-    pub(crate) fn context(&self) -> Result<CairoContext, CairoError> {
+    pub(crate) fn flush(&mut self) {
         unsafe {
-            let context = CairoContext { ptr: cairo_create(self.ptr) };
+            cairo_surface_flush(self.ptr)
+        }
+    }
+
+    pub(crate) fn context(&mut self) -> Result<CairoContext, CairoError> {
+        unsafe {
+            let mut context = CairoContext { ptr: cairo_create(self.ptr) };
             context.check_status()?;
             Ok(context)
         }
@@ -147,8 +153,20 @@ pub(crate) struct CairoContext {
 }
 
 impl CairoContext {
-    pub(crate) fn check_status(&self) -> Result<(), CairoError> {
+    pub(crate) fn check_status(&mut self) -> Result<(), CairoError> {
         CairoError::check(unsafe { cairo_status(self.ptr) })
+    }
+
+    pub(crate) fn set_antialias(&mut self, mode: Antialias) {
+        unsafe {
+            cairo_set_antialias(self.ptr, mode.to_cairo());
+        }
+    }
+
+    pub(crate) fn scale(&mut self, x: f64, y: f64) {
+        unsafe {
+            cairo_scale(self.ptr, x, y);
+        }
     }
 }
 
@@ -231,7 +249,7 @@ impl ImageSurface {
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
     /// this constructor will likely perform better with that stream wrapped in `BufReader`.
     pub fn read_from_png<R: Read>(stream: R) -> Result<Self, CairoOrIoError> {
-        let surface = with_c_callback! {
+        let mut surface = with_c_callback! {
             stream: R: Read;
             fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
                 // FIXME: checked conversion

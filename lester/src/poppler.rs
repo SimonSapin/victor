@@ -1,4 +1,3 @@
-use cairo_ffi::*;
 use cairo::*;
 use errors::{CairoError, GlibError};
 use std::marker::PhantomData;
@@ -127,16 +126,16 @@ impl<'data> Page<'data> {
         // PDF’s default unit is the PostScript point, wich is 1/72 inches.
         let scale_x = dpi_x / 72.;
         let scale_y = dpi_y / 72.;
-        let context = surface.context()?;
+        let mut context = surface.context()?;
         unsafe {
-            cairo_scale(context.ptr, scale_x, scale_y);
-            cairo_set_antialias(context.ptr, antialias.to_cairo());
+            context.scale(scale_x, scale_y);
+            context.set_antialias(antialias);
             if for_printing {
                 poppler_page_render_for_printing(self.ptr, context.ptr)
             } else {
                 poppler_page_render(self.ptr, context.ptr)
             }
-            cairo_surface_flush(surface.ptr);
+            surface.flush()
         }
         context.check_status()?;
         Ok(())
