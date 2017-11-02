@@ -108,7 +108,7 @@ pub struct Page<'data> {
 impl<'data> Page<'data> {
     /// The width and height of this page, in PostScript points.
     ///
-    /// One PostScript point is ¹⁄₁₂ inch,
+    /// One PostScript point is ¹⁄₇₂ inch,
     /// or 0.352<span style="text-decoration: overline">7</span> mm.
     /// It is the base length unit of the PDF file format.
     pub fn size_in_ps_points(&self) -> (f64, f64) {
