@@ -25,9 +25,6 @@
 
 use cairo_ffi::*;
 use std::any::Any;
-use std::error::Error as StdError;
-use std::ffi::CStr;
-use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
@@ -41,6 +38,9 @@ use poppler_ffi::*;
 
 mod cairo_ffi;  // Not public or re-exported
 mod poppler_ffi;  // Not public or re-exported
+mod errors;
+
+pub use errors::*;
 
 /// A PDF document parsed by Poppler.
 pub struct PdfDocument<'data> {
@@ -490,92 +490,4 @@ impl ImageSurface {
         CairoError::check(status)?;
         Ok(())
     }
-}
-
-macro_rules! c_error_impls {
-    ($T: ty = |$self_: ident| $get_c_str_ptr: expr) => {
-        impl StdError for $T {
-            fn description(&self) -> &str {
-                let cstr = unsafe {
-                    let $self_ = self;
-                    CStr::from_ptr($get_c_str_ptr)
-                };
-                cstr.to_str().unwrap()
-            }
-        }
-
-        impl fmt::Display for $T {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str(self.description())
-            }
-        }
-
-        impl fmt::Debug for $T {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str(self.description())
-            }
-        }
-    }
-}
-
-/// An error returned by cairo
-#[derive(Clone)]
-pub struct CairoError {
-    status: cairo_status_t,
-}
-
-impl CairoError {
-    fn check(status: cairo_status_t) -> Result<(), Self> {
-        if status == CAIRO_STATUS_SUCCESS {
-            Ok(())
-        } else {
-            Err(CairoError { status })
-        }
-    }
-}
-
-c_error_impls! {
-    CairoError = |self_| cairo_status_to_string(self_.status)
-}
-
-/// A `glib` error returned by Poppler
-pub struct GlibError {
-    ptr: *mut GError,
-}
-
-impl Drop for GlibError {
-    fn drop(&mut self) {
-        unsafe {
-            g_error_free(self.ptr)
-        }
-    }
-}
-
-c_error_impls! {
-    GlibError = |self_| (*self_.ptr).message
-}
-
-macro_rules! error_enum {
-    ($( $Variant: ident ($Type: ty), )+) => {
-        /// An error either from cairo or from reading from or writing to an IO stream.
-        #[derive(Debug)]
-        pub enum CairoOrIoError {
-            $(
-                $Variant($Type),
-            )+
-        }
-
-        $(
-            impl From<$Type> for CairoOrIoError {
-                fn from(e: $Type) -> Self {
-                    CairoOrIoError::$Variant(e)
-                }
-            }
-        )+
-    }
-}
-
-error_enum! {
-    Io(io::Error),
-    Cairo(CairoError),
 }
