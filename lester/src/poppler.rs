@@ -160,9 +160,10 @@ impl<'data> Drop for Page<'data> {
 /// To only change some fields from the default, it can be constructed as:
 ///
 /// ```rust
+/// # use lester::RenderOptions;
 /// let options = RenderOptions {
 ///     for_printing: true,
-///     ..RenderOptions::default
+///     ..RenderOptions::default()
 /// };
 /// ```
 #[derive(Copy, Clone, Debug)]
