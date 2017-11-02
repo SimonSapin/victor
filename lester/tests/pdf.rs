@@ -30,7 +30,7 @@ fn blank_pdf() {
     assert!(doc.pages().nth(1).is_none());
     assert!(doc.pages().nth(2).is_none());
     let page = doc.pages().nth(0).unwrap();
-    let (width, height) = page.size();
+    let (width, height) = page.size_in_ps_points();
     assert_approx_eq!(width, millimeters_to_poscript_points(210.));
     assert_approx_eq!(height, millimeters_to_poscript_points(297.));
 }
@@ -62,7 +62,7 @@ fn pattern_4x4_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("pattern_4x4.pdf");
     let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
     let page = doc.pages().next().unwrap();
-    assert_eq!(page.size(), (3., 3.));  // 4px == 3pt
+    assert_eq!(page.size_in_ps_points(), (3., 3.));  // 4px == 3pt
 
     let mut surface = ImageSurface::new_argb32(4, 4).unwrap();
     let options = RenderOptions {

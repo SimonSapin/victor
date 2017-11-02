@@ -42,14 +42,14 @@ use poppler_ffi::*;
 mod cairo_ffi;  // Not public or re-exported
 mod poppler_ffi;  // Not public or re-exported
 
-/// A PDF document parsed by Poppler
+/// A PDF document parsed by Poppler.
 pub struct PdfDocument<'data> {
     ptr: *mut PopplerDocument,
     phantom: PhantomData<&'data [u8]>,
 }
 
 impl<'data> PdfDocument<'data> {
-    /// Parse the given bytes as PDF
+    /// Parse the given bytes as PDF.
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self, GlibError> {
         let mut error = 0 as *mut GError;
         let ptr = unsafe {
@@ -101,6 +101,7 @@ impl<'data> Drop for PdfDocument<'data> {
     }
 }
 
+/// Double-ended exact-size iterator for the pages in a given `PdfDocument`.
 pub struct PagesIter<'doc, 'data: 'doc> {
     doc: &'doc PdfDocument<'data>,
     range: Range<c_int>,
@@ -135,13 +136,19 @@ impl<'doc, 'data> ExactSizeIterator for PagesIter<'doc, 'data> {
     }
 }
 
+/// A page from a `PdfDocument`.
 pub struct Page<'data> {
     ptr: *mut PopplerPage,
     phantom: PhantomData<&'data [u8]>,
 }
 
 impl<'data> Page<'data> {
-    pub fn size(&self) -> (f64, f64) {
+    /// The width and height of this page, in PostScript points.
+    ///
+    /// One PostScript point is ¹⁄₁₂ inch,
+    /// or 0.352<span style="text-decoration: overline">7</span> mm.
+    /// It is the base length unit of the PDF file format.
+    pub fn size_in_ps_points(&self) -> (f64, f64) {
         let mut width = 0.;
         let mut height = 0.;
         unsafe {
@@ -150,6 +157,7 @@ impl<'data> Page<'data> {
         (width, height)
     }
 
+    /// Render (rasterize) this page to the given pixel buffer, with the given options.
     pub fn render(&self, surface: &mut ImageSurface, options: RenderOptions) -> Result<(), CairoError> {
         let RenderOptions { dpi_x, dpi_y, antialias, for_printing } = options;
         // PDF’s default unit is the PostScript point, wich is 1/72 inches.
@@ -179,13 +187,35 @@ impl<'data> Drop for Page<'data> {
     }
 }
 
+/// Parameters for rendering (rasterization)
+///
+/// This type implements the `Default` trait.
+/// To only change some fields from the default, it can be constructed as:
+///
+/// ```rust
+/// let options = RenderOptions {
+///     for_printing: true,
+///     ..RenderOptions::default
+/// };
+/// ```
 #[derive(Copy, Clone, Debug)]
 pub struct RenderOptions {
+    /// The number of pixels per inch in the horizontal direction,
+    /// where one inch is 72 PostScript points.
+    ///
+    /// Since Victor generates PDF such as a `1pt` CSS length is one PostScript point,
+    /// a DPI of 96 will make a `1px` CSS length is one rendered pixel.
+    /// A DPI of 192 is similar to a “retina” double-density display.
     pub dpi_x: f64,
+
+    /// The number of pixels per inch in the vertical direction.
+    /// Typically this is the same as `dpi_x`.
     pub dpi_y: f64,
+
+    /// The antialiasing mode to use for rasterizing text and vector graphics.
     pub antialias: Antialias,
 
-    /// Use `poppler_page_render_for_printing` instead of `poppler_page_render`.
+    /// Whether to use `poppler_page_render_for_printing` instead of `poppler_page_render`.
     /// What that does excactly doesn’t seem well-documented.
     pub for_printing: bool,
 }
@@ -205,7 +235,11 @@ impl Default for RenderOptions {
 
 macro_rules! antialias {
     ($( $Variant: ident => $constant: expr, )+) => {
-        /// https://www.cairographics.org/manual/cairo-cairo-t.html#cairo-antialias-t
+        /// A cairo antialiasing mode.
+        ///
+        /// See [`cairo_antialias_t`] for the meaning of each value.
+        ///
+        /// [`cairo_antialias_t`]: https://www.cairographics.org/manual/cairo-cairo-t.html#cairo-antialias-t
         #[derive(Copy, Clone, Debug, Eq, PartialEq)]
         pub enum Antialias {
             $(
@@ -235,12 +269,17 @@ antialias! {
     Best => CAIRO_ANTIALIAS_BEST,
 }
 
+/// The pixels from an `ImageSurface`
 pub struct Argb32Image<'data> {
     pub width: usize,
     pub height: usize,
     pub pixels: &'data mut [u32],
 }
 
+/// A cairo “image surface”: an in-memory pixel buffer.
+///
+/// Only the RGB24 and ARGB32 pixel formats (which have compatible memory representation)
+/// are supported.
 pub struct ImageSurface {
     ptr: *mut cairo_surface_t,
 }
@@ -254,10 +293,12 @@ impl Drop for ImageSurface {
 }
 
 impl ImageSurface {
+    /// Create a new RGB24 image surface of the given size, in pixels
     pub fn new_rgb24(width: usize, height: usize) -> Result<Self, CairoError> {
         Self::new(CAIRO_FORMAT_RGB24, width, height)
     }
 
+    /// Create a new ARGB32 image surface of the given size, in pixels
     pub fn new_argb32(width: usize, height: usize) -> Result<Self, CairoError> {
         Self::new(CAIRO_FORMAT_ARGB32, width, height)
     }
@@ -283,6 +324,7 @@ impl ImageSurface {
         }
     }
 
+    /// Access the pixels of this image surface
     pub fn as_image<'data>(&'data mut self) -> Argb32Image<'data> {
         unsafe {
             let data = cairo_image_surface_get_data(self.ptr);
@@ -312,6 +354,7 @@ impl ImageSurface {
         }
     }
 
+    /// Export this image to PNG and write it in the file with the given name.
     pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), Error> {
         self.write_to_png(io::BufWriter::new(fs::File::create(filename)?))
     }
@@ -401,6 +444,11 @@ macro_rules! with_c_callback {
 
 
 impl ImageSurface {
+    /// Read and decode a PNG image from the given stream and create an image surface for it.
+    ///
+    /// Note: this may do many read calls.
+    /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
+    /// this constructor will likely perform better with that stream wrapped in `BufReader`.
     pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
         let surface = with_c_callback! {
             stream: R: Read;
@@ -416,6 +464,13 @@ impl ImageSurface {
         Ok(surface)
     }
 
+    /// Encoding this image to PNG and write it to the given stream.
+    ///
+    /// Note: this may do many read calls.
+    /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
+    /// this constructor will likely perform better with that stream wrapped in `BufWriter`.
+    ///
+    /// See also the `write_to_png_file` method.
     pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), Error> {
         let status = with_c_callback! {
             stream: W: Write;
@@ -458,6 +513,7 @@ macro_rules! c_error_impls {
     }
 }
 
+/// An error returned by cairo
 #[derive(Clone)]
 pub struct CairoError {
     status: cairo_status_t,
@@ -477,6 +533,7 @@ c_error_impls! {
     CairoError = |self_| cairo_status_to_string(self_.status)
 }
 
+/// A `glib` error returned by Poppler
 pub struct GlibError {
     ptr: *mut GError,
 }
@@ -495,6 +552,7 @@ c_error_impls! {
 
 macro_rules! error_enum {
     ($( $Variant: ident ($Type: ty), )+) => {
+        /// An error returned by this library
         #[derive(Debug)]
         pub enum Error {
             $(
