@@ -65,7 +65,11 @@ fn pattern_4x4_pdf() {
     assert_eq!(page.size_in_ps_points(), (3., 3.));  // 4px == 3pt
 
     let options = RenderOptions {
+        // Apparently this (in addition to having `/Interpolate false` in the PDF file)
+        // is required to convince Poppler to use use nearest-neighbor instead of bilinear
+        // when "interpolating" a 4x4 image source into a 4x4 surface.
         for_printing: true,
+
         ..RenderOptions::default()
     };
     let mut surface = page.render(options).unwrap();
