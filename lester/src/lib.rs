@@ -355,12 +355,12 @@ impl ImageSurface {
     }
 
     /// Read and decode a PNG image from the given file name and create an image surface for it.
-    pub fn read_from_png_file<P: AsRef<path::Path>>(filename: P) -> Result<Self, Error> {
+    pub fn read_from_png_file<P: AsRef<path::Path>>(filename: P) -> Result<Self, CairoOrIoError> {
         Self::read_from_png(io::BufReader::new(fs::File::open(filename)?))
     }
 
     /// Encode this image to PNG and write it into the file with the given name.
-    pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), Error> {
+    pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), CairoOrIoError> {
         self.write_to_png(io::BufWriter::new(fs::File::create(filename)?))
     }
 }
@@ -454,7 +454,7 @@ impl ImageSurface {
     /// Note: this may do many read calls.
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
     /// this constructor will likely perform better with that stream wrapped in `BufReader`.
-    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, Error> {
+    pub fn read_from_png<R: Read>(stream: R) -> Result<Self, CairoOrIoError> {
         let surface = with_c_callback! {
             stream: R: Read;
             fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
@@ -476,7 +476,7 @@ impl ImageSurface {
     /// this constructor will likely perform better with that stream wrapped in `BufWriter`.
     ///
     /// See also the `write_to_png_file` method.
-    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), Error> {
+    pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), CairoOrIoError> {
         let status = with_c_callback! {
             stream: W: Write;
             fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {
@@ -557,18 +557,18 @@ c_error_impls! {
 
 macro_rules! error_enum {
     ($( $Variant: ident ($Type: ty), )+) => {
-        /// An error returned by this library
+        /// An error either from cairo or from reading from or writing to an IO stream.
         #[derive(Debug)]
-        pub enum Error {
+        pub enum CairoOrIoError {
             $(
                 $Variant($Type),
             )+
         }
 
         $(
-            impl From<$Type> for Error {
+            impl From<$Type> for CairoOrIoError {
                 fn from(e: $Type) -> Self {
-                    Error::$Variant(e)
+                    CairoOrIoError::$Variant(e)
                 }
             }
         )+
@@ -578,5 +578,4 @@ macro_rules! error_enum {
 error_enum! {
     Io(io::Error),
     Cairo(CairoError),
-    Glib(GlibError),
 }

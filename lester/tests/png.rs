@@ -42,7 +42,7 @@ fn zero_bytes_png() {
 fn invalid_png() {
     let bytes: &[u8] = b"\x89PNG\rnot";
     match ImageSurface::read_from_png(bytes) {
-        Err(lester::Error::Cairo(ref err)) if err.description() == "out of memory" => {}
+        Err(lester::CairoOrIoError::Cairo(ref err)) if err.description() == "out of memory" => {}
         Err(err) => panic!("expected 'out of memory' error, got {:?}", err),
         Ok(_) => panic!("expected error")
     }
@@ -80,9 +80,9 @@ fn forward_write_error() {
                          io::ErrorKind::InvalidData)
 }
 
-fn expect_io_error_kind<T>(result: Result<T, lester::Error>, expected_kind: io::ErrorKind) {
+fn expect_io_error_kind<T>(result: Result<T, lester::CairoOrIoError>, expected_kind: io::ErrorKind) {
     match result {
-        Err(lester::Error::Io(err)) => {
+        Err(lester::CairoOrIoError::Io(err)) => {
             assert_eq!(err.kind(), expected_kind, "Expected {:?} error, got {:?}", expected_kind, err)
         }
         Err(err) => panic!("Expected an IO error, got {:?}", err),
