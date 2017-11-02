@@ -87,19 +87,20 @@ impl<'doc> PdfPage<'doc> {
         (width, height)
     }
 
-    pub fn render_96dpi(&self, surface: &mut ImageSurface) -> Result<(), CairoError> {
-        self.render(surface, 96., 96.)
-    }
-
-    pub fn render(&self, surface: &mut ImageSurface, dpi_x: f64, dpi_y: f64) -> Result<(), CairoError> {
+    pub fn render(&self, surface: &mut ImageSurface, options: RenderOptions) -> Result<(), CairoError> {
+        let RenderOptions { dpi_x, dpi_y, antialias, for_printing } = options;
         // PDF’s default unit is the PostScript point, wich is 1/72 inches.
         let scale_x = dpi_x / 72.;
         let scale_y = dpi_y / 72.;
         let context = surface.context()?;
         unsafe {
             cairo_scale(context.ptr, scale_x, scale_y);
-            cairo_set_antialias(context.ptr, CAIRO_ANTIALIAS_NONE);
-            poppler_page_render_for_printing(self.ptr, context.ptr);
+            cairo_set_antialias(context.ptr, antialias.to_cairo());
+            if for_printing {
+                poppler_page_render_for_printing(self.ptr, context.ptr)
+            } else {
+                poppler_page_render(self.ptr, context.ptr)
+            }
             cairo_surface_flush(surface.ptr);
         }
         context.check_status()?;
@@ -113,6 +114,62 @@ impl<'doc> Drop for PdfPage<'doc> {
             g_object_unref(self.ptr as *mut c_void)
         }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct RenderOptions {
+    pub dpi_x: f64,
+    pub dpi_y: f64,
+    pub antialias: Antialias,
+
+    /// Use `poppler_page_render_for_printing` instead of `poppler_page_render`.
+    /// What that does excactly doesn’t seem well-documented.
+    pub for_printing: bool,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        RenderOptions {
+            // Default to CSS '1px' == 1 raster pixel,
+            // assuming CSS '1pt' == 1 PostScript point.
+            dpi_x: 96.,
+            dpi_y: 96.,
+            antialias: Antialias::Default,
+            for_printing: false,
+        }
+    }
+}
+
+macro_rules! antialias {
+    ($( $Variant: ident => $constant: expr, )+) => {
+        /// https://www.cairographics.org/manual/cairo-cairo-t.html#cairo-antialias-t
+        #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+        pub enum Antialias {
+            $(
+                $Variant,
+            )+
+        }
+
+        impl Antialias {
+            fn to_cairo(&self) -> cairo_antialias_t {
+                match *self {
+                    $(
+                        Antialias::$Variant => $constant,
+                    )+
+                }
+            }
+        }
+    }
+}
+
+antialias! {
+    Default => CAIRO_ANTIALIAS_DEFAULT,
+    None => CAIRO_ANTIALIAS_NONE,
+    Gray => CAIRO_ANTIALIAS_GRAY,
+    Subpixel => CAIRO_ANTIALIAS_SUBPIXEL,
+    Fast => CAIRO_ANTIALIAS_FAST,
+    Good => CAIRO_ANTIALIAS_GOOD,
+    Best => CAIRO_ANTIALIAS_BEST,
 }
 
 pub struct Argb32Image<'data> {
