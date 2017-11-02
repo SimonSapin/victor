@@ -1,8 +1,11 @@
 use cairo::*;
+use cairo_ffi::CAIRO_FORMAT_RGB24;
+use convert::TryInto;
 use errors::{CairoError, GlibError};
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::os::raw::*;
+use std::ptr;
 use poppler_ffi::*;
 
 /// A PDF document parsed by Poppler.
@@ -14,15 +17,15 @@ pub struct PdfDocument<'data> {
 impl<'data> PdfDocument<'data> {
     /// Parse the given bytes as PDF.
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self, GlibError> {
-        let mut error = 0 as *mut GError;
+        let mut error = ptr::null_mut();
         let ptr = unsafe {
             poppler_document_new_from_data(
                 // Although this function takes *mut c_char rather than *const c_char,
                 // that pointer is only passed to Poppler’s `MemStream` abstraction
                 // which appears to only provide read access.
                 bytes.as_ptr() as *const c_char as *mut c_char,
-                bytes.len() as c_int,
-                0 as *const c_char,
+                bytes.len().try_into().unwrap(),
+                ptr::null(),
                 &mut error
             )
         };
@@ -132,9 +135,10 @@ impl<'data> Page<'data> {
         let scale_x = dpi_x / 72.;
         let scale_y = dpi_y / 72.;
         let (width, height) = self.size_in_ps_points();
-        let mut surface = ImageSurface::new_rgb24(
-            (width * scale_x).ceil() as usize,
-            (height * scale_y).ceil() as usize,
+        let mut surface = ImageSurface::new_c_int(
+            CAIRO_FORMAT_RGB24,
+            (width * scale_x).ceil().try_into().unwrap(),
+            (height * scale_y).ceil().try_into().unwrap(),
         )?;
         let mut context = surface.context()?;
         context.scale(scale_x, scale_y);

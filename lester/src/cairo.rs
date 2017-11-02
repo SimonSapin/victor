@@ -1,4 +1,5 @@
 use cairo_ffi::*;
+use convert::TryInto;
 use errors::{CairoError, LesterError};
 use std::any::Any;
 use std::fs;
@@ -87,8 +88,17 @@ impl ImageSurface {
     }
 
     fn new(format: cairo_format_t, width: usize, height: usize) -> Result<Self, CairoError> {
+        Self::new_c_int(
+            format,
+            width.try_into().unwrap(),
+            height.try_into().unwrap()
+        )
+    }
+
+    pub(crate) fn new_c_int(format: cairo_format_t, width: c_int, height: c_int)
+                            -> Result<Self, CairoError> {
         unsafe {
-            let ptr = cairo_image_surface_create(format, width as _, height as _);
+            let ptr = cairo_image_surface_create(format, width, height);
             let mut surface = ImageSurface { ptr };
             surface.check_status()?;
             Ok(surface)
@@ -126,14 +136,16 @@ impl ImageSurface {
             assert!(stride == width * (mem::size_of::<u32>() as i32),
                     "Expected 32bit pixel to make width satisfy stride requirements");
 
-            assert!((data as usize) % mem::size_of::<u32>() == 0,
+            assert!((data as usize) % mem::align_of::<u32>() == 0,
                     "Expected cairo to allocated data aligned to 32 bits");
 
-            // FIXME: checked conversions
             Argb32Pixels {
-                width: width as usize,
-                height: height as usize,
-                buffer: slice::from_raw_parts_mut(data as *mut u32, (width * height) as usize)
+                width: width.try_into().unwrap(),
+                height: height.try_into().unwrap(),
+                buffer: slice::from_raw_parts_mut(
+                    data as *mut u32,
+                    (width * height).try_into().unwrap(),
+                )
             }
         }
     }
@@ -254,8 +266,7 @@ impl ImageSurface {
         let mut surface = with_c_callback! {
             stream: R: Read;
             fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
-                // FIXME: checked conversion
-                let slice = slice::from_raw_parts_mut(buffer, length as usize);
+                let slice = slice::from_raw_parts_mut(buffer, length.try_into().unwrap());
                 stream.read_exact(slice)
             }
             (|ptr| ImageSurface { ptr })(cairo_image_surface_create_from_png_stream())
@@ -276,8 +287,7 @@ impl ImageSurface {
         let status = with_c_callback! {
             stream: W: Write;
             fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {
-                // FIXME: checked conversion
-                let slice = slice::from_raw_parts(buffer, length as usize);
+                let slice = slice::from_raw_parts(buffer, length.try_into().unwrap());
                 stream.write_all(slice)
             }
             (|s| s)(cairo_surface_write_to_png_stream(self.ptr,))

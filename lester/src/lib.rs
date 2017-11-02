@@ -45,8 +45,6 @@
 //! # }
 //! ```
 
-mod cairo_ffi;  // Not re-exported
-mod poppler_ffi;  // Not re-exported
 mod errors;
 mod cairo;
 mod poppler;
@@ -54,3 +52,8 @@ mod poppler;
 pub use errors::*;
 pub use cairo::*;
 pub use poppler::*;
+
+// Not re-exported:
+mod cairo_ffi;
+mod poppler_ffi;
+mod convert;
