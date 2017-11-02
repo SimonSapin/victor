@@ -121,6 +121,11 @@ impl<'data> Page<'data> {
     }
 
     /// Render (rasterize) this page with the given options to a new image surface.
+    pub fn render_with_default_options(&self) -> Result<ImageSurface, CairoError> {
+        self.render(RenderOptions::default())
+    }
+
+    /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
         let RenderOptions { dpi_x, dpi_y, antialias, for_printing } = options;
         // PDF’s default unit is the PostScript point, which is 1/72 inches.
