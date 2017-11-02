@@ -22,6 +22,28 @@
 //! [Poppler]: https://poppler.freedesktop.org/
 //! [cairo]: https://www.cairographics.org/
 //! [pkg-config]: https://www.freedesktop.org/wiki/Software/pkg-config/
+//!
+//!
+//! ## Example
+//!
+//! Converting a PDF file to a series of PNG files:
+//!
+//! ```rust
+//! use std::fs::File;
+//! use std::io::Read;
+//!
+//! # fn _foo() -> Result<(), lester::LesterError> {
+//! let mut bytes = Vec::new();
+//! File::open("foo.pdf")?.read_to_end(&mut bytes)?;
+//! let doc = lester::PdfDocument::from_bytes(&bytes)?;
+//!
+//! for (index, page) in doc.pages().enumerate() {
+//!     let filename = format!("foo_page{}.png", index + 1);
+//!     page.render_with_default_options()?.write_to_png_file(filename)?
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 mod cairo_ffi;  // Not re-exported
 mod poppler_ffi;  // Not re-exported
