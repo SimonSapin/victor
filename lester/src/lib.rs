@@ -354,7 +354,12 @@ impl ImageSurface {
         }
     }
 
-    /// Export this image to PNG and write it in the file with the given name.
+    /// Read and decode a PNG image from the given file name and create an image surface for it.
+    pub fn read_from_png_file<P: AsRef<path::Path>>(filename: P) -> Result<Self, Error> {
+        Self::read_from_png(io::BufReader::new(fs::File::open(filename)?))
+    }
+
+    /// Encode this image to PNG and write it into the file with the given name.
     pub fn write_to_png_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), Error> {
         self.write_to_png(io::BufWriter::new(fs::File::create(filename)?))
     }
@@ -464,7 +469,7 @@ impl ImageSurface {
         Ok(surface)
     }
 
-    /// Encoding this image to PNG and write it to the given stream.
+    /// Encode this image to PNG and write it to the given stream.
     ///
     /// Note: this may do many read calls.
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
