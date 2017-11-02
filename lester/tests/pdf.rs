@@ -1,6 +1,6 @@
 extern crate lester;
 
-use lester::{PdfDocument, RenderOptions, ImageSurface};
+use lester::{PdfDocument, RenderOptions};
 use std::error::Error;
 
 #[test]
@@ -64,14 +64,13 @@ fn pattern_4x4_pdf() {
     let page = doc.pages().next().unwrap();
     assert_eq!(page.size_in_ps_points(), (3., 3.));  // 4px == 3pt
 
-    let mut surface = ImageSurface::new_argb32(4, 4).unwrap();
     let options = RenderOptions {
         for_printing: true,
         ..RenderOptions::default()
     };
-    page.render(&mut surface, options).unwrap();
-    const RED: u32 = 0xFFFF_0000;
-    const BLUE: u32 = 0xFF00_00FF;
+    let mut surface = page.render(options).unwrap();
+    const RED: u32 = 0x00FF_0000;
+    const BLUE: u32 = 0x0000_00FF;
     assert_pixels_eq!(surface.pixels().buffer, &[
         RED,  BLUE, BLUE, BLUE,
         BLUE, BLUE, BLUE, BLUE,

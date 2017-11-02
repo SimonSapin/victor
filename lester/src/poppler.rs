@@ -120,16 +120,21 @@ impl<'data> Page<'data> {
         (width, height)
     }
 
-    /// Render (rasterize) this page to the given pixel buffer, with the given options.
-    pub fn render(&self, surface: &mut ImageSurface, options: RenderOptions) -> Result<(), CairoError> {
+    /// Render (rasterize) this page with the given options to a new image surface.
+    pub fn render(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
         let RenderOptions { dpi_x, dpi_y, antialias, for_printing } = options;
-        // PDF’s default unit is the PostScript point, wich is 1/72 inches.
+        // PDF’s default unit is the PostScript point, which is 1/72 inches.
         let scale_x = dpi_x / 72.;
         let scale_y = dpi_y / 72.;
+        let (width, height) = self.size_in_ps_points();
+        let mut surface = ImageSurface::new_rgb24(
+            (width * scale_x).ceil() as usize,
+            (height * scale_y).ceil() as usize,
+        )?;
         let mut context = surface.context()?;
+        context.scale(scale_x, scale_y);
+        context.set_antialias(antialias);
         unsafe {
-            context.scale(scale_x, scale_y);
-            context.set_antialias(antialias);
             if for_printing {
                 poppler_page_render_for_printing(self.ptr, context.ptr)
             } else {
@@ -137,7 +142,7 @@ impl<'data> Page<'data> {
             }
         }
         context.check_status()?;
-        Ok(())
+        Ok(surface)
     }
 }
 
