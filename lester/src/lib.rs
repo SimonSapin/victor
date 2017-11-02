@@ -48,7 +48,7 @@ impl<'data> PdfDocument<'data> {
         }
     }
 
-    pub fn get_page(&self, index: usize) -> Option<PdfPage<'data>> {
+    pub fn get_page(&self, index: usize) -> Option<Page<'data>> {
         let index = index as c_int;
         let ptr = unsafe {
             if poppler_document_get_n_pages(self.ptr) <= index {
@@ -59,7 +59,7 @@ impl<'data> PdfDocument<'data> {
         if ptr.is_null() {
             None
         } else {
-            Some(PdfPage { ptr, phantom: PhantomData })
+            Some(Page { ptr, phantom: PhantomData })
         }
     }
 }
@@ -72,12 +72,12 @@ impl<'data> Drop for PdfDocument<'data> {
     }
 }
 
-pub struct PdfPage<'data> {
+pub struct Page<'data> {
     ptr: *mut PopplerPage,
     phantom: PhantomData<&'data [u8]>,
 }
 
-impl<'data> PdfPage<'data> {
+impl<'data> Page<'data> {
     pub fn size(&self) -> (f64, f64) {
         let mut width = 0.;
         let mut height = 0.;
@@ -108,7 +108,7 @@ impl<'data> PdfPage<'data> {
     }
 }
 
-impl<'data> Drop for PdfPage<'data> {
+impl<'data> Drop for Page<'data> {
     fn drop(&mut self) {
         unsafe {
             g_object_unref(self.ptr as *mut c_void)
