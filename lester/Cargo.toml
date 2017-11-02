@@ -3,7 +3,10 @@ name = "lester"
 version = "0.0.1"
 authors = ["Simon Sapin <simon.sapin@exyr.org>"]
 license = "MIT AND GPL-2.0"  # See LICENSE.md file
-description = "Lester, Victor’s cousin, makes raster graphics"
+description = """
+Lester, Victor’s cousin, makes raster graphics.
+It renders PDF files (such as produced by Victor) to in-memory pixel buffers or PNG,
+using poppler-glib and cairo."""
 repository = "https://github.com/SimonSapin/victor"
 
 [lib]
