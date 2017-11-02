@@ -46,10 +46,17 @@ antialias! {
 }
 
 /// The pixels from an `ImageSurface`
-pub struct Argb32Image<'data> {
+pub struct Argb32Pixels<'data> {
     pub width: usize,
     pub height: usize,
-    pub pixels: &'data mut [u32],
+
+    /// A slice of length `width * height` containing the image’s pixels.
+    /// The pixel at position `(x, y)` is at index `x + height * y`.
+    ///
+    /// A pixel’s upper 8 bits is the alpha channel if the image is in ARGB32 format,
+    /// or undefined for the RGB24 format.
+    /// The next three groups of 8 bits (upper to lower) are the red, green, and blue channels.
+    pub buffer: &'data mut [u32],
 }
 
 /// A cairo “image surface”: an in-memory pixel buffer.
@@ -107,7 +114,7 @@ impl ImageSurface {
     }
 
     /// Access the pixels of this image surface
-    pub fn as_image<'data>(&'data mut self) -> Argb32Image<'data> {
+    pub fn pixels<'data>(&'data mut self) -> Argb32Pixels<'data> {
         unsafe {
             let data = cairo_image_surface_get_data(self.ptr);
             let width = cairo_image_surface_get_width(self.ptr);
@@ -128,10 +135,10 @@ impl ImageSurface {
                     "Expected cairo to allocated data aligned to 32 bits");
 
             // FIXME: checked conversions
-            Argb32Image {
+            Argb32Pixels {
                 width: width as usize,
                 height: height as usize,
-                pixels: slice::from_raw_parts_mut(data as *mut u32, (width * height) as usize)
+                buffer: slice::from_raw_parts_mut(data as *mut u32, (width * height) as usize)
             }
         }
     }

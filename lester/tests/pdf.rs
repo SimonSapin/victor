@@ -72,7 +72,7 @@ fn pattern_4x4_pdf() {
     page.render(&mut surface, options).unwrap();
     const RED: u32 = 0xFFFF_0000;
     const BLUE: u32 = 0xFF00_00FF;
-    assert_pixels_eq!(surface.as_image().pixels, &[
+    assert_pixels_eq!(surface.pixels().buffer, &[
         RED,  BLUE, BLUE, BLUE,
         BLUE, BLUE, BLUE, BLUE,
         BLUE, BLUE, BLUE, BLUE,
