@@ -16,7 +16,12 @@ pub struct PdfDocument<'data> {
 
 impl<'data> PdfDocument<'data> {
     /// Parse the given bytes as PDF.
-    pub fn from_bytes(bytes: &'data [u8]) -> Result<Self, GlibError> {
+    pub fn from_bytes(mut bytes: &'data [u8]) -> Result<Self, GlibError> {
+        // Work around https://bugs.freedesktop.org/show_bug.cgi?id=103552
+        if bytes.is_empty() {
+            bytes = b"";
+        }
+
         let mut error = ptr::null_mut();
         let ptr = unsafe {
             poppler_document_new_from_data(

@@ -17,5 +17,6 @@ fn pdf() {
             },
         ],
     };
-    let _bytes = dl.write_to_pdf_bytes().unwrap();
+    let bytes = dl.write_to_pdf_bytes().unwrap();
+    let _doc = lester::PdfDocument::from_bytes(&bytes);
 }
