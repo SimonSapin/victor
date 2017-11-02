@@ -17,10 +17,12 @@ cairo.PDFSurface(os.path.join(this, "A4_one_empty_page.pdf"),
                  millimeters_to_poscript_points(210),
                  millimeters_to_poscript_points(297))
 
-pattern = cairo.ImageSurface.create_from_png(os.path.join(this, "pattern_4x4.png"))
+png = cairo.ImageSurface.create_from_png(os.path.join(this, "pattern_4x4.png"))
+pattern = cairo.SurfacePattern(png)
+pattern.set_filter(cairo.FILTER_NEAREST)
 out = cairo.PDFSurface(os.path.join(this, "pattern_4x4.pdf"),
                        css_px_to_poscript_points(4),
                        css_px_to_poscript_points(4))
 ctx = cairo.Context(out)
-ctx.set_source(cairo.SurfacePattern(pattern))
+ctx.set_source(pattern)
 ctx.paint()
