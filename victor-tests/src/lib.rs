@@ -18,5 +18,7 @@ fn pdf() {
         ],
     };
     let bytes = dl.write_to_pdf_bytes().unwrap();
-    let _doc = lester::PdfDocument::from_bytes(&bytes);
+    //println!("{}", String::from_utf8_lossy(&bytes));
+    let doc = lester::PdfDocument::from_bytes(&bytes).unwrap();
+    assert_eq!(doc.pages().len(), 0);
 }

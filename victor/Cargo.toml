@@ -9,3 +9,6 @@ repository = "https://github.com/SimonSapin/victor"
 [lib]
 test = false
 doctest = false
+
+[dependencies]
+lopdf = "0.14.0"
