@@ -11,4 +11,4 @@ test = false
 doctest = false
 
 [dependencies]
-lopdf = "0.14.0"
+lopdf = "0.14.1"
