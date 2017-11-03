@@ -11,6 +11,7 @@ extern "C" {
                                           -> *mut PopplerDocument;
     pub fn poppler_document_get_n_pages(document: *mut PopplerDocument) -> c_int;
     pub fn poppler_document_get_page(document: *mut PopplerDocument, index: c_int) -> *mut PopplerPage;
+    pub fn poppler_document_get_producer(document: *mut PopplerDocument) -> *mut gchar;
 
     pub fn poppler_page_get_size(page: *mut PopplerPage, width: *mut f64, height: *mut f64);
     pub fn poppler_page_render(page: *mut PopplerPage, cairo: *mut cairo_t);
@@ -18,6 +19,7 @@ extern "C" {
 
     pub fn g_error_free(error: *mut GError);
     pub fn g_object_unref(object: gpointer);
+    pub fn g_free(mem: gpointer);
 }
 
 pub type gpointer = *mut c_void;

@@ -2,10 +2,12 @@ use cairo::*;
 use cairo_ffi::CAIRO_FORMAT_RGB24;
 use convert::TryInto;
 use errors::{CairoError, GlibError};
+use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::os::raw::*;
 use std::ptr;
+use std::str::Utf8Error;
 use poppler_ffi::*;
 
 /// A PDF document parsed by Poppler.
@@ -61,6 +63,13 @@ impl<'data> PdfDocument<'data> {
         };
         assert!(!ptr.is_null());
         Page { ptr, phantom: PhantomData }
+    }
+
+    /// Return the `Producer` entry of the document’s *information dictionary*.
+    pub fn producer(&self) -> Option<GlibString> {
+        unsafe {
+            GlibString::from_nullable_ptr(poppler_document_get_producer(self.ptr))
+        }
     }
 }
 
@@ -211,6 +220,36 @@ impl Default for RenderOptions {
             dpi_y: 96.,
             antialias: Antialias::Default,
             for_printing: false,
+        }
+    }
+}
+
+/// A string allocated by `glib`
+pub struct GlibString {
+    ptr: *mut gchar,
+}
+
+impl GlibString {
+    fn from_nullable_ptr(ptr: *mut gchar) -> Option<Self> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(GlibString { ptr })
+        }
+    }
+
+    pub fn to_str(&self) -> Result<&str, Utf8Error> {
+        let cstr = unsafe {
+            CStr::from_ptr(self.ptr)
+        };
+        cstr.to_str()
+    }
+}
+
+impl Drop for GlibString {
+    fn drop(&mut self) {
+        unsafe {
+            g_free(self.ptr as *mut c_void);
         }
     }
 }
