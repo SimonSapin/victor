@@ -1,19 +1,17 @@
 extern crate lester;
 extern crate victor;
 
-use victor::display_lists::{Document, Page};
+use victor::display_lists::{Document, Page, Size};
 
 #[test]
 fn pdf() {
     let dl = Document {
         pages: vec![
             Page {
-                width_in_ps_points: 100.,
-                height_in_ps_points: 200.,
+                size: Size::new(100., 200.),
             },
             Page {
-                width_in_ps_points: 300.,
-                height_in_ps_points: 400.,
+                size: Size::new(300., 400.),
             },
         ],
     };

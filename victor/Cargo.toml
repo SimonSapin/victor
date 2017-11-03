@@ -11,4 +11,5 @@ test = false
 doctest = false
 
 [dependencies]
+euclid = "0.15.4"
 lopdf = "0.14.1"

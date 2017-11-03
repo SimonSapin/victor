@@ -13,8 +13,8 @@ pub(crate) fn from_display_lists(dl: &display_lists::Document) -> Result<Documen
             "MediaBox" => vec![
                 0.into(),
                 0.into(),
-                page.width_in_ps_points.into(),
-                page.height_in_ps_points.into()
+                page.size.width.into(),
+                page.size.height.into()
             ],
         });
         page_id.into()
