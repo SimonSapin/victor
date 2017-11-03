@@ -11,4 +11,8 @@ pub struct Document {
 
 pub struct Page {
     pub size: Size<Pt>,
+    pub display_items: Vec<DisplayItem>,
+}
+
+pub enum DisplayItem {
 }

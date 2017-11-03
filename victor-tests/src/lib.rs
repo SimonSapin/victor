@@ -9,9 +9,11 @@ fn pdf() {
         pages: vec![
             Page {
                 size: Size::new(100., 200.),
+                display_items: vec![],
             },
             Page {
                 size: Size::new(300., 400.),
+                display_items: vec![],
             },
         ],
     };
