@@ -24,7 +24,7 @@ impl display_lists::Document {
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
     /// this method will likely perform better with that stream wrapped in `BufWriter`.
     ///
-    /// See also the `write_to_png_file` method.
+    /// See also the `write_to_pdf_file` and `write_to_pdf_bytes` methods.
     pub fn write_to_pdf<W: Write>(&self, stream: &mut W) -> Result<(), VictorError> {
         Ok(pdf::from_display_lists(self)?.save_to(stream)?)
     }

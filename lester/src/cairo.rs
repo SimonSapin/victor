@@ -262,6 +262,8 @@ impl ImageSurface {
     /// Note: this may do many read calls.
     /// If a stream is backed by costly system calls (such as `File` or `TcpStream`),
     /// this constructor will likely perform better with that stream wrapped in `BufReader`.
+    ///
+    /// See also the `read_from_png_file` method.
     pub fn read_from_png<R: Read>(stream: R) -> Result<Self, LesterError> {
         let mut surface = with_c_callback! {
             stream: R: Read;
