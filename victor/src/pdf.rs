@@ -12,6 +12,12 @@ macro_rules! array {
     }
 }
 
+const PT_PER_INCH: f32 = 72.;
+const PX_PER_INCH: f32 = 96.;
+const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
+const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
+const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
+
 pub(crate) fn from_display_lists(dl: &display_lists::Document) -> Result<Document, VictorError> {
     let mut doc = Document::with_version("1.5");
     let page_tree_id = doc.new_object_id();
@@ -26,8 +32,8 @@ pub(crate) fn from_display_lists(dl: &display_lists::Document) -> Result<Documen
             "MediaBox" => array![
                 0,
                 0,
-                page.size.width,
-                page.size.height,
+                page.size.width * CSS_TO_PDF_SCALE_X,
+                page.size.height * CSS_TO_PDF_SCALE_Y,
             ],
         });
         page_id.into()
@@ -69,8 +75,11 @@ pub fn page_content(display_list: &[display_lists::DisplayItem]) -> Vec<Operatio
     }
 
     op!(SET_NON_STROKING_COLOR_SPACE, "DeviceRGB");
+    op!(CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
     for display_item in display_list {
         match *display_item {
+            // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
+            // to compensate the same flip at the page level.
             DisplayItem::SolidRectangle(ref rect, RGB(red, green, blue)) => {
                 op!(SET_NON_STROKING_COLOR, red, green, blue);
                 op!(RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
@@ -89,13 +98,18 @@ macro_rules! operators {
     }
 }
 
-// Path Construction and Painting
-// https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1849957
-// Colour Spaces
-// https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1850197
 operators! {
+    // Graphics State Operators
+    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.3793795
+    CURRENT_TRANSFORMATION_MATRIX = "cm",
+
+    // Path Construction and Painting
+    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1849957
     RECTANGLE = "re",
     FILL = "f",
+
+    // Colour Spaces
+    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1850197
     SET_NON_STROKING_COLOR = "sc",
     SET_NON_STROKING_COLOR_SPACE = "cs",
 }

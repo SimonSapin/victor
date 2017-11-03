@@ -13,10 +13,10 @@ fn pdf() {
                 display_items: vec![],
             },
             Page {
-                size: Size::new(3., 3.),
+                size: Size::new(4., 4.),
                 display_items: vec![
-                    DisplayItem::SolidRectangle(rect(0., 0., 3., 3.), RGB(0., 0., 1.)),
-                    DisplayItem::SolidRectangle(rect(0., 0., 3./4., 3./4.), RGB(1., 0., 0.)),
+                    DisplayItem::SolidRectangle(rect(0., 0., 4., 4.), RGB(0., 0., 1.)),
+                    DisplayItem::SolidRectangle(rect(0., 0., 1., 1.), RGB(1., 0., 0.)),
                 ],
             },
         ],
@@ -28,15 +28,15 @@ fn pdf() {
                "Victor <https://github.com/SimonSapin/victor>");
 
     let sizes: Vec<_> = doc.pages().map(|page| page.size_in_ps_points()).collect();
-    assert_eq!(sizes, [(100., 200.), (3., 3.)]);
+    assert_eq!(sizes, [(75., 150.), (3., 3.)]);
 
     let mut surface = doc.pages().nth(1).unwrap().render_with_default_options().unwrap();
     const RED: u32 = 0xFFFF_0000;
     const BLUE: u32 = 0xFF00_00FF;
     assert_pixels_eq!(surface.pixels().buffer, &[
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
         RED,  BLUE, BLUE, BLUE,
+        BLUE, BLUE, BLUE, BLUE,
+        BLUE, BLUE, BLUE, BLUE,
+        BLUE, BLUE, BLUE, BLUE,
     ]);
 }

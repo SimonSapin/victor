@@ -1,7 +1,7 @@
 use euclid;
 
-/// The length marker type for the PostScript point, defined as ¹⁄₇₂ of the international inch.
-pub struct Pt;
+/// Origin at top-left corner, unit `1px`
+pub struct CssPx;
 
 pub type Size<U> = euclid::TypedSize2D<f32, U>;
 pub type Rect<U> = euclid::TypedRect<f32, U>;
@@ -13,10 +13,10 @@ pub struct Document {
 }
 
 pub struct Page {
-    pub size: Size<Pt>,
+    pub size: Size<CssPx>,
     pub display_items: Vec<DisplayItem>,
 }
 
 pub enum DisplayItem {
-    SolidRectangle(Rect<Pt>, RGB)
+    SolidRectangle(Rect<CssPx>, RGB)
 }
