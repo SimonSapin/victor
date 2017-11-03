@@ -1,4 +1,4 @@
-extern crate lester;
+#[macro_use] extern crate lester;
 
 use lester::{PdfDocument, RenderOptions};
 use std::error::Error;
@@ -38,23 +38,6 @@ fn blank_pdf() {
 fn millimeters_to_poscript_points(mm: f64) -> f64 {
     let inches = mm / 25.4;
     inches * 72.
-}
-
-macro_rules! assert_pixels_eq {
-    ($a: expr, $b: expr) => {
-        {
-            let a = $a;
-            let b = $b;
-            if a != b {
-                panic!("{} != {}\n[{}]\n[{}]", stringify!($a), stringify!($b),
-                       hex(a), hex(b))
-            }
-        }
-    }
-}
-
-fn hex(pixels: &[u32]) -> String {
-    pixels.iter().map(|p| format!("{:08X}", p)).collect::<Vec<_>>().join(", ")
 }
 
 #[test]

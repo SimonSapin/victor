@@ -57,3 +57,24 @@ pub use poppler::*;
 mod cairo_ffi;
 mod poppler_ffi;
 mod convert;
+
+#[macro_export]
+macro_rules! assert_pixels_eq {
+    ($a: expr, $b: expr) => {
+        {
+            let a = $a;
+            let b = $b;
+            if a != b {
+                panic!("{} != {}\n[{}]\n[{}]",
+                       stringify!($a),
+                       stringify!($b),
+                       $crate::pixels_to_hex(a),
+                       $crate::pixels_to_hex(b))
+            }
+        }
+    }
+}
+
+pub fn pixels_to_hex(pixels: &[u32]) -> String {
+    pixels.iter().map(|p| format!("{:08X}", p)).collect::<Vec<_>>().join(", ")
+}
