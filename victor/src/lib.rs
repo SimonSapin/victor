@@ -1,4 +1,4 @@
-extern crate lopdf;
+#[macro_use] extern crate lopdf;
 
 pub mod display_lists;
 pub use errors::*;
