@@ -15,8 +15,8 @@ fn pdf() {
             Page {
                 size: Size::new(4., 4.),
                 display_items: vec![
-                    DisplayItem::SolidRectangle(rect(0., 1., 4., 3.), rgba(0., 0., 1., 1.)),
-                    DisplayItem::SolidRectangle(rect(0., 0., 1., 2.), rgba(1., 0., 0., 0.5)),
+                    DisplayItem::SolidRectangle(rect(0., 1., 4., 3.), RGBA(0., 0., 1., 1.)),
+                    DisplayItem::SolidRectangle(rect(0., 0., 1., 2.), RGBA(1., 0., 0., 0.5)),
                 ],
             },
         ],

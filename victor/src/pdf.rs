@@ -73,8 +73,8 @@ impl InProgressPdf {
                 operations: Vec::new(),
                 // Initial state:
                 graphics_state: GraphicsState {
-                    non_stroking_color: RGB(0., 0., 0.),  // Black
-                    alpha: 1.,
+                    non_stroking_color_rgb: (0., 0., 0.),  // Black
+                    alpha: 1.,  // Fully opaque
                 },
             };
             in_progress.add_content(&page.display_items);
@@ -103,7 +103,7 @@ struct InProgressPage<'a> {
 }
 
 struct GraphicsState {
-    non_stroking_color: RGB,
+    non_stroking_color_rgb: (f32, f32, f32),
     alpha: f32,
 }
 
@@ -123,8 +123,8 @@ impl<'a> InProgressPage<'a> {
             match *display_item {
                 // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
                 // to compensate the same flip at the page level.
-                DisplayItem::SolidRectangle(ref rect, ref rgb) => {
-                    self.set_non_stroking_color(rgb);
+                DisplayItem::SolidRectangle(ref rect, ref rgba) => {
+                    self.set_non_stroking_color(rgba);
                     op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
                     op!(self, FILL);
                 }
@@ -132,13 +132,12 @@ impl<'a> InProgressPage<'a> {
         }
     }
 
-    fn set_non_stroking_color(&mut self, rgba: &RGBA) {
-        let rgb = &rgba.rgb;
-        if *rgb != self.graphics_state.non_stroking_color {
-            self.graphics_state.non_stroking_color = *rgb;
-            op!(self, SET_NON_STROKING_RGB_COLOR, rgb.0, rgb.1, rgb.2);
+    fn set_non_stroking_color(&mut self, &RGBA(r, g, b, a): &RGBA) {
+        if self.graphics_state.non_stroking_color_rgb != (r, g, b) {
+            self.graphics_state.non_stroking_color_rgb = (r, g, b);
+            op!(self, SET_NON_STROKING_RGB_COLOR, r, g, b);
         }
-        self.set_alpha(rgba.alpha)
+        self.set_alpha(a)
     }
 
     fn set_alpha(&mut self, alpha: f32) {
