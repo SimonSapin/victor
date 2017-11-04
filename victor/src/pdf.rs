@@ -59,6 +59,10 @@ impl InProgressPdf {
             let mut in_progress = InProgressPage {
                 doc: self,
                 operations: Vec::new(),
+                // Initial state:
+                graphics_state: GraphicsState {
+                    non_stroking_color: RGB(0., 0., 0.),  // Black
+                },
             };
             in_progress.add_content(&page.display_items);
             Content { operations: in_progress.operations }
@@ -82,33 +86,45 @@ impl InProgressPdf {
 struct InProgressPage<'a> {
     doc: &'a mut InProgressPdf,
     operations: Vec<Operation>,
+    graphics_state: GraphicsState,
+}
+
+struct GraphicsState {
+    non_stroking_color: RGB,
+}
+
+macro_rules! op {
+    ( $self_: expr, $operator: expr ) => {
+        op!($self_, $operator,)
+    };
+    ( $self_: expr, $operator: expr, $( $operands: tt )*) => {
+        $self_.operations.push(Operation {
+            operator: $operator.into(),
+            operands: array![ $($operands)* ],
+        })
+    }
 }
 
 impl<'a> InProgressPage<'a> {
     fn add_content(&mut self, display_list: &[DisplayItem]) {
-        macro_rules! op {
-            ( $operator: expr ) => {
-                op!($operator,)
-            };
-            ( $operator: expr, $( $operands: tt )*) => {
-                self.operations.push(Operation {
-                    operator: $operator.into(),
-                    operands: array![ $($operands)* ],
-                })
-            }
-        }
-
-        op!(CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
+        op!(self, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
         for display_item in display_list {
             match *display_item {
                 // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
                 // to compensate the same flip at the page level.
-                DisplayItem::SolidRectangle(ref rect, RGB(red, green, blue)) => {
-                    op!(SET_NON_STROKING_RGB_COLOR, red, green, blue);
-                    op!(RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
-                    op!(FILL);
+                DisplayItem::SolidRectangle(ref rect, ref rgb) => {
+                    self.set_non_stroking_color(rgb);
+                    op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+                    op!(self, FILL);
                 }
             }
+        }
+    }
+
+    fn set_non_stroking_color(&mut self, rgb: &RGB) {
+        if *rgb != self.graphics_state.non_stroking_color {
+            self.graphics_state.non_stroking_color = *rgb;
+            op!(self, SET_NON_STROKING_RGB_COLOR, rgb.0, rgb.1, rgb.2);
         }
     }
 }
