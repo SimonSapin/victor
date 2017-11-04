@@ -1,6 +1,8 @@
 use display_lists::*;
-use lopdf::{self, Object, Stream, ObjectId};
+use lopdf::{self, Object, Stream, ObjectId, Dictionary};
 use lopdf::content::{Content, Operation};
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 macro_rules! array {
     ($( $value: expr ),* ,) => {
@@ -22,6 +24,8 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
     let mut doc = InProgressPdf {
         page_tree_id: doc.new_object_id(),
         doc,
+        extended_graphics_states: None,
+        alpha_states: HashMap::new(),
     };
     let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
     doc.finish(page_ids)
@@ -30,15 +34,23 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
 struct InProgressPdf {
     doc: lopdf::Document,
     page_tree_id: ObjectId,
+    extended_graphics_states: Option<Dictionary>,
+    alpha_states: HashMap<u16, usize>,
 }
 
 impl InProgressPdf {
     fn finish(mut self, page_ids: Vec<Object>) -> lopdf::Document {
-        self.doc.objects.insert(self.page_tree_id, Object::Dictionary(dictionary! {
+        let mut page_tree = dictionary! {
             "Type" => "Pages",
             "Count" => page_ids.len() as i64,
             "Kids" => page_ids,
-        }));
+        };
+        if let Some(states) = self.extended_graphics_states {
+            page_tree.set("Resources", dictionary! {
+                "ExtGState" => states,
+            })
+        }
+        self.doc.objects.insert(self.page_tree_id, Object::Dictionary(page_tree));
         let catalog_id = self.doc.add_object(dictionary!(
             "Type" => "Catalog",
             "Pages" => self.page_tree_id,
@@ -62,6 +74,7 @@ impl InProgressPdf {
                 // Initial state:
                 graphics_state: GraphicsState {
                     non_stroking_color: RGB(0., 0., 0.),  // Black
+                    alpha: 1.,
                 },
             };
             in_progress.add_content(&page.display_items);
@@ -91,6 +104,7 @@ struct InProgressPage<'a> {
 
 struct GraphicsState {
     non_stroking_color: RGB,
+    alpha: f32,
 }
 
 macro_rules! op {
@@ -98,10 +112,7 @@ macro_rules! op {
         op!($self_, $operator,)
     };
     ( $self_: expr, $operator: expr, $( $operands: tt )*) => {
-        $self_.operations.push(Operation {
-            operator: $operator.into(),
-            operands: array![ $($operands)* ],
-        })
+        $self_.operations.push(Operation::new($operator, array![ $($operands)* ]))
     }
 }
 
@@ -121,13 +132,49 @@ impl<'a> InProgressPage<'a> {
         }
     }
 
-    fn set_non_stroking_color(&mut self, rgb: &RGB) {
+    fn set_non_stroking_color(&mut self, rgba: &RGBA) {
+        let rgb = &rgba.rgb;
         if *rgb != self.graphics_state.non_stroking_color {
             self.graphics_state.non_stroking_color = *rgb;
             op!(self, SET_NON_STROKING_RGB_COLOR, rgb.0, rgb.1, rgb.2);
         }
+        self.set_alpha(rgba.alpha)
+    }
+
+    fn set_alpha(&mut self, alpha: f32) {
+        let alpha = alpha.max(0.).min(1.);
+        if alpha != self.graphics_state.alpha {
+            self.graphics_state.alpha = alpha;
+
+            // Use u16 instead of f32 as a hash key because f32 does not implement Eq,
+            // and to do some rounding in case float computation
+            // produces very close but different values.
+            //
+            // Map 0.0 to 0, 1.0 to max
+            let hash_key = (alpha * (u16::max_value() as f32)) as u16;
+
+            let next_id = self.doc.alpha_states.len();
+            let pdf_state_key;
+            match self.doc.alpha_states.entry(hash_key) {
+                Entry::Occupied(entry) => {
+                    pdf_state_key = format!("a{}", entry.get());
+                }
+                Entry::Vacant(_) => {
+                    pdf_state_key = format!("a{}", next_id);
+                    self.doc.extended_graphics_states.get_or_insert_with(Dictionary::new).set(
+                        &*pdf_state_key,
+                        dictionary! {
+                            "CA" => alpha,
+                            "ca" => alpha,
+                        }
+                    );
+                }
+            }
+            op!(self, SET_EXTENDED_GRAPHICS_STATE, pdf_state_key);
+        }
     }
 }
+
 
 macro_rules! operators {
     ($( $name: ident = $value: expr, )+) => {
@@ -143,6 +190,7 @@ operators! {
     // Graphics State Operators
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.3793795
     CURRENT_TRANSFORMATION_MATRIX = "cm",
+    SET_EXTENDED_GRAPHICS_STATE = "gs",
 
     // Path Construction and Painting
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1849957

@@ -9,6 +9,19 @@ pub type Rect<U> = euclid::TypedRect<f32, U>;
 #[derive(Copy, Clone, PartialEq)]
 pub struct RGB(pub f32, pub f32, pub f32);
 
+#[derive(Copy, Clone, PartialEq)]
+pub struct RGBA {
+    pub rgb: RGB,
+    pub alpha: f32
+}
+
+pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> RGBA {
+    RGBA {
+        rgb: RGB(r, g, b),
+        alpha: a,
+    }
+}
+
 pub struct Document {
     pub pages: Vec<Page>,
 }
@@ -19,5 +32,5 @@ pub struct Page {
 }
 
 pub enum DisplayItem {
-    SolidRectangle(Rect<CssPx>, RGB)
+    SolidRectangle(Rect<CssPx>, RGBA)
 }
