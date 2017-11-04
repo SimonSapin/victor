@@ -1,5 +1,5 @@
 use display_lists::*;
-use lopdf::{self, Object, Stream};
+use lopdf::{self, Object, Stream, ObjectId};
 use lopdf::content::{Content, Operation};
 
 macro_rules! array {
@@ -18,15 +18,55 @@ const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
 pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
-    let mut pdf_doc = lopdf::Document::with_version("1.5");
-    let page_tree_id = pdf_doc.new_object_id();
+    let mut doc = lopdf::Document::with_version("1.5");
+    let mut doc = InProgressPdf {
+        page_tree_id: doc.new_object_id(),
+        doc,
+    };
+    let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
+    doc.finish(page_ids)
+}
 
-    let page_ids: Vec<Object> = dl.pages.iter().map(|page| {
-        let content = Content { operations: page_content(&page.display_items) };
-        let content_id = pdf_doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
-        let page_id = pdf_doc.add_object(dictionary! {
+struct InProgressPdf {
+    doc: lopdf::Document,
+    page_tree_id: ObjectId,
+}
+
+impl InProgressPdf {
+    fn finish(mut self, page_ids: Vec<Object>) -> lopdf::Document {
+        self.doc.objects.insert(self.page_tree_id, Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Count" => page_ids.len() as i64,
+            "Kids" => page_ids,
+        }));
+        let catalog_id = self.doc.add_object(dictionary!(
+            "Type" => "Catalog",
+            "Pages" => self.page_tree_id,
+        ));
+        let info_id = self.doc.add_object(dictionary!(
+            "Producer" => Object::string_literal("Victor <https://github.com/SimonSapin/victor>"),
+        ));
+
+        // PDF file trailer:
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
+        self.doc.trailer.set("Root", catalog_id);
+        self.doc.trailer.set("Info", info_id);
+        self.doc
+    }
+
+    fn add_page(&mut self, page: &Page) -> ObjectId {
+        let content = {
+            let mut in_progress = InProgressPage {
+                doc: self,
+                operations: Vec::new(),
+            };
+            in_progress.add_content(&page.display_items);
+            Content { operations: in_progress.operations }
+        };
+        let content_id = self.doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+        self.doc.add_object(dictionary! {
             "Type" => "Page",
-            "Parent" => page_tree_id,
+            "Parent" => self.page_tree_id,
             "Contents" => content_id,
             "MediaBox" => array![
                 0,
@@ -34,58 +74,43 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
                 page.size.width * CSS_TO_PDF_SCALE_X,
                 page.size.height * CSS_TO_PDF_SCALE_Y,
             ],
-        });
-        page_id.into()
-    }).collect();
-
-    pdf_doc.objects.insert(page_tree_id, Object::Dictionary(dictionary! {
-        "Type" => "Pages",
-        "Count" => page_ids.len() as i64,
-        "Kids" => page_ids,
-    }));
-    let catalog_id = pdf_doc.add_object(dictionary!(
-        "Type" => "Catalog",
-        "Pages" => page_tree_id,
-    ));
-    let info_id = pdf_doc.add_object(dictionary!(
-        "Producer" => Object::string_literal("Victor <https://github.com/SimonSapin/victor>"),
-    ));
-
-    // PDF file trailer:
-    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
-    pdf_doc.trailer.set("Root", catalog_id);
-    pdf_doc.trailer.set("Info", info_id);
-    pdf_doc
-}
-
-pub fn page_content(display_list: &[DisplayItem]) -> Vec<Operation> {
-    let mut operations = Vec::new();
-
-    macro_rules! op {
-        ( $operator: expr ) => {
-            op!($operator,)
-        };
-        ( $operator: expr, $( $operands: tt )*) => {
-            operations.push(Operation {
-                operator: $operator.into(),
-                operands: array![ $($operands)* ],
-            })
-        }
+        })
     }
 
-    op!(CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
-    for display_item in display_list {
-        match *display_item {
-            // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
-            // to compensate the same flip at the page level.
-            DisplayItem::SolidRectangle(ref rect, RGB(red, green, blue)) => {
-                op!(SET_NON_STROKING_RGB_COLOR, red, green, blue);
-                op!(RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
-                op!(FILL);
+}
+
+struct InProgressPage<'a> {
+    doc: &'a mut InProgressPdf,
+    operations: Vec<Operation>,
+}
+
+impl<'a> InProgressPage<'a> {
+    fn add_content(&mut self, display_list: &[DisplayItem]) {
+        macro_rules! op {
+            ( $operator: expr ) => {
+                op!($operator,)
+            };
+            ( $operator: expr, $( $operands: tt )*) => {
+                self.operations.push(Operation {
+                    operator: $operator.into(),
+                    operands: array![ $($operands)* ],
+                })
+            }
+        }
+
+        op!(CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
+        for display_item in display_list {
+            match *display_item {
+                // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
+                // to compensate the same flip at the page level.
+                DisplayItem::SolidRectangle(ref rect, RGB(red, green, blue)) => {
+                    op!(SET_NON_STROKING_RGB_COLOR, red, green, blue);
+                    op!(RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+                    op!(FILL);
+                }
             }
         }
     }
-    operations
 }
 
 macro_rules! operators {
