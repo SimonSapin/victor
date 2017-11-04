@@ -4,6 +4,3 @@ members = [
     "victor",
     "victor-tests",
 ]
-
-[patch.crates-io]
-lopdf = {git = "https://github.com/SimonSapin/lopdf", branch = "0.14.1-rc"}
