@@ -74,14 +74,13 @@ pub fn page_content(display_list: &[DisplayItem]) -> Vec<Operation> {
         }
     }
 
-    op!(SET_NON_STROKING_COLOR_SPACE, "DeviceRGB");
     op!(CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
     for display_item in display_list {
         match *display_item {
             // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
             // to compensate the same flip at the page level.
             DisplayItem::SolidRectangle(ref rect, RGB(red, green, blue)) => {
-                op!(SET_NON_STROKING_COLOR, red, green, blue);
+                op!(SET_NON_STROKING_RGB_COLOR, red, green, blue);
                 op!(RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
                 op!(FILL);
             }
@@ -98,6 +97,8 @@ macro_rules! operators {
     }
 }
 
+// PDF Content Stream Operators
+// https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G14.1032355
 operators! {
     // Graphics State Operators
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.3793795
@@ -110,6 +111,5 @@ operators! {
 
     // Colour Spaces
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1850197
-    SET_NON_STROKING_COLOR = "sc",
-    SET_NON_STROKING_COLOR_SPACE = "cs",
+    SET_NON_STROKING_RGB_COLOR = "rg",
 }
