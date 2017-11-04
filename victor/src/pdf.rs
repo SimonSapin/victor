@@ -1,4 +1,3 @@
-use errors::VictorError;
 use display_lists::*;
 use lopdf::{self, Object, Stream};
 use lopdf::content::{Content, Operation};
@@ -18,7 +17,7 @@ const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
 const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
-pub(crate) fn from_display_lists(dl: &Document) -> Result<lopdf::Document, VictorError> {
+pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
     let mut pdf_doc = lopdf::Document::with_version("1.5");
     let page_tree_id = pdf_doc.new_object_id();
 
@@ -56,7 +55,7 @@ pub(crate) fn from_display_lists(dl: &Document) -> Result<lopdf::Document, Victo
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
     pdf_doc.trailer.set("Root", catalog_id);
     pdf_doc.trailer.set("Info", info_id);
-    Ok(pdf_doc)
+    pdf_doc
 }
 
 pub fn page_content(display_list: &[DisplayItem]) -> Vec<Operation> {
