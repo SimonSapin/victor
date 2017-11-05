@@ -18,7 +18,7 @@ impl Font {
         let ot = opentype::Font::read(&mut Cursor::new(&*bytes))?;
         let version = ot.offset_table.header.version;
         const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
-        if version != TRUETYPE && version != 0x00010000 {
+        if version != TRUETYPE && version != 0x_0001_0000 {
             error("only TrueType fonts are supported")?
         }
         Ok(Arc::new(Font { ot, bytes }))

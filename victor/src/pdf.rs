@@ -21,7 +21,7 @@ const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
 pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
-    let mut doc = InProgressPdf {
+    let mut doc = InProgressDoc {
         pdf: lopdf::Document::with_version("1.5"),
         page_tree_id: (0, 0),
         extended_graphics_states: None,
@@ -34,7 +34,7 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
     doc.finish(page_ids)
 }
 
-struct InProgressPdf {
+struct InProgressDoc {
     pdf: lopdf::Document,
     page_tree_id: ObjectId,
     extended_graphics_states: Option<Dictionary>,
@@ -43,7 +43,7 @@ struct InProgressPdf {
     fonts: HashMap<usize, String>,
 }
 
-impl InProgressPdf {
+impl InProgressDoc {
     fn finish(mut self, page_ids: Vec<Object>) -> lopdf::Document {
         let mut page_tree = dictionary! {
             "Type" => "Pages",
@@ -108,7 +108,7 @@ impl InProgressPdf {
 }
 
 struct InProgressPage<'a> {
-    doc: &'a mut InProgressPdf,
+    doc: &'a mut InProgressDoc,
     operations: Vec<Operation>,
     graphics_state: GraphicsState,
 }
