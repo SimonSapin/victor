@@ -22,20 +22,20 @@ const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it de
 
 pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
     let mut doc = InProgressPdf {
-        doc: lopdf::Document::with_version("1.5"),
+        pdf: lopdf::Document::with_version("1.5"),
         page_tree_id: (0, 0),
         extended_graphics_states: None,
         font_resources: None,
         alpha_states: HashMap::new(),
         fonts: HashMap::new(),
     };
-    doc.page_tree_id = doc.doc.new_object_id();
+    doc.page_tree_id = doc.pdf.new_object_id();
     let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
     doc.finish(page_ids)
 }
 
 struct InProgressPdf {
-    doc: lopdf::Document,
+    pdf: lopdf::Document,
     page_tree_id: ObjectId,
     extended_graphics_states: Option<Dictionary>,
     font_resources: Option<Dictionary>,
@@ -62,20 +62,20 @@ impl InProgressPdf {
             page_tree.set("Resources", resources)
         }
 
-        self.doc.objects.insert(self.page_tree_id, Object::Dictionary(page_tree));
-        let catalog_id = self.doc.add_object(dictionary!(
+        self.pdf.objects.insert(self.page_tree_id, Object::Dictionary(page_tree));
+        let catalog_id = self.pdf.add_object(dictionary!(
             "Type" => "Catalog",
             "Pages" => self.page_tree_id,
         ));
-        let info_id = self.doc.add_object(dictionary!(
+        let info_id = self.pdf.add_object(dictionary!(
             "Producer" => Object::string_literal("Victor <https://github.com/SimonSapin/victor>"),
         ));
 
         // PDF file trailer:
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
-        self.doc.trailer.set("Root", catalog_id);
-        self.doc.trailer.set("Info", info_id);
-        self.doc
+        self.pdf.trailer.set("Root", catalog_id);
+        self.pdf.trailer.set("Info", info_id);
+        self.pdf
     }
 
     fn add_page(&mut self, page: &Page) -> ObjectId {
@@ -92,8 +92,8 @@ impl InProgressPdf {
             in_progress.add_content(&page.display_items);
             Content { operations: in_progress.operations }
         };
-        let content_id = self.doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
-        self.doc.add_object(dictionary! {
+        let content_id = self.pdf.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+        self.pdf.add_object(dictionary! {
             "Type" => "Page",
             "Parent" => self.page_tree_id,
             "Contents" => content_id,
