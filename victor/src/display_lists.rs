@@ -9,9 +9,7 @@ pub type Length<U> = euclid::Length<f32, U>;
 pub type Point<U> = euclid::TypedPoint2D<f32, U>;
 pub type Size<U> = euclid::TypedSize2D<f32, U>;
 pub type Rect<U> = euclid::TypedRect<f32, U>;
-pub type GlyphId = Unimplemented;
-
-pub enum Unimplemented {}
+pub type GlyphId = u16;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct RGBA(pub f32, pub f32, pub f32, pub f32);
@@ -32,6 +30,6 @@ pub enum DisplayItem {
         font_size: Length<CssPx>,
         color: RGBA,
         start: Point<CssPx>,
-        glyphs: Vec<GlyphId>,
+        glyph_ids: Vec<GlyphId>,
     },
 }

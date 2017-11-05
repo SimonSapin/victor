@@ -1,8 +1,9 @@
 use opentype::{self, Table};
 use std::borrow::Cow;
 use std::io::{self, Cursor};
+use std::mem;
 use std::sync::Arc;
-use truetype::FontHeader;
+use truetype::NamingTable;
 
 pub struct Font {
     ot: opentype::Font,
@@ -24,6 +25,10 @@ impl Font {
         Ok(Arc::new(Font { ot, bytes }))
     }
 
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     fn take<'a, T>(&self) -> io::Result<T> where T: Table<'a, Parameter=()> {
         self.take_given(())
     }
@@ -33,8 +38,18 @@ impl Font {
         .ok_or_else(|| invalid("missing font table"))
     }
 
-    pub fn units_per_em(&self) -> io::Result<u16> {
-        Ok(self.take::<FontHeader>()?.units_per_em)
+    fn naming_strings(&self) -> io::Result<Vec<String>> {
+        match self.take()? {
+            NamingTable::Format0(t) => t.strings(),
+            NamingTable::Format1(t) => t.strings(),
+        }
+    }
+
+    pub fn postscript_name(&self) -> String {
+        let mut strings = self.naming_strings().unwrap();
+        // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6name.html
+        const POSTSCRIPT_NAME__NAME_ID: usize = 6;
+        mem::replace(&mut strings[POSTSCRIPT_NAME__NAME_ID], String::new())
     }
 }
 

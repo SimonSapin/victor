@@ -138,13 +138,18 @@ impl<'a> InProgressPage<'a> {
                     op!(self, FILL);
                 }
 
-                DisplayItem::Text { ref font, ref font_size, ref color, ref start, ref glyphs } => {
+                DisplayItem::Text { ref font, ref font_size, ref color, ref start, ref glyph_ids } => {
                     self.set_non_stroking_color(color);
                     let font_key = self.add_font(font);
                     // flip the Y axis in to compensate the same flip at the page level.
                     let x_scale = font_size.0;
                     let y_scale = -font_size.0;
-                    let glyph_codes = glyphs.iter().map(|glyph| match *glyph {}).collect();
+                    let mut glyph_codes = Vec::with_capacity(glyph_ids.len() * 2);
+                    for &id in glyph_ids {
+                        // Big-endian
+                        glyph_codes.push((id >> 8) as u8);
+                        glyph_codes.push(id as u8);
+                    }
                     op!(self, BEGIN_TEXT);
                     op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
                     op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, start.x, start.y);
@@ -161,11 +166,11 @@ impl<'a> InProgressPage<'a> {
                     // writing mode: 0 is horizontal, 1 is vertical
                     //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
                     // more than 1 byte per glyph ID: composite fonts
-                    // In font descriptor dict: "/FontFile2 <stream reference>" for TrueType
-                    // or "/Subtype /OpenType /FontFile3 <stream reference>"
                     // Embedded font stream dictionary: /Length1 decoded TrueType size
                     // TrueType tables required:
                     // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
+                    // Subset: prefix /BaseFont name with 6 upper case letters
+                    //   (identifying this subset) and "+"
 
                     // Probably won’t use:
                     // Word spacing = character spacing for ASCII space 0x20 single-byte code
@@ -214,16 +219,60 @@ impl<'a> InProgressPage<'a> {
 
     fn add_font(&mut self, font: &Arc<Font>) -> String {
         let ptr: *const Font = &**font;
-        let next_id = self.doc.fonts.len();
-        let font_resources = &mut self.doc.font_resources;
-        let pdf_key = self.doc.fonts.entry(ptr as usize).or_insert_with(|| {
-            let pdf_key = format!("f{}", next_id);
-            font_resources.get_or_insert_with(Dictionary::new).set(
-                pdf_key.clone(),
+        let hash_key = ptr as usize;
+        let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
+        let next_id = fonts.len();
+        let pdf_key = fonts.entry(hash_key).or_insert_with(|| {
+            let truetype_bytes = font.bytes();
+            let truetype_id = pdf.add_object(Stream::new(
                 dictionary! {
-                    // FIXME: Font resource dictionary
-                }
-            );
+                    "Length1" => truetype_bytes.len() as i64,
+                },
+                truetype_bytes.to_owned()
+            ));
+            let font_name = font.postscript_name();
+            let font_descriptor_id = pdf.add_object(dictionary! {
+                "Type" => "FontDescriptor",
+                "FontName" => &*font_name,
+                "Flags" => 0, // FIXME
+                "FontBBox" => array![],  // FIXME: rectangle [x1, y1, x2, y1] in glyph space
+                "ItalicAngle" => 0,  // FIXME: angle in degrees
+                "Ascent" => 0, // FIXME
+                "Descent" => 0, // FIXME
+                "CapHeight" => 0, // FIXME
+                "StemV" => 0, // FIXME
+                "FontFile2" => truetype_id,
+            });
+            // Type 0 Font Dictionaries
+            // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
+            let font_dict = dictionary! {
+                "Type" => "Font",
+                "Subtype" => "Type0",
+                "BaseFont" => &*font_name,
+
+                // 2-bytes big-endian char codes, horizontal writing mode:
+                "Encoding" => "Identity-H",
+                // FIXME: add /ToUnicode
+
+                "DescendantFonts" => array![dictionary! {
+                    "Type" => "Font",
+                    "Subtype" => "CIDFontType2",
+                    "BaseFont" => font_name,
+                    "CIDSystemInfo" => dictionary! {
+                        "Registry" => Object::string_literal("Adobe"),
+                        "Ordering" => Object::string_literal("Identity"),
+                        "Supplement" => 0,
+                    },
+                    "FontDescriptor" => font_descriptor_id,
+//                    "W" => array![
+//                        0,  // start CID
+//                        unimplemented!().collect::<Vec<Object>>()  // FIXME
+//                    ],
+                }],
+            };
+
+            let pdf_key = format!("f{}", next_id);
+            font_resources.get_or_insert_with(Dictionary::new).set(pdf_key.clone(), font_dict);
             pdf_key
         });
         pdf_key.clone()
