@@ -1,6 +1,7 @@
 use opentype::{self, Table};
 use std::borrow::Cow;
 use std::io::{self, Cursor};
+use std::sync::Arc;
 use truetype::FontHeader;
 
 pub struct Font {
@@ -9,18 +10,18 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn from_bytes<T: Into<Cow<'static, [u8]>>>(bytes: T) -> io::Result<Self> {
+    pub fn from_bytes<T: Into<Cow<'static, [u8]>>>(bytes: T) -> io::Result<Arc<Self>> {
         Self::from_cow(bytes.into())
     }
 
-    fn from_cow(bytes: Cow<'static, [u8]>) -> io::Result<Self> {
+    fn from_cow(bytes: Cow<'static, [u8]>) -> io::Result<Arc<Self>> {
         let ot = opentype::Font::read(&mut Cursor::new(&*bytes))?;
         let version = ot.offset_table.header.version;
         const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
         if version != TRUETYPE && version != 0x00010000 {
             error("only TrueType fonts are supported")?
         }
-        Ok(Font { ot, bytes })
+        Ok(Arc::new(Font { ot, bytes }))
     }
 
     fn take<'a, T>(&self) -> io::Result<T> where T: Table<'a, Parameter=()> {

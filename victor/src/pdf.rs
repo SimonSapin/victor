@@ -1,7 +1,9 @@
 use display_lists::*;
-use lopdf::{self, Object, Stream, ObjectId, Dictionary};
+use fonts::Font;
+use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
 use lopdf::content::{Content, Operation};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 macro_rules! array {
     ($( $value: expr ),* ,) => {
@@ -22,9 +24,10 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
     let mut doc = InProgressPdf {
         doc: lopdf::Document::with_version("1.5"),
         page_tree_id: (0, 0),
-        fonts: None,
         extended_graphics_states: None,
+        font_resources: None,
         alpha_states: HashMap::new(),
+        fonts: HashMap::new(),
     };
     doc.page_tree_id = doc.doc.new_object_id();
     let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
@@ -34,9 +37,10 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
 struct InProgressPdf {
     doc: lopdf::Document,
     page_tree_id: ObjectId,
-    fonts: Option<Dictionary>,
     extended_graphics_states: Option<Dictionary>,
+    font_resources: Option<Dictionary>,
     alpha_states: HashMap<u16, String>,
+    fonts: HashMap<usize, String>,
 }
 
 impl InProgressPdf {
@@ -48,7 +52,7 @@ impl InProgressPdf {
         };
 
         let mut resources = None;
-        if let Some(fonts) = self.fonts {
+        if let Some(fonts) = self.font_resources {
             resources.get_or_insert_with(Dictionary::new).set("Font", fonts)
         }
         if let Some(states) = self.extended_graphics_states {
@@ -101,7 +105,6 @@ impl InProgressPdf {
             ],
         })
     }
-
 }
 
 struct InProgressPage<'a> {
@@ -135,28 +138,39 @@ impl<'a> InProgressPage<'a> {
                     op!(self, FILL);
                 }
 
-                // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
-                // to compensate the same flip at the page level.
+                DisplayItem::Text { ref font, ref font_size, ref color, ref start, ref glyphs } => {
+                    self.set_non_stroking_color(color);
+                    let font_key = self.add_font(font);
+                    // flip the Y axis in to compensate the same flip at the page level.
+                    let x_scale = font_size.0;
+                    let y_scale = -font_size.0;
+                    let glyph_codes = glyphs.iter().map(|glyph| match *glyph {}).collect();
+                    op!(self, BEGIN_TEXT);
+                    op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
+                    op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, start.x, start.y);
+                    op!(self, SHOW_TEXT, Object::String(glyph_codes, StringFormat::Hexadecimal));
+                    op!(self, END_TEXT);
 
-                // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
-                // In the Font resource dictionary:
-                // subtype (TrueType), PS name, font program (stream), advance width of each glyph
-                // glyph space: 1/1000 of text space
-                // text space: controlled by text maxtrix (Tm op) and text size (Tf op) based on user space
-                // Td op: place current text position (origin of text space) in user space
-                // glyph displacement vector translates text space when showing a glyph, based on font metrics
-                // writing mode: 0 is horizontal, 1 is vertical
-                //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
-                // more than 1 byte per glyph ID: composite fonts
-                // In font descriptor dict: "/FontFile2 <stream reference>" for TrueType
-                // or "/Subtype /OpenType /FontFile3 <stream reference>"
-                // Embedded font stream dictionary: /Length1 decoded TrueType size
-                // TrueType tables required:
-                // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
+                    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
+                    // In the Font resource dictionary:
+                    // subtype (TrueType), PS name, font program (stream), advance width of each glyph
+                    // glyph space: 1/1000 of text space
+                    // text space: controlled by text maxtrix (Tm op) and text size (Tf op) based on user space
+                    // Td op: place current text position (origin of text space) in user space
+                    // glyph displacement vector translates text space when showing a glyph, based on font metrics
+                    // writing mode: 0 is horizontal, 1 is vertical
+                    //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
+                    // more than 1 byte per glyph ID: composite fonts
+                    // In font descriptor dict: "/FontFile2 <stream reference>" for TrueType
+                    // or "/Subtype /OpenType /FontFile3 <stream reference>"
+                    // Embedded font stream dictionary: /Length1 decoded TrueType size
+                    // TrueType tables required:
+                    // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
 
-                // Probably won’t use:
-                // Word spacing = character spacing for ASCII space 0x20 single-byte code
-                // Leading = height between consecutive baselines
+                    // Probably won’t use:
+                    // Word spacing = character spacing for ASCII space 0x20 single-byte code
+                    // Leading = height between consecutive baselines
+                }
             }
         }
     }
@@ -164,7 +178,7 @@ impl<'a> InProgressPage<'a> {
     fn set_non_stroking_color(&mut self, &RGBA(r, g, b, a): &RGBA) {
         if self.graphics_state.non_stroking_color_rgb != (r, g, b) {
             self.graphics_state.non_stroking_color_rgb = (r, g, b);
-            op!(self, SET_NON_STROKING_RGB_COLOR, r, g, b);
+            op!(self, NON_STROKING_RGB_COLOR, r, g, b);
         }
         self.set_alpha(a)
     }
@@ -183,19 +197,36 @@ impl<'a> InProgressPage<'a> {
 
             let next_id = self.doc.alpha_states.len();
             let states = &mut self.doc.extended_graphics_states;
-            let pdf_state_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
-                let pdf_state_key = format!("a{}", next_id);
+            let pdf_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
+                let pdf_key = format!("a{}", next_id);
                 states.get_or_insert_with(Dictionary::new).set(
-                    pdf_state_key.clone(),
+                    pdf_key.clone(),
                     dictionary! {
                         "CA" => alpha,
                         "ca" => alpha,
                     },
                 );
-                pdf_state_key
+                pdf_key
             });
-            op!(self, SET_EXTENDED_GRAPHICS_STATE, pdf_state_key.clone());
+            op!(self, EXTENDED_GRAPHICS_STATE, pdf_key.clone());
         }
+    }
+
+    fn add_font(&mut self, font: &Arc<Font>) -> String {
+        let ptr: *const Font = &**font;
+        let next_id = self.doc.fonts.len();
+        let font_resources = &mut self.doc.font_resources;
+        let pdf_key = self.doc.fonts.entry(ptr as usize).or_insert_with(|| {
+            let pdf_key = format!("f{}", next_id);
+            font_resources.get_or_insert_with(Dictionary::new).set(
+                pdf_key.clone(),
+                dictionary! {
+                    // FIXME: Font resource dictionary
+                }
+            );
+            pdf_key
+        });
+        pdf_key.clone()
     }
 }
 
@@ -214,7 +245,7 @@ operators! {
     // Graphics State Operators
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.3793795
     CURRENT_TRANSFORMATION_MATRIX = "cm",
-    SET_EXTENDED_GRAPHICS_STATE = "gs",
+    EXTENDED_GRAPHICS_STATE = "gs",
 
     // Path Construction and Painting
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1849957
@@ -223,5 +254,13 @@ operators! {
 
     // Colour Spaces
     // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G7.1850197
-    SET_NON_STROKING_RGB_COLOR = "rg",
+    NON_STROKING_RGB_COLOR = "rg",
+
+    // Text
+    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
+    BEGIN_TEXT = "BT",
+    END_TEXT = "ET",
+    TEXT_FONT_AND_SIZE = "Tf",
+    TEXT_MATRIX = "Tm",
+    SHOW_TEXT = "Tj",
 }
