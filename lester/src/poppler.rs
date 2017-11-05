@@ -123,7 +123,7 @@ pub struct Page<'data> {
 }
 
 impl<'data> Page<'data> {
-    /// The width and height of this page, in PostScript points.
+    /// The width and height of this page, in PostScript points as stored in PDF.
     ///
     /// One PostScript point is ¹⁄₇₂ inch,
     /// or 0.352<span style="text-decoration: overline">7</span> mm.
@@ -137,6 +137,16 @@ impl<'data> Page<'data> {
         (width, height)
     }
 
+    /// The width and height of this page, converted to CSS `px` units.
+    ///
+    /// This assumes that the CSS `pt` unit is mapped to one PostScript point, as Victor does.
+    /// (This mapping also makes CSS `in` and `mm` map to physical inches and millimeters.)
+    pub fn size_in_css_px(&self) -> (f64, f64) {
+        let (w, h) = self.size_in_ps_points();
+        (w * PX_PER_PT,
+         h * PX_PER_PT)
+    }
+
     /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render_with_default_options(&self) -> Result<ImageSurface, CairoError> {
         self.render(RenderOptions::default())
@@ -144,18 +154,16 @@ impl<'data> Page<'data> {
 
     /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
-        let RenderOptions { dpi_x, dpi_y, antialias, for_printing } = options;
-        // PDF’s default unit is the PostScript point, which is 1/72 inches.
-        let scale_x = dpi_x / 72.;
-        let scale_y = dpi_y / 72.;
-        let (width, height) = self.size_in_ps_points();
+        let RenderOptions { dppx_x, dppx_y, antialias, for_printing } = options;
+        let (width, height) = self.size_in_css_px();
         let mut surface = ImageSurface::new_c_int(
             CAIRO_FORMAT_RGB24,
-            (width * scale_x).ceil().try_into().unwrap(),
-            (height * scale_y).ceil().try_into().unwrap(),
+            (width * dppx_x).ceil().try_into().unwrap(),
+            (height * dppx_y).ceil().try_into().unwrap(),
         )?;
         let mut context = surface.context()?;
-        context.scale(scale_x, scale_y);
+        context.scale(dppx_x * PX_PER_PT,
+                      dppx_y * PX_PER_PT);
         context.set_antialias(antialias);
         unsafe {
             if for_printing {
@@ -177,6 +185,10 @@ impl<'data> Drop for Page<'data> {
     }
 }
 
+const PT_PER_INCH: f64 = 72.;
+const PX_PER_INCH: f64 = 96.;
+const PX_PER_PT: f64 = PX_PER_INCH / PT_PER_INCH;
+
 /// Parameters for rendering (rasterization)
 ///
 /// This type implements the `Default` trait.
@@ -191,17 +203,17 @@ impl<'data> Drop for Page<'data> {
 /// ```
 #[derive(Copy, Clone, Debug)]
 pub struct RenderOptions {
-    /// The number of pixels per inch in the horizontal direction,
-    /// where one inch is 72 PostScript points.
+    /// The number of rendered pixels per CSS `px` unit in the horizontal direction,
+    /// assuming that the CSS `pt` unit maps to PostScript points as Victor does.
     ///
-    /// Since Victor generates PDF such as a `1pt` CSS length is one PostScript point,
-    /// a DPI of 96 will make a `1px` CSS length is one rendered pixel.
-    /// A DPI of 192 is similar to a “retina” double-density display.
-    pub dpi_x: f64,
+    /// The default is `1.0`, which equals `96dpi`.
+    /// A value of `2.0` produces a rendering similar to a “retina” double-density display.
+    /// `3.125` equals `300dpi`.
+    pub dppx_x: f64,
 
-    /// The number of pixels per inch in the vertical direction.
-    /// Typically this is the same as `dpi_x`.
-    pub dpi_y: f64,
+    /// The number of rendered pixels per CSS `px` unit in the vertical direction.
+    /// Typically this is the same as `dppx_x`.
+    pub dppx_y: f64,
 
     /// The antialiasing mode to use for rasterizing text and vector graphics.
     pub antialias: Antialias,
@@ -214,10 +226,8 @@ pub struct RenderOptions {
 impl Default for RenderOptions {
     fn default() -> Self {
         RenderOptions {
-            // Default to CSS '1px' == 1 raster pixel,
-            // assuming CSS '1pt' == 1 PostScript point.
-            dpi_x: 96.,
-            dpi_y: 96.,
+            dppx_x: 1.0,
+            dppx_y: 1.0,
             antialias: Antialias::Default,
             for_printing: false,
         }

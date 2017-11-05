@@ -58,6 +58,7 @@ mod cairo_ffi;
 mod poppler_ffi;
 mod convert;
 
+/// `assert_eq!` for `Argb32Pixels::buffer`.
 #[macro_export]
 macro_rules! assert_pixels_eq {
     ($a: expr, $b: expr) => {
@@ -75,6 +76,7 @@ macro_rules! assert_pixels_eq {
     }
 }
 
+#[doc(hidden)]
 pub fn pixels_to_hex(pixels: &[u32]) -> String {
     pixels.iter().map(|p| format!("{:08X}", p)).collect::<Vec<_>>().join(", ")
 }

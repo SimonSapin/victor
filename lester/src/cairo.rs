@@ -52,7 +52,7 @@ pub struct Argb32Pixels<'data> {
     pub height: usize,
 
     /// A slice of length `width * height` containing the image’s pixels.
-    /// The pixel at position `(x, y)` is at index `x + height * y`.
+    /// The pixel at position `(x, y)` is at index `x + width * y`.
     ///
     /// A pixel’s upper 8 bits is the alpha channel if the image is in ARGB32 format,
     /// or undefined for the RGB24 format.

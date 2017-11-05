@@ -45,7 +45,8 @@ fn pattern_4x4_pdf() {
     static PDF_BYTES: &[u8] = include_bytes!("pattern_4x4.pdf");
     let doc = PdfDocument::from_bytes(PDF_BYTES).unwrap();
     let page = doc.pages().next().unwrap();
-    assert_eq!(page.size_in_ps_points(), (3., 3.));  // 4px == 3pt
+    assert_eq!(page.size_in_ps_points(), (3., 3.));
+    assert_eq!(page.size_in_css_px(), (4., 4.));
 
     let options = RenderOptions {
         // Apparently this (in addition to having `/Interpolate false` in the PDF file)
@@ -64,4 +65,12 @@ fn pattern_4x4_pdf() {
         BLUE, BLUE, BLUE, BLUE,
         BLUE, BLUE, BLUE, BLUE,
     ]);
+
+    let mut surface = page.render(RenderOptions {
+        dppx_x: 2.0,
+        dppx_y: 3.0,
+        ..RenderOptions::default()
+    }).unwrap();
+    let pixels = surface.pixels();
+    assert_eq!((pixels.width, pixels.height), (8, 12));
 }

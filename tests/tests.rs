@@ -27,8 +27,8 @@ fn pdf() {
     assert_eq!(doc.producer().unwrap().to_str().unwrap(),
                "Victor <https://github.com/SimonSapin/victor>");
 
-    let sizes: Vec<_> = doc.pages().map(|page| page.size_in_ps_points()).collect();
-    assert_eq!(sizes, [(15., 7.5), (3., 3.)]);
+    let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
+    assert_eq!(sizes, [(20., 10.), (4., 4.)]);
 
     let mut surface = doc.pages().nth(1).unwrap().render_with_default_options().unwrap();
     const RED_: u32 = 0x8080_0000;
