@@ -28,6 +28,9 @@ fn inspect(name: &str, bytes: &[u8]) {
         () => { font.take(&mut cursor).unwrap().unwrap() }
     }
 
+    // 'true' (0x74727565) and 0x00010000 mean TrueType
+    println!("version: {:08X}", font.offset_table.header.version);
+
     println!("{} tables: {}", font.offset_table.records.len(),
              font.offset_table.records.iter()
              .map(|r| str::from_utf8(&*r.tag).unwrap())

@@ -130,13 +130,34 @@ impl<'a> InProgressPage<'a> {
         op!(self, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
         for display_item in display_list {
             match *display_item {
-                // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
-                // to compensate the same flip at the page level.
                 DisplayItem::SolidRectangle(ref rect, ref rgba) => {
                     self.set_non_stroking_color(rgba);
                     op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
                     op!(self, FILL);
                 }
+
+                // FIXME: Whenever we add text, flip the Y axis in the text transformation matrix
+                // to compensate the same flip at the page level.
+
+                // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
+                // In the Font resource dictionary:
+                // subtype (TrueType), PS name, font program (stream), advance width of each glyph
+                // glyph space: 1/1000 of text space
+                // text space: controlled by text maxtrix (Tm op) and text size (Tf op) based on user space
+                // Td op: place current text position (origin of text space) in user space
+                // glyph displacement vector translates text space when showing a glyph, based on font metrics
+                // writing mode: 0 is horizontal, 1 is vertical
+                //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
+                // more than 1 byte per glyph ID: composite fonts
+                // In font descriptor dict: "/FontFile2 <stream reference>" for TrueType
+                // or "/Subtype /OpenType /FontFile3 <stream reference>"
+                // Embedded font stream dictionary: /Length1 decoded TrueType size
+                // TrueType tables required:
+                // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
+
+                // Probably won’t use:
+                // Word spacing = character spacing for ASCII space 0x20 single-byte code
+                // Leading = height between consecutive baselines
             }
         }
     }
