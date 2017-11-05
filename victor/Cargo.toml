@@ -13,3 +13,5 @@ doctest = false
 [dependencies]
 euclid = "0.15.4"
 lopdf = "0.14.1"
+opentype = {git = "https://github.com/bodoni/opentype"}
+truetype = "0.26"
