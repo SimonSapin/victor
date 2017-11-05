@@ -13,3 +13,5 @@ doctest = false
 [dependencies]
 lester = {path = "../lester"}
 victor = {path = "../victor"}
+opentype = {git = "https://github.com/bodoni/opentype"}
+truetype = "0.26"

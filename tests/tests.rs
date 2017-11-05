@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 #[macro_use] extern crate lester;
 extern crate victor;
 
