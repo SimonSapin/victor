@@ -20,13 +20,14 @@ const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
 pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
-    let mut doc = lopdf::Document::with_version("1.5");
     let mut doc = InProgressPdf {
-        page_tree_id: doc.new_object_id(),
-        doc,
+        doc: lopdf::Document::with_version("1.5"),
+        page_tree_id: (0, 0),
+        fonts: None,
         extended_graphics_states: None,
         alpha_states: HashMap::new(),
     };
+    doc.page_tree_id = doc.doc.new_object_id();
     let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
     doc.finish(page_ids)
 }
@@ -34,6 +35,7 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
 struct InProgressPdf {
     doc: lopdf::Document,
     page_tree_id: ObjectId,
+    fonts: Option<Dictionary>,
     extended_graphics_states: Option<Dictionary>,
     alpha_states: HashMap<u16, usize>,
 }
@@ -45,11 +47,18 @@ impl InProgressPdf {
             "Count" => page_ids.len() as i64,
             "Kids" => page_ids,
         };
-        if let Some(states) = self.extended_graphics_states {
-            page_tree.set("Resources", dictionary! {
-                "ExtGState" => states,
-            })
+
+        let mut resources = None;
+        if let Some(fonts) = self.fonts {
+            resources.get_or_insert_with(Dictionary::new).set("Font", fonts)
         }
+        if let Some(states) = self.extended_graphics_states {
+            resources.get_or_insert_with(Dictionary::new).set("ExtGState", states)
+        }
+        if let Some(resources) = resources {
+            page_tree.set("Resources", resources)
+        }
+
         self.doc.objects.insert(self.page_tree_id, Object::Dictionary(page_tree));
         let catalog_id = self.doc.add_object(dictionary!(
             "Type" => "Catalog",
