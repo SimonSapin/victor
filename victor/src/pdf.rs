@@ -2,7 +2,6 @@ use display_lists::*;
 use lopdf::{self, Object, Stream, ObjectId, Dictionary};
 use lopdf::content::{Content, Operation};
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 
 macro_rules! array {
     ($( $value: expr ),* ,) => {
@@ -37,7 +36,7 @@ struct InProgressPdf {
     page_tree_id: ObjectId,
     fonts: Option<Dictionary>,
     extended_graphics_states: Option<Dictionary>,
-    alpha_states: HashMap<u16, usize>,
+    alpha_states: HashMap<u16, String>,
 }
 
 impl InProgressPdf {
@@ -183,24 +182,19 @@ impl<'a> InProgressPage<'a> {
             let hash_key = (alpha * (u16::max_value() as f32)) as u16;
 
             let next_id = self.doc.alpha_states.len();
-            let pdf_state_key;
-            match self.doc.alpha_states.entry(hash_key) {
-                Entry::Occupied(entry) => {
-                    pdf_state_key = format!("a{}", entry.get());
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(next_id);
-                    pdf_state_key = format!("a{}", next_id);
-                    self.doc.extended_graphics_states.get_or_insert_with(Dictionary::new).set(
-                        &*pdf_state_key,
-                        dictionary! {
-                            "CA" => alpha,
-                            "ca" => alpha,
-                        }
-                    );
-                }
-            }
-            op!(self, SET_EXTENDED_GRAPHICS_STATE, pdf_state_key);
+            let states = &mut self.doc.extended_graphics_states;
+            let pdf_state_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
+                let pdf_state_key = format!("a{}", next_id);
+                states.get_or_insert_with(Dictionary::new).set(
+                    pdf_state_key.clone(),
+                    dictionary! {
+                        "CA" => alpha,
+                        "ca" => alpha,
+                    },
+                );
+                pdf_state_key
+            });
+            op!(self, SET_EXTENDED_GRAPHICS_STATE, pdf_state_key.clone());
         }
     }
 }
