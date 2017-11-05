@@ -188,7 +188,8 @@ impl<'a> InProgressPage<'a> {
                 Entry::Occupied(entry) => {
                     pdf_state_key = format!("a{}", entry.get());
                 }
-                Entry::Vacant(_) => {
+                Entry::Vacant(entry) => {
+                    entry.insert(next_id);
                     pdf_state_key = format!("a{}", next_id);
                     self.doc.extended_graphics_states.get_or_insert_with(Dictionary::new).set(
                         &*pdf_state_key,
