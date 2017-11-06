@@ -17,15 +17,14 @@ fn pdf() {
     let dl = Document {
         pages: vec![
             Page {
-                size: Size::new(250., 100.),
+                size: Size::new(120., 50.),
                 display_items: vec![
-                    DisplayItem::SolidRectangle(rect(0., 0., 200., 100.), RGBA(1., 1., 1., 1.)),
                     DisplayItem::Text {
                         glyph_ids: vera.to_glyph_ids("Têst→iimm"),
                         font: vera,
-                        font_size: Length::new(40.),
+                        font_size: Length::new(20.),
                         color: RGBA(0., 0., 0., 1.),
-                        start: point(20., 60.),
+                        start: point(10., 30.),
                     }
                 ],
             },
@@ -50,7 +49,7 @@ fn pdf() {
                "Victor <https://github.com/SimonSapin/victor>");
 
     let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
-    assert_eq!(sizes, [(250., 100.), (4., 4.)]);
+    assert_eq!(sizes, [(120., 50.), (4., 4.)]);
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         doc.pages().nth(0).unwrap()

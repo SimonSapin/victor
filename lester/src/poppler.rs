@@ -1,5 +1,5 @@
 use cairo::*;
-use cairo_ffi::CAIRO_FORMAT_RGB24;
+use cairo_ffi::CAIRO_FORMAT_ARGB32;
 use convert::TryInto;
 use errors::{CairoError, GlibError};
 use std::ffi::CStr;
@@ -157,7 +157,7 @@ impl<'data> Page<'data> {
         let RenderOptions { dppx_x, dppx_y, antialias, for_printing } = options;
         let (width, height) = self.size_in_css_px();
         let mut surface = ImageSurface::new_c_int(
-            CAIRO_FORMAT_RGB24,
+            CAIRO_FORMAT_ARGB32,
             (width * dppx_x).ceil().try_into().unwrap(),
             (height * dppx_y).ceil().try_into().unwrap(),
         )?;
