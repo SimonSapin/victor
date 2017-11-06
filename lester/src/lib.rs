@@ -39,7 +39,7 @@
 //!
 //! for (index, page) in doc.pages().enumerate() {
 //!     let filename = format!("foo_page{}.png", index + 1);
-//!     page.render_with_default_options()?.write_to_png_file(filename)?
+//!     page.render()?.write_to_png_file(filename)?
 //! }
 //! # Ok(())
 //! # }

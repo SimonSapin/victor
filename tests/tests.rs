@@ -52,12 +52,13 @@ fn pdf() {
     assert_eq!(sizes, [(120., 50.), (4., 4.)]);
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
-        doc.pages().nth(0).unwrap()
-            .render_with_default_options().unwrap()
-            .write_to_png_file("/tmp/victor.png").unwrap()
+        doc.pages()
+           .nth(0).unwrap()
+           .render().unwrap()
+           .write_to_png_file("/tmp/victor.png").unwrap()
     }
     let page = doc.pages().nth(1).unwrap();
-    let mut surface = page.render_with_default_options().unwrap();
+    let mut surface = page.render().unwrap();
     const RED_: u32 = 0x8080_0000;
     const BLUE: u32 = 0xFF00_00FF;
     const BOTH: u32 = 0xFF80_007F;

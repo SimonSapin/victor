@@ -148,7 +148,7 @@ impl<'data> Page<'data> {
     }
 
     /// Render (rasterize) this page with the given options to a new image surface.
-    pub fn render_with_default_options(&self) -> Result<ImageSurface, CairoError> {
+    pub fn render(&self) -> Result<ImageSurface, CairoError> {
         self.render_with_options(RenderOptions::default())
     }
 
