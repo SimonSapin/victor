@@ -53,10 +53,8 @@ fn inspect(name: &str, bytes: &[u8]) {
         _ => unreachable!(),
     }
 
-    if name == "ahem.ttf" {
-        let cmap: CharMapping = take!();
-        for encoding in &cmap.encodings {
-            println!("cmap length: {}", encoding.mapping().len());
-        }
+    let cmap: CharMapping = take!();
+    for encoding in &cmap.encodings {
+        println!("cmap length: {}", encoding.mapping().len());
     }
 }

@@ -1,12 +1,14 @@
 use opentype::{self, Table};
-use opentype::truetype::NamingTable;
+use opentype::truetype::{CharMapping, NamingTable};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::io::{self, Cursor};
 use std::mem;
 use std::sync::Arc;
 
 pub struct Font {
     ot: opentype::Font,
+    cmap: HashMap<u16, u16>,
     bytes: Cow<'static, [u8]>,
 }
 
@@ -17,16 +19,39 @@ impl Font {
 
     fn from_cow(bytes: Cow<'static, [u8]>) -> io::Result<Arc<Self>> {
         let ot = opentype::Font::read(&mut Cursor::new(&*bytes))?;
+
         let version = ot.offset_table.header.version;
         const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
         if version != TRUETYPE && version != 0x_0001_0000 {
             error("only TrueType fonts are supported")?
         }
-        Ok(Arc::new(Font { ot, bytes }))
+
+        let cmaps: CharMapping = ot
+            .take(&mut Cursor::new(&*bytes))?
+            .ok_or_else(|| invalid("missing cmap table"))?;
+        let cmap = cmaps.encodings.iter()
+            .map(|e| e.mapping())
+            .filter(|m| !m.is_empty())
+            .next()
+            .ok_or_else(|| invalid("no supported cmap"))?;
+
+        Ok(Arc::new(Font { ot, cmap, bytes }))
     }
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub fn to_glyph_ids(&self, text: &str) -> Vec<u16> {
+        text.chars().map(|c| {
+            let c = c as u32;
+            const NOTDEF_GLYPH: u16 = 0;
+            if c <= 0xFFFF {
+                self.cmap.get(&(c as u16)).cloned().unwrap_or(NOTDEF_GLYPH)
+            } else {
+                NOTDEF_GLYPH
+            }
+        }).collect()
     }
 
     fn take<'a, T>(&self) -> io::Result<T> where T: Table<'a, Parameter=()> {
