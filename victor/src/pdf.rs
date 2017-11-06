@@ -223,17 +223,15 @@ impl<'a> InProgressPage<'a> {
         let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
         let next_id = fonts.len();
         let pdf_key = fonts.entry(hash_key).or_insert_with(|| {
-            let truetype_bytes = font.bytes();
             let truetype_id = pdf.add_object(Stream::new(
                 dictionary! {
-                    "Length1" => truetype_bytes.len() as i64,
+                    "Length1" => font.bytes.len() as i64,
                 },
-                truetype_bytes.to_owned()
+                font.bytes.to_vec()
             ));
-            let font_name = font.postscript_name();
             let font_descriptor_id = pdf.add_object(dictionary! {
                 "Type" => "FontDescriptor",
-                "FontName" => &*font_name,
+                "FontName" => &*font.postscript_name,
                 "Flags" => 0, // FIXME
                 "FontBBox" => array![],  // FIXME: rectangle [x1, y1, x2, y1] in glyph space
                 "ItalicAngle" => 0,  // FIXME: angle in degrees
@@ -248,7 +246,7 @@ impl<'a> InProgressPage<'a> {
             let font_dict = dictionary! {
                 "Type" => "Font",
                 "Subtype" => "Type0",
-                "BaseFont" => &*font_name,
+                "BaseFont" => &*font.postscript_name,
 
                 // 2-bytes big-endian char codes, horizontal writing mode:
                 "Encoding" => "Identity-H",
@@ -257,7 +255,7 @@ impl<'a> InProgressPage<'a> {
                 "DescendantFonts" => array![dictionary! {
                     "Type" => "Font",
                     "Subtype" => "CIDFontType2",
-                    "BaseFont" => font_name,
+                    "BaseFont" => &*font.postscript_name,
                     "CIDSystemInfo" => dictionary! {
                         "Registry" => Object::string_literal("Adobe"),
                         "Ordering" => Object::string_literal("Identity"),
