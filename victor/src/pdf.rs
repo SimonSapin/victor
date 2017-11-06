@@ -235,8 +235,8 @@ impl<'a> InProgressPage<'a> {
                 "Flags" => 0, // FIXME
                 "FontBBox" => array![],  // FIXME: rectangle [x1, y1, x2, y1] in glyph space
                 "ItalicAngle" => 0,  // FIXME: angle in degrees
-                "Ascent" => 0, // FIXME
-                "Descent" => 0, // FIXME
+                "Ascent" => font.ascent,
+                "Descent" => font.descent,
                 "CapHeight" => 0, // FIXME
                 "StemV" => 0, // FIXME
                 "FontFile2" => truetype_id,

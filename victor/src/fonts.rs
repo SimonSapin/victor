@@ -1,5 +1,5 @@
 use opentype;
-use opentype::truetype::{CharMapping, NamingTable};
+use opentype::truetype::{FontHeader, CharMapping, NamingTable, HorizontalHeader};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{self, Cursor};
@@ -7,9 +7,11 @@ use std::mem;
 use std::sync::Arc;
 
 pub struct Font {
-    pub bytes: Cow<'static, [u8]>,
-    pub postscript_name: String,
-    pub cmap: HashMap<u16, u16>,
+    pub(crate) bytes: Cow<'static, [u8]>,
+    pub(crate) postscript_name: String,
+    pub(crate) cmap: HashMap<u16, u16>,
+    pub(crate) ascent: i32,
+    pub(crate) descent: i32,
 }
 
 impl Font {
@@ -48,7 +50,17 @@ impl Font {
             .next()
             .ok_or_else(|| invalid("no supported cmap"))?;
 
-        Ok(Arc::new(Font { bytes, postscript_name, cmap }))
+        let header: FontHeader = take!();
+        let horizontal_header: HorizontalHeader = take!();
+        let ttf_units_per_em = i32::from(header.units_per_em);
+        const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
+        let ttf_to_pdf = |x: i16| i32::from(x) * PDF_GLYPH_SPACE_UNITS_PER_EM / ttf_units_per_em;
+
+        Ok(Arc::new(Font {
+            ascent: ttf_to_pdf(horizontal_header.ascender),
+            descent: ttf_to_pdf(horizontal_header.descender),
+            bytes, postscript_name, cmap,
+        }))
     }
 
     pub fn to_glyph_ids(&self, text: &str) -> Vec<u16> {
