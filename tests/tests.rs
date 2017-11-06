@@ -69,7 +69,7 @@ fn pdf() {
         BLUE, BLUE, BLUE, BLUE,
     ]);
 
-    let mut surface = page.render(RenderOptions {
+    let mut surface = page.render_with_options(RenderOptions {
         dppx_x: 2.0,
         dppx_y: 3.0,
         ..RenderOptions::default()

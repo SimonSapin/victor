@@ -149,11 +149,11 @@ impl<'data> Page<'data> {
 
     /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render_with_default_options(&self) -> Result<ImageSurface, CairoError> {
-        self.render(RenderOptions::default())
+        self.render_with_options(RenderOptions::default())
     }
 
     /// Render (rasterize) this page with the given options to a new image surface.
-    pub fn render(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
+    pub fn render_with_options(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
         let RenderOptions { dppx_x, dppx_y, antialias, for_printing } = options;
         let (width, height) = self.size_in_css_px();
         let mut surface = ImageSurface::new_c_int(

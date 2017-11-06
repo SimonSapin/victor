@@ -56,7 +56,7 @@ fn pattern_4x4_pdf() {
 
         ..RenderOptions::default()
     };
-    let mut surface = page.render(options).unwrap();
+    let mut surface = page.render_with_options(options).unwrap();
     const RED: u32 = 0xFFFF_0000;
     const BLUE: u32 = 0xFF00_00FF;
     assert_pixels_eq!(surface.pixels().buffer, &[
@@ -66,7 +66,7 @@ fn pattern_4x4_pdf() {
         BLUE, BLUE, BLUE, BLUE,
     ]);
 
-    let mut surface = page.render(RenderOptions {
+    let mut surface = page.render_with_options(RenderOptions {
         dppx_x: 2.0,
         dppx_y: 3.0,
         ..RenderOptions::default()
