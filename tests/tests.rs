@@ -4,16 +4,30 @@
 extern crate victor;
 
 use lester::{PdfDocument, RenderOptions};
+use std::env;
+use std::fs::File;
+use std::io::Write;
 use victor::display_lists::*;
-use victor::euclid::rect;
+use victor::fonts::Font;
 
 #[test]
 fn pdf() {
+    let vera = include_bytes!("../fonts/ttf-bitstream-vera-1.10/Vera.ttf");
+    let vera = Font::from_bytes(&vera[..]).unwrap();
     let dl = Document {
         pages: vec![
             Page {
-                size: Size::new(20., 10.),
-                display_items: vec![],
+                size: Size::new(200., 100.),
+                display_items: vec![
+                    DisplayItem::SolidRectangle(rect(0., 0., 200., 100.), RGBA(1., 1., 1., 1.)),
+                    DisplayItem::Text {
+                        font: vera,
+                        font_size: Length::new(40.),
+                        color: RGBA(0., 0., 0., 1.),
+                        start: point(20., 60.),
+                        glyph_ids: vec![b'T' as u16, 'e' as u16, 's' as u16, 't' as u16],
+                    }
+                ],
             },
             Page {
                 size: Size::new(4., 4.),
@@ -25,14 +39,24 @@ fn pdf() {
         ],
     };
     let bytes = dl.write_to_pdf_bytes();
-    println!("{}", String::from_utf8_lossy(&bytes));
+    if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
+        File::create("/tmp/victor.pdf").unwrap().write_all(&bytes).unwrap();
+    }
+    if env::var("VICTOR_PRINT").is_ok() {
+        println!("{}", String::from_utf8_lossy(&bytes));
+    }
     let doc = PdfDocument::from_bytes(&bytes).unwrap();
     assert_eq!(doc.producer().unwrap().to_str().unwrap(),
                "Victor <https://github.com/SimonSapin/victor>");
 
     let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
-    assert_eq!(sizes, [(20., 10.), (4., 4.)]);
+    assert_eq!(sizes, [(200., 100.), (4., 4.)]);
 
+    if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
+        doc.pages().nth(0).unwrap()
+            .render_with_default_options().unwrap()
+            .write_to_png_file("/tmp/victor.png").unwrap()
+    }
     let page = doc.pages().nth(1).unwrap();
     let mut surface = page.render_with_default_options().unwrap();
     const RED_: u32 = 0x8080_0000;
