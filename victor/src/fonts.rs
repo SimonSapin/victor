@@ -10,6 +10,10 @@ pub struct Font {
     pub(crate) bytes: Cow<'static, [u8]>,
     pub(crate) postscript_name: String,
     pub(crate) cmap: HashMap<u16, u16>,
+    pub(crate) min_x: i32,
+    pub(crate) min_y: i32,
+    pub(crate) max_x: i32,
+    pub(crate) max_y: i32,
     pub(crate) ascent: i32,
     pub(crate) descent: i32,
 }
@@ -57,6 +61,10 @@ impl Font {
         let ttf_to_pdf = |x: i16| i32::from(x) * PDF_GLYPH_SPACE_UNITS_PER_EM / ttf_units_per_em;
 
         Ok(Arc::new(Font {
+            min_x: ttf_to_pdf(header.min_x),
+            min_y: ttf_to_pdf(header.min_y),
+            max_x: ttf_to_pdf(header.max_x),
+            max_y: ttf_to_pdf(header.max_y),
             ascent: ttf_to_pdf(horizontal_header.ascender),
             descent: ttf_to_pdf(horizontal_header.descender),
             bytes, postscript_name, cmap,

@@ -232,14 +232,22 @@ impl<'a> InProgressPage<'a> {
             let font_descriptor_id = pdf.add_object(dictionary! {
                 "Type" => "FontDescriptor",
                 "FontName" => &*font.postscript_name,
-                "Flags" => 0, // FIXME
-                "FontBBox" => array![],  // FIXME: rectangle [x1, y1, x2, y1] in glyph space
-                "ItalicAngle" => 0,  // FIXME: angle in degrees
+                "FontBBox" => array![
+                    font.min_x,
+                    font.min_y,
+                    font.max_x,
+                    font.max_y,
+                ],
                 "Ascent" => font.ascent,
                 "Descent" => font.descent,
-                "CapHeight" => 0, // FIXME
-                "StemV" => 0, // FIXME
                 "FontFile2" => truetype_id,
+
+                // These seem somewhat arbitrary, they’re copied from cairo:
+                "ItalicAngle" => 0,
+                "Flags" => 4,
+                "CapHeight" => font.max_y,
+                "StemV" => 80,
+                "StemH" => 80,
             });
             // Type 0 Font Dictionaries
             // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
