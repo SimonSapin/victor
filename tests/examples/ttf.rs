@@ -1,10 +1,9 @@
 extern crate opentype;
-extern crate truetype;
 
 use opentype::Font;
 use std::io::Cursor;
 use std::str;
-use truetype::{FontHeader, HorizontalHeader, NamingTable, CharMapping};
+use opentype::truetype::{FontHeader, HorizontalHeader, NamingTable, CharMapping};
 
 macro_rules! include_u32_aligned_bytes {
     ( $filename: expr ) => {{

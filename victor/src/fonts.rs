@@ -1,9 +1,9 @@
 use opentype::{self, Table};
+use opentype::truetype::NamingTable;
 use std::borrow::Cow;
 use std::io::{self, Cursor};
 use std::mem;
 use std::sync::Arc;
-use truetype::NamingTable;
 
 pub struct Font {
     ot: opentype::Font,
