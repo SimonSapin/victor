@@ -171,6 +171,18 @@ impl CairoContext {
         CairoError::check(unsafe { cairo_status(self.ptr) })
     }
 
+    pub(crate) fn set_source_rgb(&mut self, r: f64, g: f64, b: f64) {
+        unsafe {
+            cairo_set_source_rgb(self.ptr, r, g, b)
+        }
+    }
+
+    pub(crate) fn paint(&mut self) {
+        unsafe {
+            cairo_paint(self.ptr)
+        }
+    }
+
     pub(crate) fn set_antialias(&mut self, mode: Antialias) {
         unsafe {
             cairo_set_antialias(self.ptr, mode.to_cairo());

@@ -1,5 +1,5 @@
 use cairo::*;
-use cairo_ffi::CAIRO_FORMAT_ARGB32;
+use cairo_ffi::{CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_RGB24};
 use convert::TryInto;
 use errors::{CairoError, GlibError};
 use std::ffi::CStr;
@@ -154,14 +154,21 @@ impl<'data> Page<'data> {
 
     /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render_with_options(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
-        let RenderOptions { dppx_x, dppx_y, antialias, for_printing } = options;
+        let RenderOptions { dppx_x, dppx_y, antialias, backdrop, for_printing } = options;
         let (width, height) = self.size_in_css_px();
         let mut surface = ImageSurface::new_c_int(
-            CAIRO_FORMAT_ARGB32,
+            match backdrop {
+                Backdrop::Transparent => CAIRO_FORMAT_ARGB32,
+                Backdrop::White => CAIRO_FORMAT_RGB24,
+            },
             (width * dppx_x).ceil().try_into().unwrap(),
             (height * dppx_y).ceil().try_into().unwrap(),
         )?;
         let mut context = surface.context()?;
+        if let Backdrop::White = backdrop {
+            context.set_source_rgb(1., 1., 1.);
+            context.paint();
+        }
         context.scale(dppx_x * PX_PER_PT,
                       dppx_y * PX_PER_PT);
         context.set_antialias(antialias);
@@ -218,6 +225,9 @@ pub struct RenderOptions {
     /// The antialiasing mode to use for rasterizing text and vector graphics.
     pub antialias: Antialias,
 
+    /// What background to render pages on
+    pub backdrop: Backdrop,
+
     /// Whether to use `poppler_page_render_for_printing` instead of `poppler_page_render`.
     /// What that does excactly doesn’t seem well-documented.
     pub for_printing: bool,
@@ -229,9 +239,19 @@ impl Default for RenderOptions {
             dppx_x: 1.0,
             dppx_y: 1.0,
             antialias: Antialias::Default,
+            backdrop: Backdrop::Transparent,
             for_printing: false,
         }
     }
+}
+
+/// What background to render pages on
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Backdrop {
+    /// Solid white page background in a RGB24 image
+    White,
+    /// Transparent page background in a ARGB32 image
+    Transparent,
 }
 
 /// A string allocated by `glib`

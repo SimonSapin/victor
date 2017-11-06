@@ -3,7 +3,7 @@
 #[macro_use] extern crate lester;
 extern crate victor;
 
-use lester::{PdfDocument, RenderOptions};
+use lester::{PdfDocument, RenderOptions, Backdrop};
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -73,22 +73,27 @@ fn pdf() {
     let mut surface = page.render_with_options(RenderOptions {
         dppx_x: 2.0,
         dppx_y: 3.0,
+        backdrop: Backdrop::White,
         ..RenderOptions::default()
     }).unwrap();
     let pixels = surface.pixels();
     assert_eq!((pixels.width, pixels.height), (8, 12));
-    assert_pixels_eq!(pixels.buffer, &[
-        RED_, RED_, ____, ____, ____, ____, ____, ____,
-        RED_, RED_, ____, ____, ____, ____, ____, ____,
-        RED_, RED_, ____, ____, ____, ____, ____, ____,
-        BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-    ][..]);
+    {
+        const RED_: u32 = 0xFFFF_7F7F;
+        const ____: u32 = 0xFFFF_FFFF;
+        assert_pixels_eq!(pixels.buffer, &[
+            RED_, RED_, ____, ____, ____, ____, ____, ____,
+            RED_, RED_, ____, ____, ____, ____, ____, ____,
+            RED_, RED_, ____, ____, ____, ____, ____, ____,
+            BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BOTH, BOTH, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+        ][..]);
+    }
 }

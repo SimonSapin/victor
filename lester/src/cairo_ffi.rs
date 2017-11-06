@@ -20,6 +20,8 @@ extern "C" {
     pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 
     pub fn cairo_create(target: *mut cairo_surface_t) -> *mut cairo_t;
+    pub fn cairo_set_source_rgb(cr: *mut cairo_t, red: f64, green: f64, blue: f64);
+    pub fn cairo_paint(cr: *mut cairo_t);
     pub fn cairo_scale(cr: *mut cairo_t, sx: f64, sy: f64);
     pub fn cairo_set_antialias(cr: *mut cairo_t, antialias: cairo_antialias_t);
     pub fn cairo_status(cr: *mut cairo_t) -> cairo_status_t;
