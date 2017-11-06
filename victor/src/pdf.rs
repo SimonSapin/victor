@@ -270,10 +270,10 @@ impl<'a> InProgressPage<'a> {
                         "Supplement" => 0,
                     },
                     "FontDescriptor" => font_descriptor_id,
-//                    "W" => array![
-//                        0,  // start CID
-//                        unimplemented!().collect::<Vec<Object>>()  // FIXME
-//                    ],
+                    "W" => array![
+                        0,  // start CID
+                        font.glyph_widths.iter().map(|&w| w.into()).collect::<Vec<Object>>(),
+                    ],
                 }],
             };
 

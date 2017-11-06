@@ -1,5 +1,6 @@
 use opentype;
-use opentype::truetype::{FontHeader, CharMapping, NamingTable, HorizontalHeader};
+use opentype::truetype::{FontHeader, CharMapping, NamingTable, HorizontalHeader, HorizontalMetrics};
+use opentype::truetype::MaximumProfile;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{self, Cursor};
@@ -16,6 +17,7 @@ pub struct Font {
     pub(crate) max_y: i32,
     pub(crate) ascent: i32,
     pub(crate) descent: i32,
+    pub(crate) glyph_widths: Vec<u16>,
 }
 
 impl Font {
@@ -34,7 +36,11 @@ impl Font {
 
         macro_rules! take {
             () => {
-                ot.take(&mut Cursor::new(&*bytes))?.ok_or_else(|| invalid("missing cmap table"))?
+                take!(())
+            };
+            ( $parameter: expr ) => {
+                ot.take_given(&mut Cursor::new(&*bytes), $parameter)?
+                  .ok_or_else(|| invalid("missing cmap table"))?
             }
         }
 
@@ -60,6 +66,14 @@ impl Font {
         const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
         let ttf_to_pdf = |x: i16| i32::from(x) * PDF_GLYPH_SPACE_UNITS_PER_EM / ttf_units_per_em;
 
+        let maximum_profile: MaximumProfile = take!();
+        let horizontal_metrics: HorizontalMetrics = take!((&horizontal_header, &maximum_profile));
+        let last_glyph_id = cmap.values().cloned().max().unwrap();
+        let glyph_widths = (0..last_glyph_id).map(|id| {
+            let (width, _) = horizontal_metrics.get(id as usize);
+            ttf_to_pdf(width as i16) as u16
+        }).collect();
+
         Ok(Arc::new(Font {
             min_x: ttf_to_pdf(header.min_x),
             min_y: ttf_to_pdf(header.min_y),
@@ -67,7 +81,7 @@ impl Font {
             max_y: ttf_to_pdf(header.max_y),
             ascent: ttf_to_pdf(horizontal_header.ascender),
             descent: ttf_to_pdf(horizontal_header.descender),
-            bytes, postscript_name, cmap,
+            bytes, postscript_name, cmap, glyph_widths,
         }))
     }
 
