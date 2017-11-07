@@ -2,7 +2,7 @@
 name = "lester"
 version = "0.0.1"
 authors = ["Simon Sapin <simon.sapin@exyr.org>"]
-license = "(MIT OR Apache-2.0) AND (GPL-2.0 OR GPL-3.0)"  # See LICENSE.md file
+license = "(MIT OR Apache-2.0) AND (GPL-2.0 OR GPL-3.0)"
 description = """
 Lester, Victor’s cousin, makes raster graphics.
 It renders PDF files (such as produced by Victor) to in-memory pixel buffers or PNG,
