@@ -13,8 +13,8 @@ macro_rules! include_u32_aligned_bytes {
 }
 
 fn main() {
-    inspect("ahem.ttf", include_u32_aligned_bytes!("../fonts/Ahem-2017.01.31/ahem.ttf"));
-    inspect("Vera.ttf", include_u32_aligned_bytes!("../../victor/fonts/ttf-bitstream-vera-1.10/Vera.ttf"));
+    inspect("ahem.ttf", include_u32_aligned_bytes!("../fonts/ahem/ahem.ttf"));
+    inspect("Vera.ttf", include_u32_aligned_bytes!("../../victor/fonts/vera/Vera.ttf"));
 }
 
 fn inspect(name: &str, bytes: &[u8]) {

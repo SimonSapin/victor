@@ -20,7 +20,6 @@ It was the default in GNOME before version 3.0.
 It is the ancestor of [DejaVu]
 and has much more limited Unicode coverage (not much basic Latin),
 and thus smaller file sizes.
-It is distributed under a custom license (see the `ttf-bitstream-vera-1.10/COPYRIGHT.TXT` file).
 Files obtained from from [ftp.gnome.org].
 
 [Vera]: https://www.gnome.org/fonts/
