@@ -2,7 +2,7 @@
 name = "victor-tests"
 version = "0.0.1"
 authors = ["Simon Sapin <simon.sapin@exyr.org>"]
-license = "MIT AND GPL-2.0"  # See ../lester/LICENSE.md file"
+license = "(MIT OR Apache-2.0) AND (GPL-2.0 OR GPL-3.0)"  # See ../lester/LICENSE.md file
 description = "Tests for Victor, using Lester"
 repository = "https://github.com/SimonSapin/victor"
 
