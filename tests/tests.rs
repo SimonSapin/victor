@@ -12,7 +12,7 @@ use victor::fonts::Font;
 
 #[test]
 fn pdf() {
-    let vera = include_bytes!("../fonts/ttf-bitstream-vera-1.10/Vera.ttf");
+    let vera = include_bytes!("../victor/fonts/ttf-bitstream-vera-1.10/Vera.ttf");
     let vera = Font::from_bytes(&vera[..]).unwrap();
     let dl = Document {
         pages: vec![
