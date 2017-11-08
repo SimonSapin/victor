@@ -8,11 +8,11 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use victor::display_lists::*;
-use victor::fonts::bitstream_vera_sans;
+use victor::fonts::BITSTREAM_VERA_SANS;
 
 #[test]
 fn pdf() {
-    let vera = bitstream_vera_sans().get().unwrap();
+    let vera = BITSTREAM_VERA_SANS.get().unwrap();
     let dl = Document {
         pages: vec![
             Page {

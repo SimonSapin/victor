@@ -14,11 +14,11 @@ macro_rules! include_u32_aligned_bytes {
     }}
 }
 
-include_font!(ahem = "../fonts/ahem/ahem.ttf");
+static AHEM: victor::fonts::LazyStaticFont = include_font!("../fonts/ahem/ahem.ttf");
 
 fn main() {
-    inspect("ahem.ttf", ahem().bytes());
-    inspect("Vera.ttf", victor::fonts::bitstream_vera_sans().bytes());
+    inspect("ahem.ttf", AHEM.bytes);
+    inspect("Vera.ttf", victor::fonts::BITSTREAM_VERA_SANS.bytes);
 }
 
 fn inspect(name: &str, bytes: &[u8]) {

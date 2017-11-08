@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 mod static_;
 
-pub use self::static_::{LazyStaticFontRef, bitstream_vera_sans};
+pub use self::static_::{LazyStaticFont, BITSTREAM_VERA_SANS};
 
 pub struct Font {
     pub(crate) bytes: Cow<'static, [u8]>,
