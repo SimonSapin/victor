@@ -1,10 +1,12 @@
 extern crate opentype;
+#[macro_use] extern crate victor;
 
 use opentype::Font;
 use std::io::Cursor;
 use std::str;
 use opentype::truetype::{FontHeader, HorizontalHeader, NamingTable, CharMapping};
 
+#[allow(unused_macros)]
 macro_rules! include_u32_aligned_bytes {
     ( $filename: expr ) => {{
         #[repr(C)] struct U32Aligned<T>([u32; 0], T);  // T == [u8; $size]
@@ -12,14 +14,15 @@ macro_rules! include_u32_aligned_bytes {
     }}
 }
 
+include_font!(ahem = "../fonts/ahem/ahem.ttf");
+
 fn main() {
-    inspect("ahem.ttf", include_u32_aligned_bytes!("../fonts/ahem/ahem.ttf"));
-    inspect("Vera.ttf", include_u32_aligned_bytes!("../../victor/fonts/vera/Vera.ttf"));
+    inspect("ahem.ttf", ahem().bytes());
+    inspect("Vera.ttf", victor::fonts::bitstream_vera_sans().bytes());
 }
 
 fn inspect(name: &str, bytes: &[u8]) {
-    assert!((bytes.as_ptr() as usize) % 4 == 0);
-    println!("\n{}: {} bytes", name, bytes.len());
+    println!("\n{}: {} bytes, alignment: {}", name, bytes.len(), (bytes.as_ptr() as usize) % 4);
 
     let mut cursor = Cursor::new(bytes);
     let font = Font::read(&mut cursor).unwrap();

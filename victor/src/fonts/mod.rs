@@ -7,6 +7,10 @@ use std::io::{self, Cursor};
 use std::mem;
 use std::sync::Arc;
 
+mod static_;
+
+pub use self::static_::{LazyStaticFontRef, bitstream_vera_sans};
+
 pub struct Font {
     pub(crate) bytes: Cow<'static, [u8]>,
     pub(crate) postscript_name: String,
