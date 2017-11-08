@@ -7,7 +7,7 @@ use raw_mutex::{RawMutex, RAW_MUTEX_INIT};
 
 /// Include a TrueType file with `include_bytes!()` and create a [`LazyStaticFont`] value.
 ///
-/// This value should be used to initialize a `static` item:
+/// This value can be used to initialize a `static` item:
 ///
 /// ```rust
 /// static MY_FONT: LazyStaticFont = include_font!("../my_font.ttf");
@@ -18,7 +18,10 @@ use raw_mutex::{RawMutex, RAW_MUTEX_INIT};
 macro_rules! include_font {
     ($filename: expr) => {
         $crate::fonts::LazyStaticFont {
-            bytes: include_bytes!($filename),
+            data: &$crate::fonts::U32Aligned {
+                force_alignment: [],
+                byte_array: *include_bytes!($filename),
+            },
             private: $crate::fonts::LAZY_STATIC_FONT_PRIVATE_INIT,
         }
     }
@@ -29,27 +32,39 @@ pub static BITSTREAM_VERA_SANS: LazyStaticFont = include_font!("../../fonts/vera
 
 /// A lazily-parsed font backed by a static bytes slice.
 pub struct LazyStaticFont {
-    /// This font’s raw data
-    pub bytes: &'static [u8],
+    // Fields needs to be public so that static initializers can construct them.
+    // A `const fn` constructor would be better,
+    // but these are not avaiable on stable as of this writing.
 
-    /// This field needs to be public so that static initializers can construct it.
-    /// A `const fn` constructor would be better,
-    /// but these are not avaiable on stable as of this writing.
-    #[doc(hidden)]
-    pub private: LazyStaticFontPrivate,
+    #[doc(hidden)] pub data: &'static U32Aligned<[u8]>,
+    #[doc(hidden)] pub private: LazyStaticFontPrivate,
 }
 
+#[doc(hidden)]
+#[repr(C)]
+pub struct U32Aligned<T: ?Sized> {
+    pub force_alignment: [u32; 0],
+    pub byte_array: T,
+}
+
+#[doc(hidden)]
 pub const LAZY_STATIC_FONT_PRIVATE_INIT: LazyStaticFontPrivate = LazyStaticFontPrivate {
     mutex: RAW_MUTEX_INIT,
     ptr: ATOMIC_USIZE_INIT,
 };
 
+#[doc(hidden)]
 pub struct LazyStaticFontPrivate {
     mutex: RawMutex,
     ptr: AtomicUsize,
 }
 
 impl LazyStaticFont {
+    /// The raw data for this font
+    pub fn bytes(&self) -> &'static [u8] {
+        &self.data.byte_array
+    }
+
     // FIXME: figure out minimal Ordering for atomic operations
 
     /// Return a new `Arc` reference to the singleton `Font` object.
@@ -57,8 +72,7 @@ impl LazyStaticFont {
     /// If this font’s singleton was not already initialized,
     /// try to parse the font now (this may return an error) to initialize it.
     ///
-    /// Calling `$font_name().get()` reapeatedly will only parse once
-    /// (until `.drop()` is called).
+    /// Calling this reapeatedly will only parse once (until `.drop()` is called).
     pub fn get(&self) -> io::Result<Arc<Font>> {
         macro_rules! try_load {
             () => {
@@ -92,7 +106,7 @@ impl LazyStaticFont {
         // Now we’ve observed the atomic pointer uninitialized after taking the mutex:
         // we’re definitely first
 
-        let font = Font::from_bytes(self.bytes)?;
+        let font = Font::from_static(self.bytes())?;
         let new_ptr = Arc::into_raw(font.clone()) as usize;
         self.private.ptr.store(new_ptr, Ordering::SeqCst);
         Ok(font)

@@ -6,19 +6,11 @@ use std::io::Cursor;
 use std::str;
 use opentype::truetype::{FontHeader, HorizontalHeader, NamingTable, CharMapping};
 
-#[allow(unused_macros)]
-macro_rules! include_u32_aligned_bytes {
-    ( $filename: expr ) => {{
-        #[repr(C)] struct U32Aligned<T>([u32; 0], T);  // T == [u8; $size]
-        &U32Aligned([], *include_bytes!($filename)).1
-    }}
-}
-
 static AHEM: victor::fonts::LazyStaticFont = include_font!("../fonts/ahem/ahem.ttf");
 
 fn main() {
-    inspect("ahem.ttf", AHEM.bytes);
-    inspect("Vera.ttf", victor::fonts::BITSTREAM_VERA_SANS.bytes);
+    inspect("ahem.ttf", AHEM.bytes());
+    inspect("Vera.ttf", victor::fonts::BITSTREAM_VERA_SANS.bytes());
 }
 
 fn inspect(name: &str, bytes: &[u8]) {

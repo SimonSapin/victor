@@ -25,7 +25,11 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn from_bytes<T: Into<Cow<'static, [u8]>>>(bytes: T) -> io::Result<Arc<Self>> {
+    pub fn from_bytes(bytes: Vec<u8>) -> io::Result<Arc<Self>> {
+        Self::from_cow(bytes.into())
+    }
+
+    fn from_static(bytes: &'static [u8]) -> io::Result<Arc<Self>> {
         Self::from_cow(bytes.into())
     }
 
