@@ -1,9 +1,9 @@
 use std::io;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::mem;
 use super::Font;
-use raw_mutex::RawMutex;
+use raw_mutex::{RawMutex, RAW_MUTEX_INIT};
 
 /// Include a TrueType file with `include_bytes!()` and create a [`LazyStaticFont`] value.
 ///
@@ -19,8 +19,7 @@ macro_rules! include_font {
     ($filename: expr) => {
         $crate::fonts::LazyStaticFont {
             bytes: include_bytes!($filename),
-            mutex: $crate::RAW_MUTEX_INIT,
-            _private_unsafe_ptr: ::std::sync::atomic::ATOMIC_USIZE_INIT,
+            private: $crate::fonts::LAZY_STATIC_FONT_PRIVATE_INIT,
         }
     }
 }
@@ -33,8 +32,21 @@ pub struct LazyStaticFont {
     /// This font’s raw data
     pub bytes: &'static [u8],
 
-    #[doc(hidden)] pub _private_unsafe_ptr: AtomicUsize,
-    #[doc(hidden)] pub mutex: RawMutex,
+    /// This field needs to be public so that static initializers can construct it.
+    /// A `const fn` constructor would be better,
+    /// but these are not avaiable on stable as of this writing.
+    #[doc(hidden)]
+    pub private: LazyStaticFontPrivate,
+}
+
+pub const LAZY_STATIC_FONT_PRIVATE_INIT: LazyStaticFontPrivate = LazyStaticFontPrivate {
+    mutex: RAW_MUTEX_INIT,
+    ptr: ATOMIC_USIZE_INIT,
+};
+
+pub struct LazyStaticFontPrivate {
+    mutex: RawMutex,
+    ptr: AtomicUsize,
 }
 
 impl LazyStaticFont {
@@ -50,7 +62,7 @@ impl LazyStaticFont {
     pub fn get(&self) -> io::Result<Arc<Font>> {
         macro_rules! try_load {
             () => {
-                let ptr = self._private_unsafe_ptr.load(Ordering::SeqCst);
+                let ptr = self.private.ptr.load(Ordering::SeqCst);
                 if ptr != 0 {
                     // Already initialized
                     unsafe {
@@ -71,8 +83,8 @@ impl LazyStaticFont {
             }
         }
 
-        self.mutex.lock();
-        let _guard = RawMutexGuard(&self.mutex);
+        self.private.mutex.lock();
+        let _guard = RawMutexGuard(&self.private.mutex);
 
         // Try again in case some other thread raced us while we were taking the mutex
         try_load!();
@@ -82,7 +94,7 @@ impl LazyStaticFont {
 
         let font = Font::from_bytes(self.bytes)?;
         let new_ptr = Arc::into_raw(font.clone()) as usize;
-        self._private_unsafe_ptr.store(new_ptr, Ordering::SeqCst);
+        self.private.ptr.store(new_ptr, Ordering::SeqCst);
         Ok(font)
     }
 
@@ -93,7 +105,7 @@ impl LazyStaticFont {
     /// The previous `Font` object may continue to live as long
     /// as other `Arc` references to it exist.
     pub fn drop(&self) {
-        let ptr = self._private_unsafe_ptr.swap(0, Ordering::SeqCst);
+        let ptr = self.private.ptr.swap(0, Ordering::SeqCst);
         if ptr != 0 {
             unsafe {
                 mem::drop(Arc::from_raw(ptr as *const Font))
