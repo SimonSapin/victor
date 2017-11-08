@@ -1,10 +1,6 @@
-extern crate opentype;
 #[macro_use] extern crate victor;
 
-use opentype::Font;
-use std::io::Cursor;
-use std::str;
-use opentype::truetype::{FontHeader, HorizontalHeader, NamingTable, CharMapping};
+use std::mem;
 
 static AHEM: victor::fonts::LazyStaticFont = include_font!("../fonts/ahem/ahem.ttf");
 
@@ -14,42 +10,56 @@ fn main() {
 }
 
 fn inspect(name: &str, bytes: &[u8]) {
-    println!("\n{}: {} bytes, alignment: {}", name, bytes.len(), (bytes.as_ptr() as usize) % 4);
+    println!("\n{}: {} bytes", name, bytes.len());
 
-    let mut cursor = Cursor::new(bytes);
-    let font = Font::read(&mut cursor).unwrap();
-    macro_rules! take {
-        () => { font.take(&mut cursor).unwrap().unwrap() }
-    }
+    let header = Header::cast_from(bytes);
 
     // 'true' (0x74727565) and 0x00010000 mean TrueType
-    println!("version: {:08X}", font.offset_table.header.version);
+    println!("version: {:08X}", header.version.value());
+    println!("{} tables", header.table_count.value());
+}
 
-    println!("{} tables: {}", font.offset_table.records.len(),
-             font.offset_table.records.iter()
-             .map(|r| str::from_utf8(&*r.tag).unwrap())
-             .collect::<Vec<_>>()
-             .join(", "));
-
-    let font_header: FontHeader = take!();
-    let horizontal_header: HorizontalHeader = take!();
-
-    println!("Units per em: {}", font_header.units_per_em);
-    println!("Ascender: {}", horizontal_header.ascender);
-
-    let naming_table: NamingTable = take!();
-    match naming_table {
-        NamingTable::Format0(ref table) => {
-            let strings = table.strings().unwrap();
-            for &id in &[1, 9, 11] {
-                println!("Naming table string #{}: {:?}", id, strings[id]);
-            }
-        },
-        _ => unreachable!(),
-    }
-
-    let cmap: CharMapping = take!();
-    for encoding in &cmap.encodings {
-        println!("cmap length: {}", encoding.mapping().len());
+/// Plain old data: all bit patterns represente valid values
+unsafe trait Pod: Sized {
+    fn cast_from(bytes: &[u8]) -> &Self {
+        assert!((bytes.as_ptr() as usize) % mem::align_of::<Self>() == 0);
+        assert!(bytes.len() >= mem::size_of::<Self>());
+        let ptr = bytes.as_ptr() as *const Self;
+        unsafe {
+            &*ptr
+        }
     }
 }
+
+macro_rules! ints {
+    ($( $Name: ident: $Int: ty; )+) => {
+        $(
+            #[derive(Copy, Clone)]
+            struct $Name($Int);
+
+            unsafe impl Pod for $Name {}
+
+            impl $Name {
+                fn value(self) -> $Int {
+                    <$Int>::from_be(self.0)
+                }
+            }
+        )+
+    }
+}
+
+ints! {
+    BE32: u32;
+    BE16: u16;
+}
+
+#[repr(C)]
+struct Header {
+    version: BE32,
+    table_count: BE16,
+    search_range: BE16,
+    entry_selector: BE16,
+    range_shift: BE16,
+}
+
+unsafe impl Pod for Header {}
