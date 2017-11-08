@@ -5,15 +5,10 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-#[cfg(feature = "nightly")]
-use std::sync::atomic::{AtomicU8, Ordering};
-#[cfg(feature = "nightly")]
-type U8 = u8;
-#[cfg(not(feature = "nightly"))]
-use stable::{AtomicU8, Ordering};
-#[cfg(not(feature = "nightly"))]
-type U8 = usize;
+use std::sync::atomic::{AtomicUsize as AtomicU8, ATOMIC_USIZE_INIT as ATOMIC_U8_INIT, Ordering};
 use parking_lot_core::{self, UnparkResult, SpinWait, UnparkToken, DEFAULT_PARK_TOKEN};
+
+type U8 = usize;
 
 // UnparkToken used to indicate that that the target thread should attempt to
 // lock the mutex again as soon as it is unparked.
@@ -30,18 +25,11 @@ pub struct RawMutex {
     state: AtomicU8,
 }
 
-impl RawMutex {
-    #[cfg(feature = "nightly")]
-    #[inline]
-    pub const fn new() -> RawMutex {
-        RawMutex { state: AtomicU8::new(0) }
-    }
-    #[cfg(not(feature = "nightly"))]
-    #[inline]
-    pub fn new() -> RawMutex {
-        RawMutex { state: AtomicU8::new(0) }
-    }
+pub const RAW_MUTEX_INIT: RawMutex = RawMutex {
+    state: ATOMIC_U8_INIT,
+};
 
+impl RawMutex {
     #[inline]
     pub fn lock(&self) {
         if self.state
@@ -53,23 +41,6 @@ impl RawMutex {
     }
 
     #[inline]
-    pub fn try_lock(&self) -> bool {
-        let mut state = self.state.load(Ordering::Relaxed);
-        loop {
-            if state & LOCKED_BIT != 0 {
-                return false;
-            }
-            match self.state.compare_exchange_weak(state,
-                                                   state | LOCKED_BIT,
-                                                   Ordering::Acquire,
-                                                   Ordering::Relaxed) {
-                Ok(_) => return true,
-                Err(x) => state = x,
-            }
-        }
-    }
-
-    #[inline]
     pub fn unlock(&self) {
         if self.state
             .compare_exchange_weak(LOCKED_BIT, 0, Ordering::Release, Ordering::Relaxed)
@@ -77,42 +48,6 @@ impl RawMutex {
             return;
         }
         self.unlock_slow(false);
-    }
-
-    #[inline]
-    pub fn unlock_fair(&self) {
-        if self.state
-            .compare_exchange_weak(LOCKED_BIT, 0, Ordering::Release, Ordering::Relaxed)
-            .is_ok() {
-            return;
-        }
-        self.unlock_slow(true);
-    }
-
-    // Used by Condvar when requeuing threads to us, must be called while
-    // holding the queue lock.
-    #[inline]
-    pub fn mark_parked_if_locked(&self) -> bool {
-        let mut state = self.state.load(Ordering::Relaxed);
-        loop {
-            if state & LOCKED_BIT == 0 {
-                return false;
-            }
-            match self.state.compare_exchange_weak(state,
-                                                   state | PARKED_BIT,
-                                                   Ordering::Relaxed,
-                                                   Ordering::Relaxed) {
-                Ok(_) => return true,
-                Err(x) => state = x,
-            }
-        }
-    }
-
-    // Used by Condvar when requeuing threads to us, must be called while
-    // holding the queue lock.
-    #[inline]
-    pub fn mark_parked(&self) {
-        self.state.fetch_or(PARKED_BIT, Ordering::Relaxed);
     }
 
     #[cold]
@@ -214,4 +149,3 @@ impl RawMutex {
         }
     }
 }
-
