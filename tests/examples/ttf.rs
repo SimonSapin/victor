@@ -79,6 +79,45 @@ fn inspect(name: &str, bytes: &[u8]) {
         String::from_utf8_lossy(bytes)
     }).unwrap();
     println!("PostScript name: {:?}", name);
+
+    let cmap_offset = table_offset(b"cmap");
+    let cmap_header = CmapHeader::cast(bytes, cmap_offset);
+    let cmap_records = CmapEncodingRecord::cast_slice(
+        bytes,
+        cmap_offset.saturating_add(size_of::<CmapHeader>()),
+        cmap_header.num_tables.value() as usize,
+    );
+    let cmap_record_offset = cmap_records.iter().filter_map(|record| {
+        let offset = cmap_offset.saturating_add(record.offset.value() as usize);
+        const MICROSOFT: u16 = 3;
+        const UNICODE_BMP: u16 = 1;
+        const SEGMENT_MAPPING_TO_DELTA_VALUES: u16 = 4;
+        if record.platform_id.value() == MICROSOFT &&
+           record.encoding_id.value() == UNICODE_BMP &&
+           u16_be::cast(bytes, offset).value() == SEGMENT_MAPPING_TO_DELTA_VALUES
+        {
+            Some(offset)
+        } else {
+            None
+        }
+    }).next().unwrap();
+    let cmap_encoding_header = CmapFormat4Header::cast(bytes, cmap_record_offset);
+    let segment_count = cmap_encoding_header.segment_count_x2.value() as usize / 2;
+    let subtable_size = segment_count.saturating_mul(size_of::<u16>());
+    println!("cmap segment count: {:?}", segment_count);
+
+    let end_codes_start = cmap_record_offset
+        .saturating_add(size_of::<CmapFormat4Header>());
+    let start_codes_start = end_codes_start
+        .saturating_add(subtable_size)  // Add end_code subtable
+        .saturating_add(size_of::<u16>());  // Add reserved_padding
+    let id_deltas_start = start_codes_start.saturating_add(subtable_size);
+    let id_range_offsets_start = id_deltas_start.saturating_add(subtable_size);
+
+    let _end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count);
+    let _start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count);
+    let _id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
+    let _id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
 }
 
 /// Plain old data: all bit patterns represent valid values
@@ -289,6 +328,33 @@ struct NameRecord {
     name_id: u16_be,
     length: u16_be,
     offset: u16_be,
+}
+
+#[repr(C)]
+#[derive(Pod)]
+struct CmapHeader {
+    version: u16_be,
+    num_tables: u16_be,
+}
+
+#[repr(C)]
+#[derive(Pod)]
+struct CmapEncodingRecord {
+    platform_id: u16_be,
+    encoding_id: u16_be,
+    offset: u32_be,
+}
+
+#[repr(C)]
+#[derive(Pod)]
+struct CmapFormat4Header {
+    format: u16_be,
+    length: u16_be,
+    language: u16_be,
+    segment_count_x2: u16_be,
+    search_range: u16_be,
+    entry_selector: u16_be,
+    range_shift: u16_be,
 }
 
 impl fmt::Debug for Tag {
