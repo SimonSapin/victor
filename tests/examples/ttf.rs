@@ -165,19 +165,22 @@ impl FixedPoint {
 #[repr(C)]
 #[derive(Pod)]
 struct LongDateTime {
-    // These two field represent a single 64-bit integer.
-    // We don’t use u64 because TrueType only requires 4-byte alignment.
+    // These two field represent a single i64.
+    // We split it in two because TrueType only requires 4-byte alignment.
     upper_bits: u32_be,
     lower_bits: u32_be,
 }
 
 impl LongDateTime {
-    fn seconds_since_1904_01_01_midnight(&self) -> u64 {
-        (self.upper_bits.value() as u64) << 32 |
-        self.lower_bits.value() as u64
+    fn seconds_since_1904_01_01_midnight(&self) -> i64 {
+        let upper = (self.upper_bits.value() as u64) << 32;
+        let lower = self.lower_bits.value() as u64;
+        unsafe {
+            mem::transmute::<u64, i64>(upper | lower)
+        }
     }
 
-    fn approximate_year(&self) -> u64 {
+    fn approximate_year(&self) -> i64 {
         (self.seconds_since_1904_01_01_midnight() / 60 / 60 / 24 / 365) + 1904
     }
 }
