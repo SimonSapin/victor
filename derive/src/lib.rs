@@ -32,17 +32,35 @@ fn expand_string(input: &str) -> String {
     };
 
     let name = &type_.ident;
-    let assert_fn_name = syn::Ident::new(format!("_assert_{}_fields_are_pod", name));
+    let assert_fields = syn::Ident::new(format!("_assert_{}_fields_are_pod", name));
+    let assert_packed = syn::Ident::new(format!("_assert_{}_repr_is_packed", name));
+    let mut packed = type_.clone();
+    packed.attrs = vec![syn::Attribute {
+        style: syn::AttrStyle::Outer,
+        value: syn::MetaItem::List("repr".into(), vec![
+            syn::NestedMetaItem::MetaItem(syn::MetaItem::Word("packed".into()))
+        ]),
+        is_sugared_doc: false,
+    }];
+    packed.ident = syn::Ident::new(format!("{}Packed", name));
+    let packed_name = &packed.ident;
 
     let tokens = quote! {
         unsafe impl Pod for #name {}
 
         #[allow(non_snake_case, unused_variables)]
-        fn #assert_fn_name(value: &#name) {
-            fn _assert_pod<T: Pod>(_: &T) {}
+        fn #assert_fields(value: &#name) {
+            fn _assert_pod<T: Pod>(_: &T) {
+            }
             #(
                 _assert_pod(&value.#fields);
             )*
+        }
+
+        #[allow(non_snake_case, non_camel_case_types)]
+        fn #assert_packed() {
+            #packed
+            let _ = ::std::mem::transmute::<#name, #packed_name>;
         }
     };
 

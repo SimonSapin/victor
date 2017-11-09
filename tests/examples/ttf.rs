@@ -232,6 +232,7 @@ struct FontHeader {
     font_direction_hint: i16_be,
     index_to_loc_format: i16_be,
     glyph_data_format: i16_be,
+    _padding: u16,
 }
 
 #[repr(C)]
