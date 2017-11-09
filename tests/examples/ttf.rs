@@ -13,11 +13,11 @@ fn main() {
 fn inspect(name: &str, bytes: &[u8]) {
     println!("\n{}: {} bytes", name, bytes.len());
 
-    let header = Header::cast_from(bytes);
+    let offset_table = OffsetSubtable::cast_from(bytes);
 
     // 'true' (0x74727565) and 0x00010000 mean TrueType
-    println!("version: {:08X}", header.version.value());
-    println!("{} tables", header.table_count.value());
+    println!("version: {:08X}", offset_table.scaler_type.value());
+    println!("{} tables", offset_table.table_count.value());
 }
 
 /// Plain old data: all bit patterns represent valid values
@@ -61,10 +61,26 @@ big_endian_int_wrappers! {
 
 #[repr(C)]
 #[derive(Pod)]
-struct Header {
-    version: u32_be,
+struct OffsetSubtable {
+    scaler_type: u32_be,
     table_count: u16_be,
     search_range: u16_be,
     entry_selector: u16_be,
     range_shift: u16_be,
+}
+
+macro_rules! static_assert_size_of {
+    ($( $T: ty = $size: expr, )+) => {
+        fn _static_assert_size_of() {
+            $(
+                let _ = mem::transmute::<$T, [u8; $size]>;
+            )+
+        }
+    }
+}
+
+static_assert_size_of! {
+    u32_be = 4,
+    u16_be = 2,
+    OffsetSubtable = 12,
 }
