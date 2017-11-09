@@ -21,16 +21,6 @@ Except as noted below, Victor and Lester are licensed under either of
 
 at your option.
 
-* [Poppler](https://poppler.freedesktop.org/)
-  is licensed under GNU General Public License version 2 or version 3,
-  at your option.
-  ([[1]](https://cgit.freedesktop.org/poppler/poppler/tree/README?id=poppler-0.61#n28),
-   [[2]](https://cgit.freedesktop.org/poppler/poppler/tree/README-XPDF?id=poppler-0.61#n32))
-  Programs using the Lester library (in [lester/](lester)),
-  including victor-tests (in [tests/](tests)),
-  dynamically link against Poppler
-  and are therefore also subject to the terms of the GPL.
-
 * Vera font files in [victor/fonts/vera/](victor/fonts/vera)
   are licensed under [Bitstream Vera Fonts Copyright](victor/fonts/vera/COPYRIGHT.TXT)
 
@@ -40,6 +30,14 @@ at your option.
 * Ahem font files in [tests/fonts/ahem/](tests/fonts/ahem)
   are in the public domain
   and licensed under [Creative Commons Zero](tests/fonts/ahem/COPYING).
+
+* Lester dynamically links against [Poppler](https://poppler.freedesktop.org/),
+  which is licensed under GNU General Public License version 2 or version 3, at your option
+  ([[1]](https://cgit.freedesktop.org/poppler/poppler/tree/README?id=poppler-0.61#n28),
+   [[2]](https://cgit.freedesktop.org/poppler/poppler/tree/README-XPDF?id=poppler-0.61#n32)).
+  Binaries of programs using Lester,
+  including victor-tests (in [tests/](tests)),
+  are therefore also subject to the terms of the GPL.
 
 
 ### Contribution

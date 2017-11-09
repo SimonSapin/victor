@@ -28,7 +28,7 @@ It also enables extracting (and testing) PDF metadata at the same time as render
 
 ## License
 
-Except as noted below, Lester is licensed under either of
+Lester is licensed under either of
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
    http://www.apache.org/licenses/LICENSE-2.0)
@@ -37,11 +37,11 @@ Except as noted below, Lester is licensed under either of
 
 at your option.
 
-Poppler is licensed under GNU General Public License version 2 or version 3, at your option.
+Lester dynamically links against Poppler,
+which is licensed under GNU General Public License version 2 or version 3, at your option
 ([[1]](https://cgit.freedesktop.org/poppler/poppler/tree/README?id=poppler-0.61#n28),
- [[2]](https://cgit.freedesktop.org/poppler/poppler/tree/README-XPDF?id=poppler-0.61#n32))
-Programs using Lester dynamically link against Poppler
-and are therefore also subject to the terms of the GPL.
+ [[2]](https://cgit.freedesktop.org/poppler/poppler/tree/README-XPDF?id=poppler-0.61#n32)).
+Binaries of programs using Lester are therefore also subject to the terms of the GPL.
 
 
 ### Contribution
