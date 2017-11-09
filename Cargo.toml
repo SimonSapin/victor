@@ -2,5 +2,6 @@
 members = [
     "lester",
     "victor",
+    "derive",
     "tests",
 ]

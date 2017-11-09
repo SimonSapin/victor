@@ -13,3 +13,4 @@ doctest = false
 [dependencies]
 lester = {path = "../lester"}
 victor = {path = "../victor"}
+victor-internal-derive = {path = "../derive"}

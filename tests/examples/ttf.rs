@@ -1,4 +1,5 @@
 #[macro_use] extern crate victor;
+#[macro_use] extern crate victor_internal_derive;
 
 use std::mem;
 
@@ -19,7 +20,7 @@ fn inspect(name: &str, bytes: &[u8]) {
     println!("{} tables", header.table_count.value());
 }
 
-/// Plain old data: all bit patterns represente valid values
+/// Plain old data: all bit patterns represent valid values
 unsafe trait Pod: Sized {
     fn cast_from(bytes: &[u8]) -> &Self {
         assert!((bytes.as_ptr() as usize) % mem::align_of::<Self>() == 0);
@@ -31,16 +32,21 @@ unsafe trait Pod: Sized {
     }
 }
 
-macro_rules! ints {
+unsafe impl Pod for u16 {}
+unsafe impl Pod for u32 {}
+
+macro_rules! big_endian_int_wrappers {
     ($( $Name: ident: $Int: ty; )+) => {
         $(
-            #[derive(Copy, Clone)]
+            /// A big-endian integer
+            #[derive(Pod)]
+            #[repr(C)]
             struct $Name($Int);
 
-            unsafe impl Pod for $Name {}
-
             impl $Name {
-                fn value(self) -> $Int {
+                /// Return the value in native-endian
+                #[inline]
+                fn value(&self) -> $Int {
                     <$Int>::from_be(self.0)
                 }
             }
@@ -48,18 +54,17 @@ macro_rules! ints {
     }
 }
 
-ints! {
-    BE32: u32;
-    BE16: u16;
+big_endian_int_wrappers! {
+    u32_be: u32;
+    u16_be: u16;
 }
 
 #[repr(C)]
+#[derive(Pod)]
 struct Header {
-    version: BE32,
-    table_count: BE16,
-    search_range: BE16,
-    entry_selector: BE16,
-    range_shift: BE16,
+    version: u32_be,
+    table_count: u16_be,
+    search_range: u16_be,
+    entry_selector: u16_be,
+    range_shift: u16_be,
 }
-
-unsafe impl Pod for Header {}

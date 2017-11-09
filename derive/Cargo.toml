@@ -1,0 +1,16 @@
+[package]
+name = "victor-internal-derive"
+version = "0.0.1"
+authors = ["Simon Sapin <simon.sapin@exyr.org>"]
+license = "MIT OR Apache-2.0"
+description = "Custom #[derive] for use inside Victor"
+repository = "https://github.com/SimonSapin/victor"
+
+[lib]
+proc-macro = true
+test = false
+doctest = false
+
+[dependencies]
+syn = "0.11"
+quote = "0.3"
