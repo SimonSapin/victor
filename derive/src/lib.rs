@@ -37,7 +37,7 @@ fn expand_string(input: &str) -> String {
     let tokens = quote! {
         unsafe impl Pod for #name {}
 
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, unused_variables)]
         fn #assert_fn_name(value: &#name) {
             fn _assert_pod<T: Pod>(_: &T) {}
             #(
