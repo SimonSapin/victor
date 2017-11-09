@@ -57,7 +57,7 @@ impl Font {
             NamingTable::Format1(t) => t.strings(),
         }?;
 
-        // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6name.html
+        // https://www.microsoft.com/typography/otspec/name.htm#nameIDs
         const POSTSCRIPT_NAME__NAME_ID: usize = 6;
         let postscript_name = mem::replace(&mut strings[POSTSCRIPT_NAME__NAME_ID], String::new());
 

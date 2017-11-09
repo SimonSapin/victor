@@ -148,7 +148,7 @@ struct OffsetSubtable {
     range_shift: u16_be,
 }
 
-/// `Fixed` in https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6.html
+/// `Fixed` in https://www.microsoft.com/typography/otspec/otff.htm#dataTypes
 #[repr(C)]
 #[derive(Pod)]
 struct FixedPoint {
