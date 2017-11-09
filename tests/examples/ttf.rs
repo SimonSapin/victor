@@ -4,6 +4,7 @@
 use std::fmt::{self, Write};
 use std::mem::{self, size_of};
 use std::slice;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static AHEM: victor::fonts::LazyStaticFont = include_font!("../fonts/ahem/ahem.ttf");
 
@@ -34,8 +35,8 @@ fn inspect(name: &str, bytes: &[u8]) {
     let header = FontHeader::cast(bytes, table_offset(b"head"));
     assert_eq!(header.version.value(), (1, 0));
     assert_eq!(header.magic_number.value(), 0x5F0F3CF5);
-    println!("crated: {}", header.created.approximate_year());
-    println!("modified: {}", header.modified.approximate_year());
+    println!("crated: {:?}", header.created);
+    println!("modified: {:?}", header.modified);
     println!("bounding box: {:?}", [(header.min_x.value(), header.min_y.value()),
                                     (header.max_x.value(), header.max_y.value())]);
 
@@ -180,8 +181,21 @@ impl LongDateTime {
         }
     }
 
-    fn approximate_year(&self) -> i64 {
-        (self.seconds_since_1904_01_01_midnight() / 60 / 60 / 24 / 365) + 1904
+    fn to_system_time(&self) -> SystemTime {
+        // `date --utc -d 1904-01-01 +%s`
+        let truetype_epoch = UNIX_EPOCH - Duration::from_secs(2_082_844_800);
+        let seconds = self.seconds_since_1904_01_01_midnight();
+        if seconds >= 0 {
+            truetype_epoch + Duration::from_secs(seconds as u64)
+        } else {
+            truetype_epoch - Duration::from_secs((-seconds) as u64)
+        }
+    }
+}
+
+impl fmt::Debug for LongDateTime {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.to_system_time().fmt(f)
     }
 }
 
