@@ -2,6 +2,7 @@
 #[macro_use] extern crate victor_internal_derive;
 
 use std::mem;
+use std::fmt::{self, Write};
 
 static AHEM: victor::fonts::LazyStaticFont = include_font!("../fonts/ahem/ahem.ttf");
 
@@ -13,16 +14,25 @@ fn main() {
 fn inspect(name: &str, bytes: &[u8]) {
     println!("\n{}: {} bytes", name, bytes.len());
 
-    let offset_table = OffsetSubtable::cast_from(bytes);
+    let offset_table = OffsetSubtable::cast_from(bytes, 0);
 
     // 'true' (0x74727565) and 0x00010000 mean TrueType
     println!("version: {:08X}", offset_table.scaler_type.value());
-    println!("{} tables", offset_table.table_count.value());
+
+    let table_directory_start = mem::size_of::<OffsetSubtable>();
+    let table_count = offset_table.table_count.value();
+    let tags = (0..table_count as usize).map(|i| {
+        let offset = table_directory_start + i * mem::size_of::<TableDirectoryEntry>();
+        let entry = TableDirectoryEntry::cast_from(bytes, offset);
+        entry.tag
+    }).collect::<Vec<_>>();
+    println!("{} tables: {:?}", table_count, tags);
 }
 
 /// Plain old data: all bit patterns represent valid values
 unsafe trait Pod: Sized {
-    fn cast_from(bytes: &[u8]) -> &Self {
+    fn cast_from(bytes: &[u8], offset: usize) -> &Self {
+        let bytes = &bytes[offset..];
         assert!((bytes.as_ptr() as usize) % mem::align_of::<Self>() == 0);
         assert!(bytes.len() >= mem::size_of::<Self>());
         let ptr = bytes.as_ptr() as *const Self;
@@ -32,8 +42,10 @@ unsafe trait Pod: Sized {
     }
 }
 
+unsafe impl Pod for u8 {}
 unsafe impl Pod for u16 {}
 unsafe impl Pod for u32 {}
+unsafe impl<T: Pod> Pod for [T; 4] {}
 
 macro_rules! big_endian_int_wrappers {
     ($( $Name: ident: $Int: ty; )+) => {
@@ -69,6 +81,34 @@ struct OffsetSubtable {
     range_shift: u16_be,
 }
 
+#[derive(Pod, Copy, Clone)]
+#[repr(C)]
+struct Tag([u8; 4]);
+
+impl fmt::Debug for Tag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Tag(")?;
+        for &byte in &self.0 {
+            if b' ' <= byte && byte <= b'~' {
+                // ASCII printable or space
+                f.write_char(byte as char)?
+            } else {
+                write!(f, r"\x{:02X}", byte)?
+            }
+        }
+        f.write_char(')')
+    }
+}
+
+#[repr(C)]
+#[derive(Pod)]
+struct TableDirectoryEntry {
+    tag: Tag,
+    checksum: u32_be,
+    offset: u32_be,
+    length: u32_be,
+}
+
 macro_rules! static_assert_size_of {
     ($( $T: ty = $size: expr, )+) => {
         fn _static_assert_size_of() {
@@ -80,7 +120,9 @@ macro_rules! static_assert_size_of {
 }
 
 static_assert_size_of! {
-    u32_be = 4,
     u16_be = 2,
+    u32_be = 4,
+    Tag = 4,
     OffsetSubtable = 12,
+    TableDirectoryEntry = 16,
 }
