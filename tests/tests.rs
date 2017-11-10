@@ -10,11 +10,12 @@ use std::io::Write;
 use victor::display_lists::*;
 use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont};
 
-static _AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
+static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
 
 #[test]
 fn pdf() {
     let vera = BITSTREAM_VERA_SANS.get().unwrap();
+    let ahem = AHEM.get().unwrap();
     let dl = Document {
         pages: vec![
             Page {
@@ -23,10 +24,17 @@ fn pdf() {
                     DisplayItem::Text {
                         glyph_ids: vera.to_glyph_ids("Têst→iimm"),
                         font: vera,
-                        font_size: Length::new(20.),
+                        font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
-                        start: point(10., 30.),
-                    }
+                        start: point(10., 20.),
+                    },
+                    DisplayItem::Text {
+                        glyph_ids: ahem.to_glyph_ids("pÉ"),
+                        font: ahem,
+                        font_size: Length::new(15.),
+                        color: RGBA(0., 0., 0., 1.),
+                        start: point(10., 40.),
+                    },
                 ],
             },
             Page {
