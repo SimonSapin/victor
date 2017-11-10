@@ -134,6 +134,47 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
             None
         }
     }).next().unwrap();
+    let cmap = parse_format4_cmap(bytes, cmap_record_offset, glyph_count);
+
+    let header = FontHeader::cast(bytes, table_offset(b"head"));
+    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"));
+
+    let ttf_units_per_em = i32::from(header.units_per_em.value());
+    const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
+    let ttf_to_pdf = |x: i16| i32::from(x) * PDF_GLYPH_SPACE_UNITS_PER_EM / ttf_units_per_em;
+
+    let horizontal_metrics = LongHorizontalMetric::cast_slice(
+        bytes,
+        table_offset(b"hmtx"),
+        horizontal_header.number_of_long_horizontal_metrics.value() as usize,
+    );
+    let mut glyph_widths = horizontal_metrics
+        .iter()
+        .map(|m| ttf_to_pdf(m.advance_width.value() as i16) as u16)
+        .collect::<Vec<_>>();
+    let last_glyph_width = *glyph_widths.last().unwrap();
+    glyph_widths.extend(
+        (horizontal_metrics.len()..glyph_count as usize)
+        .map(|_| last_glyph_width)
+    );
+
+    Ok(Font {
+        bytes: Cow::Borrowed(&[]),
+        min_x: ttf_to_pdf(header.min_x.value()),
+        min_y: ttf_to_pdf(header.min_y.value()),
+        max_x: ttf_to_pdf(header.max_x.value()),
+        max_y: ttf_to_pdf(header.max_y.value()),
+        ascent: ttf_to_pdf(horizontal_header.ascender.value()),
+        descent: ttf_to_pdf(horizontal_header.descender.value()),
+        postscript_name, cmap, glyph_widths,
+    })
+}
+
+fn parse_format4_cmap(
+    bytes: &[u8],
+    cmap_record_offset: usize,
+    glyph_count: usize,
+) -> HashMap<char, GlyphId> {
     let cmap_encoding_header = CmapFormat4Header::cast(bytes, cmap_record_offset);
     let segment_count = cmap_encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
@@ -151,7 +192,7 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
     let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
     let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
 
-    let mut cmap = HashMap::<char, GlyphId>::with_capacity(glyph_count);
+    let mut cmap = HashMap::with_capacity(glyph_count);
     let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
     for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter.enumerate() {
         let end_code: u16 = end_code.value();
@@ -191,39 +232,7 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
             code_point += 1;
         }
     }
-
-    let header = FontHeader::cast(bytes, table_offset(b"head"));
-    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"));
-
-    let ttf_units_per_em = i32::from(header.units_per_em.value());
-    const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
-    let ttf_to_pdf = |x: i16| i32::from(x) * PDF_GLYPH_SPACE_UNITS_PER_EM / ttf_units_per_em;
-
-    let horizontal_metrics = LongHorizontalMetric::cast_slice(
-        bytes,
-        table_offset(b"hmtx"),
-        horizontal_header.number_of_long_horizontal_metrics.value() as usize,
-    );
-    let mut glyph_widths = horizontal_metrics
-        .iter()
-        .map(|m| ttf_to_pdf(m.advance_width.value() as i16) as u16)
-        .collect::<Vec<_>>();
-    let last_glyph_width = *glyph_widths.last().unwrap();
-    glyph_widths.extend(
-        (horizontal_metrics.len()..glyph_count as usize)
-        .map(|_| last_glyph_width)
-    );
-
-    Ok(Font {
-        bytes: Cow::Borrowed(&[]),
-        min_x: ttf_to_pdf(header.min_x.value()),
-        min_y: ttf_to_pdf(header.min_y.value()),
-        max_x: ttf_to_pdf(header.max_x.value()),
-        max_y: ttf_to_pdf(header.max_y.value()),
-        ascent: ttf_to_pdf(horizontal_header.ascender.value()),
-        descent: ttf_to_pdf(horizontal_header.descender.value()),
-        postscript_name, cmap, glyph_widths,
-    })
+    cmap
 }
 
 fn invalid(message: &str) -> io::Error {
