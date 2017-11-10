@@ -182,6 +182,13 @@ impl<'data> Page<'data> {
         context.check_status()?;
         Ok(surface)
     }
+
+    /// Return the text on this page
+    pub fn text(&self) -> Option<GlibString> {
+        unsafe {
+            GlibString::from_nullable_ptr(poppler_page_get_text(self.ptr))
+        }
+    }
 }
 
 impl<'data> Drop for Page<'data> {

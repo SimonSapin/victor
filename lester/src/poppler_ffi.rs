@@ -16,6 +16,7 @@ extern "C" {
     pub fn poppler_page_get_size(page: *mut PopplerPage, width: *mut f64, height: *mut f64);
     pub fn poppler_page_render(page: *mut PopplerPage, cairo: *mut cairo_t);
     pub fn poppler_page_render_for_printing(page: *mut PopplerPage, cairo: *mut cairo_t);
+    pub fn poppler_page_get_text(page: *mut PopplerPage) -> *mut c_char;
 
     pub fn g_error_free(error: *mut GError);
     pub fn g_object_unref(object: gpointer);

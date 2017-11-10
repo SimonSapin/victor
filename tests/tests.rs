@@ -69,6 +69,10 @@ fn pdf() {
     let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
     assert_eq!(sizes, [(140., 50.), (4., 4.)]);
 
+    // FIXME: find a way to round-trip code points without a glyph like '→'
+    assert_eq!(doc.pages().nth(0).unwrap().text().unwrap().to_str().unwrap(),
+               "Têst iimm\npÉX 𐁉 𐁁𐀓𐀠𐀴𐀍");
+
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         doc.pages()
            .nth(0).unwrap()
