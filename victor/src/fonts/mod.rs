@@ -120,21 +120,25 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
         cmap_offset.saturating_add(size_of::<CmapHeader>()),
         cmap_header.num_tables.value() as usize,
     );
-    let cmap_record_offset = cmap_records.iter().filter_map(|record| {
+    // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 4).
+    let cmap = cmap_records.iter().rev().filter_map(|record| {
         let offset = cmap_offset.saturating_add(record.offset.value() as usize);
+        let format = u16_be::cast(bytes, offset).value();
         const MICROSOFT: u16 = 3;
-        const UNICODE_BMP: u16 = 1;
+        const UNICODE_USC2: u16 = 1;
+        const UNICODE_USC4: u16 = 10;
         const SEGMENT_MAPPING_TO_DELTA_VALUES: u16 = 4;
-        if record.platform_id.value() == MICROSOFT &&
-           record.encoding_id.value() == UNICODE_BMP &&
-           u16_be::cast(bytes, offset).value() == SEGMENT_MAPPING_TO_DELTA_VALUES
-        {
-            Some(offset)
-        } else {
-            None
+        const SEGMENTED_COVERAGE: u16 = 12;
+        match (record.platform_id.value(), record.encoding_id.value(), format) {
+            (MICROSOFT, UNICODE_USC2, SEGMENT_MAPPING_TO_DELTA_VALUES) => {
+                Some(parse_format4_cmap(bytes, offset, glyph_count))
+            }
+            (MICROSOFT, UNICODE_USC4, SEGMENTED_COVERAGE) => {
+                Some(parse_format12_cmap(bytes, offset, glyph_count))
+            }
+            _ => None,
         }
     }).next().unwrap();
-    let cmap = parse_format4_cmap(bytes, cmap_record_offset, glyph_count);
 
     let header = FontHeader::cast(bytes, table_offset(b"head"));
     let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"));
@@ -170,16 +174,13 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
     })
 }
 
-fn parse_format4_cmap(
-    bytes: &[u8],
-    cmap_record_offset: usize,
-    glyph_count: usize,
-) -> HashMap<char, GlyphId> {
-    let cmap_encoding_header = CmapFormat4Header::cast(bytes, cmap_record_offset);
-    let segment_count = cmap_encoding_header.segment_count_x2.value() as usize / 2;
+fn parse_format4_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
+                      -> HashMap<char, GlyphId> {
+    let encoding_header = CmapFormat4Header::cast(bytes, record_offset);
+    let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
 
-    let end_codes_start = cmap_record_offset
+    let end_codes_start = record_offset
         .saturating_add(size_of::<CmapFormat4Header>());
     let start_codes_start = end_codes_start
         .saturating_add(subtable_size)  // Add end_code subtable
@@ -232,6 +233,40 @@ fn parse_format4_cmap(
             code_point += 1;
         }
     }
+    cmap
+}
+
+fn parse_format12_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
+                       -> HashMap<char, GlyphId> {
+    let encoding_header = CmapFormat12Header::cast(bytes, record_offset);
+    let groups = CmapFormat12Group::cast_slice(bytes,
+        record_offset.saturating_add(size_of::<CmapFormat12Header>()),
+        encoding_header.num_groups.value() as usize,
+    );
+
+    let mut cmap = HashMap::with_capacity(glyph_count);
+    for group in groups {
+        let start_code = group.start_char_code.value();
+        let end_code = group.end_char_code.value();
+        let start_glyph_id = group.start_glyph_id.value();
+        let mut code_point = start_code;
+        loop {
+            let glyph_id = ((code_point - start_code) + start_glyph_id) as u16;
+            if glyph_id != 0 {
+                // Ignore any mapping for surrogate code points
+                if let Some(ch) = char::from_u32(u32::from(code_point)) {
+                    let previous_glyph_id = cmap.insert(ch, GlyphId(glyph_id));
+                    assert!(previous_glyph_id.is_none());
+                }
+            }
+
+            if code_point == end_code {
+                break
+            }
+            code_point += 1;
+        }
+    }
+    println!("{:?}", cmap);
     cmap
 }
 

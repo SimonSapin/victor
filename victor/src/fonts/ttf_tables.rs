@@ -125,6 +125,24 @@ pub(crate) struct CmapFormat4Header {
     pub range_shift: u16_be,
 }
 
+#[repr(C)]
+#[derive(Pod)]
+pub(crate) struct CmapFormat12Header {
+    pub format: u16_be,
+    pub _reserved: u16_be,
+    pub length: u32_be,
+    pub language: u32_be,
+    pub num_groups: u32_be,
+}
+
+#[repr(C)]
+#[derive(Pod)]
+pub(crate) struct CmapFormat12Group {
+    pub start_char_code: u32_be,
+    pub end_char_code: u32_be,
+    pub start_glyph_id: u32_be,
+}
+
 macro_rules! static_assert_size_of {
     ($( $T: ty = $size: expr, )+) => {
         fn _static_assert_size_of() {
