@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::char;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::mem::size_of;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ pub(crate) struct GlyphId(pub u16);
 pub struct Font {
     pub(crate) bytes: Cow<'static, [u8]>,
     pub(crate) postscript_name: String,
-    pub(crate) cmap: HashMap<char, GlyphId>,
+    pub(crate) cmap: BTreeMap<char, GlyphId>,
     pub(crate) min_x: i32,
     pub(crate) min_y: i32,
     pub(crate) max_x: i32,
@@ -131,10 +131,10 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
         const SEGMENTED_COVERAGE: u16 = 12;
         match (record.platform_id.value(), record.encoding_id.value(), format) {
             (MICROSOFT, UNICODE_USC2, SEGMENT_MAPPING_TO_DELTA_VALUES) => {
-                Some(parse_format4_cmap(bytes, offset, glyph_count))
+                Some(parse_format4_cmap(bytes, offset))
             }
             (MICROSOFT, UNICODE_USC4, SEGMENTED_COVERAGE) => {
-                Some(parse_format12_cmap(bytes, offset, glyph_count))
+                Some(parse_format12_cmap(bytes, offset))
             }
             _ => None,
         }
@@ -174,8 +174,7 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
     })
 }
 
-fn parse_format4_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
-                      -> HashMap<char, GlyphId> {
+fn parse_format4_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, GlyphId> {
     let encoding_header = CmapFormat4Header::cast(bytes, record_offset);
     let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
@@ -193,7 +192,7 @@ fn parse_format4_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
     let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
     let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
 
-    let mut cmap = HashMap::with_capacity(glyph_count);
+    let mut cmap = BTreeMap::new();
     let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
     for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter.enumerate() {
         let end_code: u16 = end_code.value();
@@ -236,15 +235,14 @@ fn parse_format4_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
     cmap
 }
 
-fn parse_format12_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
-                       -> HashMap<char, GlyphId> {
+fn parse_format12_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, GlyphId> {
     let encoding_header = CmapFormat12Header::cast(bytes, record_offset);
     let groups = CmapFormat12Group::cast_slice(bytes,
         record_offset.saturating_add(size_of::<CmapFormat12Header>()),
         encoding_header.num_groups.value() as usize,
     );
 
-    let mut cmap = HashMap::with_capacity(glyph_count);
+    let mut cmap = BTreeMap::new();
     for group in groups {
         let start_code = group.start_char_code.value();
         let end_code = group.end_char_code.value();
@@ -266,7 +264,6 @@ fn parse_format12_cmap(bytes: &[u8], record_offset: usize, glyph_count: usize)
             code_point += 1;
         }
     }
-    println!("{:?}", cmap);
     cmap
 }
 
