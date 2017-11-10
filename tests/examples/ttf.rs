@@ -1,6 +1,8 @@
 #[macro_use] extern crate victor;
 #[macro_use] extern crate victor_internal_derive;
 
+use std::char;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Write};
 use std::mem::{self, size_of};
 use std::slice;
@@ -45,7 +47,8 @@ fn inspect(name: &str, bytes: &[u8]) {
     println!("descent: {}", horizontal_header.descent.value());
 
     let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp"));
-    println!("number of glyphs: {}", maximum_profile.num_glyphs.value());
+    let glyph_count = maximum_profile.num_glyphs.value() as usize;
+    println!("number of glyphs: {}", glyph_count);
 
     let horizontal_metrics = LongHorizontalMetric::cast_slice(
         bytes,
@@ -114,11 +117,69 @@ fn inspect(name: &str, bytes: &[u8]) {
     let id_deltas_start = start_codes_start.saturating_add(subtable_size);
     let id_range_offsets_start = id_deltas_start.saturating_add(subtable_size);
 
-    let _end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count);
-    let _start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count);
-    let _id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
-    let _id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
+    let end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count);
+    let start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count);
+    let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
+    let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
+
+    let mut map = HashMap::<char, GlyphId>::with_capacity(glyph_count);
+    let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
+    print!("cmap segments:");
+    for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter.enumerate() {
+        let end_code: u16 = end_code.value();
+        let start_code: u16 = start_code.value();
+        let id_delta: u16 = id_delta.value();  // Really i16, but used modulo 2^16 with wrapping_add.
+        let id_range_offset: u16 = id_range_offset.value();
+
+        if start_code == end_code {
+            print!(" {:X}", start_code)
+        } else {
+            print!(" {:X}-{:X}", start_code, end_code)
+        }
+        if id_range_offset != 0 {
+            print!("*");
+        }
+        let mut code_point = start_code;
+        loop {
+            let glyph_id;
+            if id_range_offset != 0 {
+                let offset =
+                    id_range_offsets_start +
+                    segment_index * size_of::<u16>() +
+                    id_range_offset as usize +
+                    (code_point - start_code) as usize * size_of::<u16>();
+                let result = u16_be::cast(bytes, offset).value();
+                if result != 0 {
+                    print!("+");
+                    glyph_id = result.wrapping_add(id_delta)
+                } else {
+                    print!(".");
+                    glyph_id = 0
+                }
+            } else {
+                glyph_id = code_point.wrapping_add(id_delta)
+            };
+            if glyph_id != 0 {
+                // Ignore any mapping for surrogate code points
+                if let Some(ch) = char::from_u32(u32::from(code_point)) {
+                    let previous_glyph_id = map.insert(ch, GlyphId(glyph_id));
+                    assert!(previous_glyph_id.is_none());
+                }
+            }
+
+            if code_point == end_code {
+                break
+            }
+            code_point += 1;
+        }
+    }
+    println!();
+    println!("Code points mapped: {}", map.len());
+    println!("Unique glyph IDs mapped: {}", map.values().collect::<HashSet<_>>().len());
 }
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+struct GlyphId(u16);
 
 /// Plain old data: all bit patterns represent valid values
 unsafe trait Pod: Sized {
@@ -359,16 +420,18 @@ struct CmapFormat4Header {
 
 impl fmt::Debug for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Tag(")?;
+        f.write_char('"')?;
         for &byte in &self.0 {
-            if b' ' <= byte && byte <= b'~' {
+            if byte == b'"' {
+                f.write_str(r#"\""#)?
+            } else if b' ' <= byte && byte <= b'~' {
                 // ASCII printable or space
                 f.write_char(byte as char)?
             } else {
                 write!(f, r"\x{:02X}", byte)?
             }
         }
-        f.write_char(')')
+        f.write_char('"')
     }
 }
 
