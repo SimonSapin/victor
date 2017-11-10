@@ -120,7 +120,7 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
         cmap_offset.saturating_add(size_of::<CmapHeader>()),
         cmap_header.num_tables.value() as usize,
     );
-    // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 4).
+    // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 1).
     let cmap = cmap_records.iter().rev().filter_map(|record| {
         let offset = cmap_offset.saturating_add(record.offset.value() as usize);
         let format = u16_be::cast(bytes, offset).value();

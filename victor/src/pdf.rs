@@ -263,13 +263,17 @@ impl<'a> InProgressPage<'a> {
                 <0000> <ffff>\n\
                 endcodespacerange\n\
             ".to_vec();
-            let mut pairs: Vec<_> = font.cmap.iter().map(|(&k, &v)| (k as u32, v.0)).collect();
+            let mut pairs: Vec<_> = font.cmap.iter().map(|(&k, &v)| (k, v.0)).collect();
             pairs.sort();
             // Max 100 entries per beginbfchar operator
             for chunk in pairs.chunks(100) {
                 write!(to_unicode_cmap, "{} beginbfchar\n", chunk.len()).unwrap();
                 for &(code_point, glyph) in chunk {
-                    write!(to_unicode_cmap, "<{:04x}> <{:04x}>\n", glyph, code_point).unwrap();
+                    write!(to_unicode_cmap, "<{:04x}> <", glyph).unwrap();
+                    for code_unit in code_point.encode_utf16(&mut [0, 0]) {
+                        write!(to_unicode_cmap, "{:04x}", code_unit).unwrap()
+                    }
+                    to_unicode_cmap.extend(b">\n");
                 }
                 to_unicode_cmap.extend(b"endbfchar\n");
             }

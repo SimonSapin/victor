@@ -21,7 +21,7 @@ fn pdf() {
     let dl = Document {
         pages: vec![
             Page {
-                size: Size::new(120., 50.),
+                size: Size::new(140., 50.),
                 display_items: vec![
                     DisplayItem::Text {
                         glyph_ids: vera.to_glyph_ids("Têst→iimm"),
@@ -31,18 +31,18 @@ fn pdf() {
                         start: point(10., 20.),
                     },
                     DisplayItem::Text {
-                        glyph_ids: ahem.to_glyph_ids("pÉ"),
+                        glyph_ids: ahem.to_glyph_ids("pÉX"),
                         font: ahem,
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
                         start: point(10., 40.),
                     },
                     DisplayItem::Text {
-                        glyph_ids: noto.to_glyph_ids("𐁁𐀓𐀠𐀴𐀍"),
+                        glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍"),
                         font: noto,
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
-                        start: point(60., 40.),
+                        start: point(65., 40.),
                     },
                 ],
             },
@@ -67,7 +67,7 @@ fn pdf() {
                "Victor <https://github.com/SimonSapin/victor>");
 
     let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
-    assert_eq!(sizes, [(120., 50.), (4., 4.)]);
+    assert_eq!(sizes, [(140., 50.), (4., 4.)]);
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         doc.pages()
