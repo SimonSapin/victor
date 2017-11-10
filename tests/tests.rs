@@ -1,14 +1,16 @@
 #![cfg(test)]
 
 #[macro_use] extern crate lester;
-extern crate victor;
+#[macro_use] extern crate victor;
 
 use lester::{PdfDocument, RenderOptions, Backdrop};
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use victor::display_lists::*;
-use victor::fonts::BITSTREAM_VERA_SANS;
+use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont};
+
+static _AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
 
 #[test]
 fn pdf() {

@@ -263,7 +263,7 @@ impl<'a> InProgressPage<'a> {
                 <0000> <ffff>\n\
                 endcodespacerange\n\
             ".to_vec();
-            let mut pairs: Vec<_> = font.cmap.iter().map(|(&k, &v)| (k, v)).collect();
+            let mut pairs: Vec<_> = font.cmap.iter().map(|(&k, &v)| (k as u32, v.0)).collect();
             pairs.sort();
             // Max 100 entries per beginbfchar operator
             for chunk in pairs.chunks(100) {
