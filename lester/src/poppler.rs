@@ -147,9 +147,25 @@ impl<'data> Page<'data> {
          h * PX_PER_PT)
     }
 
-    /// Render (rasterize) this page with the given options to a new image surface.
+    /// Render (rasterize) this page with the default options to a new image surface.
     pub fn render(&self) -> Result<ImageSurface, CairoError> {
         self.render_with_options(RenderOptions::default())
+    }
+
+    /// Render (rasterize) this page with the given zoom/scale level to a new image surface.
+    ///
+    /// The parameter is the number of rendered pixels per CSS `px` unit,
+    /// assuming that the CSS `pt` unit maps to PostScript points as Victor does.
+    ///
+    /// The default is `1.0`, which equals `96dpi`.
+    /// A value of `2.0` produces a rendering similar to a “retina” double-density display.
+    /// `3.125` equals `300dpi`.
+    pub fn render_with_dppx(&self, dppx: f64) -> Result<ImageSurface, CairoError> {
+        self.render_with_options(RenderOptions {
+            dppx_x: dppx,
+            dppx_y: dppx,
+            ..RenderOptions::default()
+        })
     }
 
     /// Render (rasterize) this page with the given options to a new image surface.

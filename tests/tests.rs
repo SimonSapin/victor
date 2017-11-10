@@ -76,7 +76,7 @@ fn pdf() {
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         doc.pages()
            .nth(0).unwrap()
-           .render().unwrap()
+           .render_with_dppx(3.).unwrap()
            .write_to_png_file("/tmp/victor.png").unwrap()
     }
     let page = doc.pages().nth(1).unwrap();
