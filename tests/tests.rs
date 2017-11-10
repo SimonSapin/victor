@@ -11,10 +11,12 @@ use victor::display_lists::*;
 use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont};
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
+static NOTO: LazyStaticFont = include_font!("fonts/noto/NotoSansLinearB-Regular.ttf");
 
 #[test]
 fn pdf() {
     let vera = BITSTREAM_VERA_SANS.get().unwrap();
+    let noto = NOTO.get().unwrap();
     let ahem = AHEM.get().unwrap();
     let dl = Document {
         pages: vec![
@@ -34,6 +36,13 @@ fn pdf() {
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
                         start: point(10., 40.),
+                    },
+                    DisplayItem::Text {
+                        glyph_ids: noto.to_glyph_ids("𐁁𐀓𐀠𐀴𐀍"),
+                        font: noto,
+                        font_size: Length::new(15.),
+                        color: RGBA(0., 0., 0., 1.),
+                        start: point(60., 40.),
                     },
                 ],
             },

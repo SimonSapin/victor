@@ -77,20 +77,38 @@ fn parse(bytes: &[u8]) -> io::Result<Font> {
     );
     let string_storage_start = naming_table_offset
         .saturating_add(naming_table_header.string_offset.value() as usize);
-    let postscript_name = name_records.iter().find(|record| {
+    let get_string_bytes = |offset: &u16_be, length: &u16_be| u8::cast_slice(
+        bytes,
+        string_storage_start.saturating_add(offset.value() as usize),
+        length.value() as usize,
+    );
+    let decode_macintosh = |offset, length| {
+        // Macintosh encodings seem to be ASCII-compatible, and a PostScript name is within ASCII
+        String::from_utf8_lossy(get_string_bytes(offset, length)).into_owned()
+    };
+    let decode_ucs2 = |offset, length| {
+        get_string_bytes(offset, length).chunks(2).map(|chunk| {
+            if chunk.len() < 2 || chunk[0] != 0 {
+                '\u{FFFD}'
+            } else {
+                chunk[1] as char
+            }
+        }).collect::<String>()
+    };
+
+    let postscript_name = name_records.iter().filter(|record| {
         const POSTSCRIPT_NAME: u16 = 6;
+        record.name_id.value() == POSTSCRIPT_NAME
+    }).filter_map(|record| {
         const MACINTOSH: u16 = 1;
-        record.name_id.value() == POSTSCRIPT_NAME &&
-        record.platform_id.value() == MACINTOSH
-    }).map(|record| {
-        let bytes = u8::cast_slice(
-            bytes,
-            string_storage_start.saturating_add(record.offset.value() as usize),
-            record.length.value() as usize,
-        );
-        // Macintosh seem to be ASCII-compatible, and a PostScript name is within ASCII
-        String::from_utf8_lossy(bytes).into_owned()
-    }).unwrap();
+        const MICROSOFT: u16 = 3;
+        const UNICODE_BMP: u16 = 1;
+        match (record.platform_id.value(), record.encoding_id.value()) {
+            (MACINTOSH, _) => Some(decode_macintosh(&record.offset, &record.length)),
+            (MICROSOFT, UNICODE_BMP) => Some(decode_ucs2(&record.offset, &record.length)),
+            _ => None,
+        }
+    }).next().unwrap();
 
     let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp"));
     let glyph_count = maximum_profile.num_glyphs.value() as usize;
