@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::char;
 use std::collections::BTreeMap;
-use std::io;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -29,16 +28,21 @@ pub struct Font {
     pub(crate) glyph_widths: Vec<u16>,
 }
 
+#[derive(Debug)]
+pub enum FontError {
+    UnsupportedFormat,
+}
+
 impl Font {
-    pub fn from_bytes(bytes: Vec<u8>) -> io::Result<Arc<Self>> {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, FontError> {
         Self::from_cow(bytes.into())
     }
 
-    fn from_static(bytes: &'static [u8]) -> io::Result<Arc<Self>> {
+    fn from_static(bytes: &'static [u8]) -> Result<Arc<Self>, FontError> {
         Self::from_cow(bytes.into())
     }
 
-    fn from_cow(bytes: Cow<'static, [u8]>) -> io::Result<Arc<Self>> {
+    fn from_cow(bytes: Cow<'static, [u8]>) -> Result<Arc<Self>, FontError> {
         let mut font = parse(&bytes)?;
         font.bytes = bytes;
         Ok(Arc::new(font))
@@ -52,13 +56,13 @@ impl Font {
     }
 }
 
-fn parse(bytes: &[u8]) -> io::Result<Font> {
+fn parse(bytes: &[u8]) -> Result<Font, FontError> {
     let offset_table = OffsetSubtable::cast(bytes, 0);
 
     let scaler_type = offset_table.scaler_type.value();
     const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
     if scaler_type != TRUETYPE && scaler_type != 0x_0001_0000 {
-        Err(invalid("only TrueType fonts are supported"))?
+        Err(FontError::UnsupportedFormat)?
     }
 
     let table_count = offset_table.table_count.value() as usize;
@@ -265,8 +269,4 @@ fn parse_format12_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, Gly
         }
     }
     cmap
-}
-
-fn invalid(message: &str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }

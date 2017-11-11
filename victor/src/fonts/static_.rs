@@ -1,8 +1,7 @@
-use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::mem;
-use super::Font;
+use super::{Font, FontError};
 use raw_mutex::{RawMutex, RAW_MUTEX_INIT};
 
 /// Include a TrueType file with `include_bytes!()` and create a [`LazyStaticFont`] value.
@@ -73,7 +72,7 @@ impl LazyStaticFont {
     /// try to parse the font now (this may return an error) to initialize it.
     ///
     /// Calling this reapeatedly will only parse once (until `.drop()` is called).
-    pub fn get(&self) -> io::Result<Arc<Font>> {
+    pub fn get(&self) -> Result<Arc<Font>, FontError> {
         macro_rules! try_load {
             () => {
                 let ptr = self.private.ptr.load(Ordering::SeqCst);
