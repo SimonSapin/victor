@@ -226,20 +226,19 @@ impl<'a> InProgressPage<'a> {
     fn add_font(&mut self, font: &Arc<Font>) -> Result<String, FontError> {
         let ptr: *const Font = &**font;
         let hash_key = ptr as usize;
-        let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
-        let next_id = fonts.len();
-        let vacant_entry = match fonts.entry(hash_key) {
+        let next_id = self.doc.fonts.len();
+        let vacant_entry = match self.doc.fonts.entry(hash_key) {
             Entry::Occupied(entry) => return Ok(entry.get().clone()),
             Entry::Vacant(entry) => entry,
         };
         let font_bytes = font.bytes();
-        let truetype_id = pdf.add_object(Stream::new(
+        let truetype_id = self.doc.pdf.add_object(Stream::new(
             dictionary! {
                 "Length1" => font_bytes.len() as i64,
             },
             font_bytes.to_vec()
         ));
-        let font_descriptor_id = pdf.add_object(dictionary! {
+        let font_descriptor_id = self.doc.pdf.add_object(dictionary! {
             "Type" => "FontDescriptor",
             "FontName" => &*font.postscript_name,
             "FontBBox" => array![
@@ -307,7 +306,7 @@ impl<'a> InProgressPage<'a> {
             end\n\
             end\n\
         ".as_ref());
-        let to_unicode_id = pdf.add_object(Stream::new(dictionary! {}, to_unicode_cmap));
+        let to_unicode_id = self.doc.pdf.add_object(Stream::new(dictionary! {}, to_unicode_cmap));
         // Type 0 Font Dictionaries
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
         let font_dict = dictionary! {
@@ -337,7 +336,7 @@ impl<'a> InProgressPage<'a> {
         };
 
         let pdf_key = format!("f{}", next_id);
-        font_resources.get_or_insert_with(Dictionary::new).set(pdf_key.clone(), font_dict);
+        self.doc.font_resources.get_or_insert_with(Dictionary::new).set(pdf_key.clone(), font_dict);
         vacant_entry.insert(pdf_key.clone());
         Ok(pdf_key)
     }
