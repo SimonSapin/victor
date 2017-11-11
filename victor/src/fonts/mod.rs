@@ -63,6 +63,9 @@ pub enum FontError {
 
     /// This font doesn’t have a character map in a supported format.
     NoSupportedCmap,
+
+    /// This font doesn’t have any horizontal metrics for glyphs.
+    NoHorizontalGlyphMetrics,
 }
 
 impl Font {
@@ -194,7 +197,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         .iter()
         .map(|m| ttf_to_pdf(m.advance_width.value() as i16) as u16)
         .collect::<Vec<_>>();
-    let last_glyph_width = *glyph_widths.last().unwrap();
+    let last_glyph_width = *glyph_widths.last().ok_or(FontError::NoHorizontalGlyphMetrics)?;
     glyph_widths.extend(
         (horizontal_metrics.len()..glyph_count as usize)
         .map(|_| last_glyph_width)
