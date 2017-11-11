@@ -66,21 +66,19 @@ fn pdf() {
     assert_eq!(doc.producer().unwrap().to_str().unwrap(),
                "Victor <https://github.com/SimonSapin/victor>");
 
-    let sizes: Vec<_> = doc.pages().map(|page| page.size_in_css_px()).collect();
-    assert_eq!(sizes, [(140., 50.), (4., 4.)]);
+    let pages: Vec<_> = doc.pages().collect();
+    assert_eq!(pages[0].size_in_css_px(), (140., 50.));
+    assert_eq!(pages[1].size_in_css_px(), (4., 4.));
 
     // FIXME: find a way to round-trip code points without a glyph like '→'
-    assert_eq!(doc.pages().nth(0).unwrap().text().unwrap().to_str().unwrap(),
-               "Têst iimm\npÉX 𐁉 𐁁𐀓𐀠𐀴𐀍");
+    assert_eq!(pages[0].text().to_str().unwrap(), "Têst iimm\npÉX 𐁉 𐁁𐀓𐀠𐀴𐀍");
+    assert_eq!(pages[1].text().to_str().unwrap(), "");
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
-        doc.pages()
-           .nth(0).unwrap()
-           .render_with_dppx(3.).unwrap()
-           .write_to_png_file("/tmp/victor.png").unwrap()
+        pages[0].render_with_dppx(3.).unwrap()
+                .write_to_png_file("/tmp/victor.png").unwrap()
     }
-    let page = doc.pages().nth(1).unwrap();
-    let mut surface = page.render().unwrap();
+    let mut surface = pages[1].render().unwrap();
     const RED_: u32 = 0x8080_0000;
     const BLUE: u32 = 0xFF00_00FF;
     const BOTH: u32 = 0xFF80_007F;
@@ -92,7 +90,7 @@ fn pdf() {
         BLUE, BLUE, BLUE, BLUE,
     ]);
 
-    let mut surface = page.render_with_options(RenderOptions {
+    let mut surface = pages[1].render_with_options(RenderOptions {
         dppx_x: 2.0,
         dppx_y: 3.0,
         backdrop: Backdrop::White,

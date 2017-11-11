@@ -200,9 +200,10 @@ impl<'data> Page<'data> {
     }
 
     /// Return the text on this page
-    pub fn text(&self) -> Option<GlibString> {
+    pub fn text(&self) -> GlibString {
         unsafe {
             GlibString::from_nullable_ptr(poppler_page_get_text(self.ptr))
+            .expect("poppler_page_get_text returned a NULL pointer")
         }
     }
 }
