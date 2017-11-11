@@ -1,7 +1,7 @@
-use document::*;
 use fonts::{Font, GlyphId, FontError};
 use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
 use lopdf::content::{Content, Operation};
+use primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::io::Write;

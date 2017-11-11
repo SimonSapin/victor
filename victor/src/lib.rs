@@ -3,8 +3,8 @@ pub extern crate euclid;
 extern crate parking_lot_core;
 #[macro_use] extern crate victor_internal_derive;
 
-mod pdf;
 mod raw_mutex;
 
-pub mod document;
 pub mod fonts;
+pub mod pdf;
+pub mod primitives;

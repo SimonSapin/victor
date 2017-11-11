@@ -7,7 +7,8 @@ use lester::{PdfDocument, RenderOptions, Backdrop};
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use victor::document::{Document, Size, TextRun, Length, point, RGBA, rect};
+use victor::pdf::Document;
+use victor::primitives::{Size, TextRun, Length, point, RGBA, rect};
 use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
