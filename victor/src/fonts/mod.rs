@@ -45,7 +45,7 @@ pub enum FontError {
     /// Please file a bug.
     UnalignedStaticArray,
 
-    /// The font file contains an offset to beyond the end of the file
+    /// The font file contains an offset to beyond the end of the file.
     OffsetBeyondEof,
 
     /// The font file contains an offset that puts the end of the pointed object
@@ -53,7 +53,10 @@ pub enum FontError {
     OffsetPlusLengthBeyondEof,
 
     /// The font file contains an offset not aligned sufficently for the targeted object.
-    UnalignedOffset
+    UnalignedOffset,
+
+    /// One of the required TrueType tables is missing in this font.
+    MissingTable,
 }
 
 impl Font {
@@ -88,10 +91,13 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     let table_directory_start = size_of::<OffsetSubtable>();
     let table_directory = TableDirectoryEntry::cast_slice(bytes, table_directory_start, table_count)?;
     let table_offset = |tag: &[u8; 4]| {
-        table_directory.iter().find(|e| e.tag == tag).unwrap().offset.value() as usize
+        Ok(table_directory.iter()
+            .find(|e| e.tag == tag)
+            .ok_or(FontError::MissingTable)?
+            .offset.value() as usize)
     };
 
-    let naming_table_offset = table_offset(b"name");
+    let naming_table_offset = table_offset(b"name")?;
     let naming_table_header = NamingTableHeader::cast(bytes, naming_table_offset)?;
     let name_records = NameRecord::cast_slice(
         bytes,
@@ -133,10 +139,10 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         }
     }).next().unwrap()?;
 
-    let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp"))?;
+    let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp")?)?;
     let glyph_count = maximum_profile.num_glyphs.value() as usize;
 
-    let cmap_offset = table_offset(b"cmap");
+    let cmap_offset = table_offset(b"cmap")?;
     let cmap_header = CmapHeader::cast(bytes, cmap_offset)?;
     let cmap_records = CmapEncodingRecord::cast_slice(
         bytes,
@@ -166,8 +172,8 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         }
     }).next().unwrap()?;
 
-    let header = FontHeader::cast(bytes, table_offset(b"head"))?;
-    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"))?;
+    let header = FontHeader::cast(bytes, table_offset(b"head")?)?;
+    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea")?)?;
 
     let ttf_units_per_em = i32::from(header.units_per_em.value());
     const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
@@ -175,7 +181,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
 
     let horizontal_metrics = LongHorizontalMetric::cast_slice(
         bytes,
-        table_offset(b"hmtx"),
+        table_offset(b"hmtx")?,
         horizontal_header.number_of_long_horizontal_metrics.value() as usize,
     )?;
     let mut glyph_widths = horizontal_metrics
