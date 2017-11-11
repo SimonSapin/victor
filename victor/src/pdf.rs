@@ -160,7 +160,7 @@ impl<'a> InProgressPage<'a> {
         let x_scale = font_size.0;
         let y_scale = -font_size.0;
         let mut glyph_codes = Vec::with_capacity(glyph_ids.len() * 2);
-        for &id in glyph_ids {
+        for &GlyphId(id) in glyph_ids {
             // Big-endian
             glyph_codes.push((id >> 8) as u8);
             glyph_codes.push(id as u8);

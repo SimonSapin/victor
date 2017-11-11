@@ -12,7 +12,7 @@ use self::ttf_tables::*;
 use self::ttf_types::*;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub(crate) struct GlyphId(pub u16);
+pub struct GlyphId(pub u16);
 
 pub struct Font {
     pub(crate) bytes: AlignedCowBytes,
@@ -89,22 +89,22 @@ impl Font {
         self.cmap.each_code_point(self.bytes.borrow(), f)
     }
 
-    pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<u16>, FontError> {
+    pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<GlyphId>, FontError> {
         const NOTDEF_GLYPH: u16 = 0;
         match self.cmap {
             cmap::Cmap::Format4 { offset } => {
                 let cmap = cmap::Format4::parse(self.bytes.borrow(), offset)?;
                 text.chars().map(|c| {
                     cmap.get(c as u32)  // Result<Option<_>, _>
-                        .map(|opt| opt.unwrap_or(NOTDEF_GLYPH))
+                        .map(|opt| GlyphId(opt.unwrap_or(NOTDEF_GLYPH)))
                 }).collect()
             }
             cmap::Cmap::Format12 { offset } => {
                 let cmap = cmap::Format12::parse(self.bytes.borrow(), offset)?;
-                Ok(text.chars().map(|c| {
+                Ok(text.chars().map(|c| GlyphId(
                     cmap.get(c as u32) // Option
                         .unwrap_or(NOTDEF_GLYPH)
-                }).collect())
+                )).collect())
             }
         }
     }
