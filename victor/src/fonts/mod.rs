@@ -172,14 +172,15 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         const SEGMENTED_COVERAGE: u16 = 12;
         match (record.platform_id.value(), record.encoding_id.value(), format) {
             (MICROSOFT, UNICODE_USC2, SEGMENT_MAPPING_TO_DELTA_VALUES) => {
-                Some(parse_format4_cmap(bytes, offset))
+                Some(Ok(Cmap::Format4 { offset }))
             }
             (MICROSOFT, UNICODE_USC4, SEGMENTED_COVERAGE) => {
-                Some(parse_format12_cmap(bytes, offset))
+                Some(Ok(Cmap::Format12 { offset }))
             }
             _ => None,
         }
     }).next().ok_or(FontError::NoSupportedCmap)??;
+    let cmap = cmap.parse(bytes)?;
 
     let header = FontHeader::cast(bytes, table_offset(b"head")?)?;
     let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea")?)?;
@@ -215,8 +216,41 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     })
 }
 
-fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize)
-                      -> Result<BTreeMap<char, GlyphId>, FontError> {
+enum Cmap {
+    Format4 { offset: usize },
+    Format12 { offset: usize },
+}
+
+impl Cmap {
+    fn parse(&self, bytes: AlignedBytes) -> Result<BTreeMap<char, GlyphId>, FontError> {
+        let mut map = BTreeMap::new();
+        self.each_code_point(bytes, |ch, glyph_id| {
+            map.insert(ch, glyph_id);
+        })?;
+        Ok(map)
+    }
+
+    fn each_code_point<F>(&self, bytes :AlignedBytes, mut f: F)-> Result<(), FontError>
+        where F: FnMut(char, GlyphId)
+    {
+        let f = move |code_point, glyph_id| {
+            if glyph_id != 0 {
+                // Ignore any mapping for surrogate code points
+                if let Some(ch) = char::from_u32(code_point) {
+                    f(ch, GlyphId(glyph_id));
+                }
+            }
+        };
+        match *self {
+            Cmap::Format4 { offset } => parse_format4_cmap(bytes, offset, f),
+            Cmap::Format12 { offset } => parse_format12_cmap(bytes, offset, f),
+        }
+    }
+}
+
+fn parse_format4_cmap<F>(bytes: AlignedBytes, record_offset: usize, mut f: F)
+                         -> Result<(), FontError>
+                         where F: FnMut(u32, u16) {
     let encoding_header = CmapFormat4Header::cast(bytes, record_offset)?;
     let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
@@ -234,7 +268,6 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize)
     let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count)?;
     let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count)?;
 
-    let mut cmap = BTreeMap::new();
     let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
     for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter.enumerate() {
         let end_code: u16 = end_code.value();
@@ -260,12 +293,7 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize)
             } else {
                 glyph_id = code_point.wrapping_add(id_delta)
             };
-            if glyph_id != 0 {
-                // Ignore any mapping for surrogate code points
-                if let Some(ch) = char::from_u32(u32::from(code_point)) {
-                    cmap.insert(ch, GlyphId(glyph_id));
-                }
-            }
+            f(u32::from(code_point), glyph_id);
 
             if code_point == end_code {
                 break
@@ -273,31 +301,26 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize)
             code_point += 1;
         }
     }
-    Ok(cmap)
+    Ok(())
 }
 
-fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize)
-                       -> Result<BTreeMap<char, GlyphId>, FontError> {
+fn parse_format12_cmap<F>(bytes: AlignedBytes, record_offset: usize, mut f: F)
+                          -> Result<(), FontError>
+                          where F: FnMut(u32, u16) {
     let encoding_header = CmapFormat12Header::cast(bytes, record_offset)?;
     let groups = CmapFormat12Group::cast_slice(bytes,
         record_offset.saturating_add(size_of::<CmapFormat12Header>()),
         encoding_header.num_groups.value() as usize,
     )?;
 
-    let mut cmap = BTreeMap::new();
     for group in groups {
         let start_code = group.start_char_code.value();
         let end_code = group.end_char_code.value();
         let start_glyph_id = group.start_glyph_id.value();
         let mut code_point = start_code;
         loop {
-            let glyph_id = ((code_point - start_code) + start_glyph_id) as u16;
-            if glyph_id != 0 {
-                // Ignore any mapping for surrogate code points
-                if let Some(ch) = char::from_u32(u32::from(code_point)) {
-                    cmap.insert(ch, GlyphId(glyph_id));
-                }
-            }
+            let glyph_id = (code_point - start_code) + start_glyph_id;
+            f(code_point, glyph_id as u16);
 
             if code_point == end_code {
                 break
@@ -305,5 +328,5 @@ fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize)
             code_point += 1;
         }
     }
-    Ok(cmap)
+    Ok(())
 }
