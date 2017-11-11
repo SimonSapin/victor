@@ -100,22 +100,41 @@ impl<'a> PartialEq<&'a [u8; 4]> for Tag {
     }
 }
 
+const TRUETYPE_TABLE_ALIGNMENT: usize = 4;
+
+#[derive(Copy, Clone)]
+pub(crate) struct AlignedBytes<'a>(&'a [u8]);
+
+impl<'a> AlignedBytes<'a> {
+    pub fn new(bytes: &'a [u8]) -> Option<Self> {
+        let is_aligned = (bytes.as_ptr() as usize) % TRUETYPE_TABLE_ALIGNMENT == 0;
+        // Allow empty slices here because we want Pod::cast to return an error
+        // rather than Font::from_* to panic.
+        if is_aligned || bytes.is_empty() {
+            Some(AlignedBytes(bytes))
+        } else {
+            None
+        }
+    }
+}
+
 /// Plain old data: all bit patterns represent valid values
 pub(crate) unsafe trait Pod: Sized {
-    fn cast(bytes: &[u8], offset: usize) -> &Self {
+    fn cast(bytes: AlignedBytes, offset: usize) -> &Self {
         &Self::cast_slice(bytes, offset, 1)[0]
     }
 
-    fn cast_slice(bytes: &[u8], offset: usize, n_items: usize) -> &[Self] {
+    fn cast_slice(bytes: AlignedBytes, offset: usize, n_items: usize) -> &[Self] {
         let required_alignment = mem::align_of::<Self>();
         assert!(required_alignment <= 4,
                 "This type requires more alignment than TrueType promises");
 
-        let bytes = &bytes[offset..];
-        assert!((bytes.as_ptr() as usize) % required_alignment == 0);
+        let bytes = &bytes.0[offset..];
 
         let required_len = mem::size_of::<Self>().saturating_mul(n_items);
         assert!(bytes.len() >= required_len);
+
+        assert!((bytes.as_ptr() as usize) % required_alignment == 0);
 
         let ptr = bytes.as_ptr() as *const Self;
         unsafe {

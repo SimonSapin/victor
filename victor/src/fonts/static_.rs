@@ -105,7 +105,11 @@ impl LazyStaticFont {
         // Now we’ve observed the atomic pointer uninitialized after taking the mutex:
         // we’re definitely first
 
-        let font = Font::from_static(self.bytes())?;
+        let font = Font::from_cow(self.bytes().into(), "\
+            Victor’s font parser requires its input to be 32-bit aligned. \
+            The include_font!() macro normally forces static byte arrays to be aligned, \
+            but that apparently didn’t work. \
+            Please file a bug.")?;
         let new_ptr = Arc::into_raw(font.clone()) as usize;
         self.private.ptr.store(new_ptr, Ordering::SeqCst);
         Ok(font)

@@ -35,15 +35,16 @@ pub enum FontError {
 
 impl Font {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, FontError> {
-        Self::from_cow(bytes.into())
+        Self::from_cow(bytes.into(), "\
+            Victor’s font parser requires its input to be 32-bit aligned. \
+            Normally the heap allocator used by Vec always aligns \
+            to at least twice the pointer size \
+            but that’s not the case here.
+            Please file a bug.")
     }
 
-    fn from_static(bytes: &'static [u8]) -> Result<Arc<Self>, FontError> {
-        Self::from_cow(bytes.into())
-    }
-
-    fn from_cow(bytes: Cow<'static, [u8]>) -> Result<Arc<Self>, FontError> {
-        let mut font = parse(&bytes)?;
+    fn from_cow(bytes: Cow<'static, [u8]>, on_unaligned: &str) -> Result<Arc<Self>, FontError> {
+        let mut font = parse(AlignedBytes::new(&bytes).expect(on_unaligned))?;
         font.bytes = bytes;
         Ok(Arc::new(font))
     }
@@ -56,7 +57,7 @@ impl Font {
     }
 }
 
-fn parse(bytes: &[u8]) -> Result<Font, FontError> {
+fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     let offset_table = OffsetSubtable::cast(bytes, 0);
 
     let scaler_type = offset_table.scaler_type.value();
@@ -178,7 +179,7 @@ fn parse(bytes: &[u8]) -> Result<Font, FontError> {
     })
 }
 
-fn parse_format4_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, GlyphId> {
+fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<char, GlyphId> {
     let encoding_header = CmapFormat4Header::cast(bytes, record_offset);
     let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
@@ -238,7 +239,7 @@ fn parse_format4_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, Glyp
     cmap
 }
 
-fn parse_format12_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, GlyphId> {
+fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<char, GlyphId> {
     let encoding_header = CmapFormat12Header::cast(bytes, record_offset);
     let groups = CmapFormat12Group::cast_slice(bytes,
         record_offset.saturating_add(size_of::<CmapFormat12Header>()),
