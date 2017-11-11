@@ -95,14 +95,19 @@ impl Font {
     pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<u16>, FontError> {
         const NOTDEF_GLYPH: u16 = 0;
         match self.raw_cmap {
-            Cmap::Format4 { .. } => {
-                Ok(text.chars().map(|c| {
-                    self.cmap.get(&c).cloned().unwrap_or(GlyphId(NOTDEF_GLYPH)).0
-                }).collect())
+            Cmap::Format4 { offset } => {
+                let cmap = Format4::parse(self.bytes.borrow(), offset)?;
+                text.chars().map(|c| {
+                    cmap.get(c as u32)  // Result<Option<_>, _>
+                        .map(|opt| opt.unwrap_or(NOTDEF_GLYPH))
+                }).collect()
             }
             Cmap::Format12 { offset } => {
                 let cmap = Format12::parse(self.bytes.borrow(), offset)?;
-                Ok(text.chars().map(|c| cmap.get(c as u32).unwrap_or(NOTDEF_GLYPH)).collect())
+                Ok(text.chars().map(|c| {
+                    cmap.get(c as u32) // Option
+                        .unwrap_or(NOTDEF_GLYPH)
+                }).collect())
             }
         }
     }
@@ -294,6 +299,7 @@ impl<'bytes> Format4<'bytes> {
 
         Ok(Format4 {
             bytes,
+            // id_delta is really i16, but only used modulo 2^16 with u16::wrapping_add
             end_codes: u16_be::cast_slice(bytes, end_codes_start, segment_count)?,
             start_codes: u16_be::cast_slice(bytes, start_codes_start, segment_count)?,
             id_deltas: u16_be::cast_slice(bytes, id_deltas_start, segment_count)?,
@@ -302,37 +308,63 @@ impl<'bytes> Format4<'bytes> {
         })
     }
 
-    fn each_code_point<F>(&self, mut f: F) -> Result<(), FontError> where F: FnMut(u32, u16) {
-        let iter = self.end_codes.iter()
-            .zip(self.start_codes)
-            .zip(self.id_deltas)
-            .zip(self.id_range_offsets)
-            .enumerate();
-        for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter {
-            let end_code: u16 = end_code.value();
-            let start_code: u16 = start_code.value();
-            let id_delta: u16 = id_delta.value();  // Really i16, but used modulo 2^16 with wrapping_add.
-            let id_range_offset: u16 = id_range_offset.value();
+    fn get(&self, code_point: u32) -> Result<Option<u16>, FontError> {
+        if code_point > 0xFFFF {
+            return Ok(None)
+        }
+        let code_point = code_point as u16;
 
+        // This a modification of [T]::binary_search_by
+        // that passes the current index to the closure,
+        // so we can use it with Format4’s parallel slices.
+        fn binary_search_by<'a, T, F>(mut s: &'a [T], mut f: F) -> Result<usize, usize>
+            where F: FnMut(usize, &'a T) -> Ordering
+        {
+            let mut base = 0;
+
+            loop {
+                let (head, tail) = s.split_at(s.len() >> 1);
+                if tail.is_empty() {
+                    return Err(base)
+                }
+                let index = base + head.len();
+                match f(index, &tail[0]) {
+                    Ordering::Less => {
+                        base = index + 1;
+                        s = &tail[1..];
+                    }
+                    Ordering::Greater => s = head,
+                    Ordering::Equal => return Ok(index),
+                }
+            }
+        }
+        let binary_search_result = binary_search_by(self.end_codes, |segment_index, end_code| {
+            if code_point > end_code.value() {
+                Ordering::Less
+            } else if code_point < self.start_codes[segment_index].value() {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        });
+        if let Ok(segment_index) = binary_search_result {
+            let start_code = self.start_codes[segment_index].value();
+            self.glyph_id(segment_index, start_code, code_point)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn each_code_point<F>(&self, mut f: F) -> Result<(), FontError> where F: FnMut(u32, u16) {
+        let iter = self.end_codes.iter().zip(self.start_codes);
+        for (segment_index, (end_code, start_code)) in iter.enumerate() {
+            let start_code = start_code.value();
+            let end_code = end_code.value();
             let mut code_point = start_code;
             loop {
-                let glyph_id;
-                if id_range_offset != 0 {
-                    let offset =
-                        self.id_range_offsets_start +
-                        segment_index * size_of::<u16>() +
-                        id_range_offset as usize +
-                        (code_point - start_code) as usize * size_of::<u16>();
-                    let result = u16_be::cast(self.bytes, offset)?.value();
-                    if result != 0 {
-                        glyph_id = result.wrapping_add(id_delta)
-                    } else {
-                        glyph_id = 0
-                    }
-                } else {
-                    glyph_id = code_point.wrapping_add(id_delta)
-                };
-                f(u32::from(code_point), glyph_id);
+                if let Some(glyph_id) = self.glyph_id(segment_index, start_code, code_point)? {
+                    f(u32::from(code_point), glyph_id)
+                }
 
                 if code_point == end_code {
                     break
@@ -341,6 +373,33 @@ impl<'bytes> Format4<'bytes> {
             }
         }
         Ok(())
+    }
+
+    fn glyph_id(&self, segment_index: usize, start_code: u16, code_point: u16)
+                -> Result<Option<u16>, FontError> {
+        let id_delta = self.id_deltas[segment_index].value();
+        let id_range_offset = self.id_range_offsets[segment_index].value();
+
+        let glyph_id = if id_range_offset != 0 {
+            let offset =
+                self.id_range_offsets_start +
+                segment_index * size_of::<u16>() +
+                id_range_offset as usize +
+                (code_point - start_code) as usize * size_of::<u16>();
+            let result = u16_be::cast(self.bytes, offset)?.value();
+            if result != 0 {
+                result.wrapping_add(id_delta)
+            } else {
+                0
+            }
+        } else {
+            code_point.wrapping_add(id_delta)
+        };
+        Ok(if glyph_id != 0 {
+            Some(glyph_id)
+        } else {
+            None
+        })
     }
 }
 
