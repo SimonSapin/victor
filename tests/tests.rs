@@ -24,21 +24,21 @@ fn pdf() {
                 size: Size::new(140., 50.),
                 display_items: vec![
                     DisplayItem::Text {
-                        glyph_ids: vera.to_glyph_ids("Têst→iimm"),
+                        glyph_ids: vera.to_glyph_ids("Têst→iimm").unwrap(),
                         font: vera,
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
                         start: point(10., 20.),
                     },
                     DisplayItem::Text {
-                        glyph_ids: ahem.to_glyph_ids("pÉX"),
+                        glyph_ids: ahem.to_glyph_ids("pÉX").unwrap(),
                         font: ahem,
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),
                         start: point(10., 40.),
                     },
                     DisplayItem::Text {
-                        glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍"),
+                        glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍").unwrap(),
                         font: noto,
                         font_size: Length::new(15.),
                         color: RGBA(0., 0., 0., 1.),

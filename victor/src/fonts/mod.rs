@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::char;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
@@ -91,11 +92,19 @@ impl Font {
         self.raw_cmap.each_code_point(self.bytes.borrow(), f)
     }
 
-    pub fn to_glyph_ids(&self, text: &str) -> Vec<u16> {
-        text.chars().map(|c| {
-            const NOTDEF_GLYPH: GlyphId = GlyphId(0);
-            self.cmap.get(&c).cloned().unwrap_or(NOTDEF_GLYPH).0
-        }).collect()
+    pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<u16>, FontError> {
+        const NOTDEF_GLYPH: u16 = 0;
+        match self.raw_cmap {
+            Cmap::Format4 { .. } => {
+                Ok(text.chars().map(|c| {
+                    self.cmap.get(&c).cloned().unwrap_or(GlyphId(NOTDEF_GLYPH)).0
+                }).collect())
+            }
+            Cmap::Format12 { offset } => {
+                let cmap = Format12::parse(self.bytes.borrow(), offset)?;
+                Ok(text.chars().map(|c| cmap.get(c as u32).unwrap_or(NOTDEF_GLYPH)).collect())
+            }
+        }
     }
 }
 
@@ -347,6 +356,21 @@ impl<'bytes> Format12<'bytes> {
             encoding_header.num_groups.value() as usize,
         )?;
         Ok(Format12 { groups })
+    }
+
+    fn get(&self, code_point: u32) -> Option<u16> {
+        self.groups.binary_search_by(|group| {
+            if code_point < group.start_char_code.value() {
+                Ordering::Greater
+            } else if code_point > group.end_char_code.value() {
+                Ordering::Less
+            } else {
+                Ordering::Equal
+            }
+        }).ok().map(|index| {
+            let group = &self.groups[index];
+            ((code_point - group.start_char_code.value()) + group.start_glyph_id.value()) as u16
+        })
     }
 
     fn each_code_point<F>(&self, mut f: F) where F: FnMut(u32, u16) {
