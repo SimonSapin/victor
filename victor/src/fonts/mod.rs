@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::char;
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -19,8 +18,7 @@ pub(crate) struct GlyphId(pub u16);
 pub struct Font {
     pub(crate) bytes: AlignedCowBytes,
     pub(crate) postscript_name: String,
-    pub(crate) cmap: BTreeMap<char, GlyphId>,
-    pub(crate) raw_cmap: Cmap,
+    pub(crate) cmap: Cmap,
     pub(crate) min_x: i32,
     pub(crate) min_y: i32,
     pub(crate) max_x: i32,
@@ -89,12 +87,12 @@ impl Font {
     pub(crate) fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
-        self.raw_cmap.each_code_point(self.bytes.borrow(), f)
+        self.cmap.each_code_point(self.bytes.borrow(), f)
     }
 
     pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<u16>, FontError> {
         const NOTDEF_GLYPH: u16 = 0;
-        match self.raw_cmap {
+        match self.cmap {
             Cmap::Format4 { offset } => {
                 let cmap = Format4::parse(self.bytes.borrow(), offset)?;
                 text.chars().map(|c| {
@@ -185,7 +183,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         cmap_header.num_tables.value() as usize,
     )?;
     // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 1).
-    let raw_cmap = cmap_records.iter().rev().filter_map(|record| {
+    let cmap = cmap_records.iter().rev().filter_map(|record| {
         let offset = cmap_offset.saturating_add(record.offset.value() as usize);
         let format = match u16_be::cast(bytes, offset) {
             Ok(f) => f.value(),
@@ -206,7 +204,6 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             _ => None,
         }
     }).next().ok_or(FontError::NoSupportedCmap)??;
-    let cmap = raw_cmap.parse(bytes)?;
 
     let header = FontHeader::cast(bytes, table_offset(b"head")?)?;
     let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea")?)?;
@@ -238,7 +235,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         max_y: ttf_to_pdf(header.max_y.value()),
         ascent: ttf_to_pdf(horizontal_header.ascender.value()),
         descent: ttf_to_pdf(horizontal_header.descender.value()),
-        postscript_name, cmap, raw_cmap, glyph_widths,
+        postscript_name, cmap, glyph_widths,
     })
 }
 
@@ -248,14 +245,6 @@ pub(crate) enum Cmap {
 }
 
 impl Cmap {
-    fn parse(&self, bytes: AlignedBytes) -> Result<BTreeMap<char, GlyphId>, FontError> {
-        let mut map = BTreeMap::new();
-        self.each_code_point(bytes, |ch, glyph_id| {
-            map.insert(ch, glyph_id);
-        })?;
-        Ok(map)
-    }
-
     pub fn each_code_point<F>(&self, bytes :AlignedBytes, mut f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
