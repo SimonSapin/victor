@@ -30,21 +30,29 @@ pub struct Font {
 
 #[derive(Debug)]
 pub enum FontError {
+    /// Victor only supports TrueType fonts at the moment.
     UnsupportedFormat,
+
+    /// Victor’s font parser requires its input to be 32-bit aligned.
+    /// Normally the heap allocator used by Vec always aligns to at least twice the pointer size,
+    /// but that’s not the case here.
+    /// Please file a bug.
+    UnalignedVec,
+
+    /// Victor’s font parser requires its input to be 32-bit aligned.
+    /// The include_font!() macro normally forces static byte arrays to be aligned,
+    /// but that apparently didn’t work.
+    /// Please file a bug.
+    UnalignedStaticArray,
 }
 
 impl Font {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, FontError> {
-        Self::from_cow(bytes.into(), "\
-            Victor’s font parser requires its input to be 32-bit aligned. \
-            Normally the heap allocator used by Vec always aligns \
-            to at least twice the pointer size \
-            but that’s not the case here.
-            Please file a bug.")
+        Self::from_cow(bytes.into(), FontError::UnalignedVec)
     }
 
-    fn from_cow(bytes: Cow<'static, [u8]>, on_unaligned: &str) -> Result<Arc<Self>, FontError> {
-        let mut font = parse(AlignedBytes::new(&bytes).expect(on_unaligned))?;
+    fn from_cow(bytes: Cow<'static, [u8]>, on_unaligned: FontError) -> Result<Arc<Self>, FontError> {
+        let mut font = parse(AlignedBytes::new(&bytes).ok_or(on_unaligned)?)?;
         font.bytes = bytes;
         Ok(Arc::new(font))
     }
