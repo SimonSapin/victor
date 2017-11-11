@@ -225,8 +225,7 @@ fn parse_format4_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, Glyp
             if glyph_id != 0 {
                 // Ignore any mapping for surrogate code points
                 if let Some(ch) = char::from_u32(u32::from(code_point)) {
-                    let previous_glyph_id = cmap.insert(ch, GlyphId(glyph_id));
-                    assert!(previous_glyph_id.is_none());
+                    cmap.insert(ch, GlyphId(glyph_id));
                 }
             }
 
@@ -257,8 +256,7 @@ fn parse_format12_cmap(bytes: &[u8], record_offset: usize) -> BTreeMap<char, Gly
             if glyph_id != 0 {
                 // Ignore any mapping for surrogate code points
                 if let Some(ch) = char::from_u32(u32::from(code_point)) {
-                    let previous_glyph_id = cmap.insert(ch, GlyphId(glyph_id));
-                    assert!(previous_glyph_id.is_none());
+                    cmap.insert(ch, GlyphId(glyph_id));
                 }
             }
 
