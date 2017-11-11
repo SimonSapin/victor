@@ -73,15 +73,18 @@ impl Document {
 }
 
 impl<'doc> Page<'doc> {
-    pub fn set_color(&mut self, rgba: &RGBA) {
-        self.in_progress.set_color(rgba)
+    pub fn set_color(&mut self, rgba: &RGBA) -> &mut Self {
+        self.in_progress.set_color(rgba);
+        self
     }
 
-    pub fn paint_rectangle(&mut self, rect: &Rect<CssPx>) {
-        self.in_progress.paint_rectangle(rect)
+    pub fn paint_rectangle(&mut self, rect: &Rect<CssPx>) -> &mut Self {
+        self.in_progress.paint_rectangle(rect);
+        self
     }
 
-    pub fn show_text(&mut self, text: &TextRun) -> Result<(), FontError> {
-        self.in_progress.show_text(text)
+    pub fn show_text(&mut self, text: &TextRun) -> Result<&mut Self, FontError> {
+        self.in_progress.show_text(text)?;
+        Ok(self)
     }
 }

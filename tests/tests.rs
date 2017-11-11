@@ -8,48 +8,48 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use victor::document::{Document, Size, TextRun, Length, point, RGBA, rect};
-use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont};
+use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
 static NOTO: LazyStaticFont = include_font!("fonts/noto/NotoSansLinearB-Regular.ttf");
 
-#[test]
-fn pdf() {
-    let vera = BITSTREAM_VERA_SANS.get().unwrap();
-    let noto = NOTO.get().unwrap();
-    let ahem = AHEM.get().unwrap();
+fn doc() -> Result<Vec<u8>, FontError> {
+    let vera = BITSTREAM_VERA_SANS.get()?;
+    let noto = NOTO.get()?;
+    let ahem = AHEM.get()?;
     let mut doc = Document::new();
-    {
-        let mut page = doc.add_page(Size::new(140., 50.));
-        page.show_text(&TextRun {
-            glyph_ids: vera.to_glyph_ids("Têst→iimm").unwrap(),
+    doc.add_page(Size::new(140., 50.))
+        .show_text(&TextRun {
+            glyph_ids: vera.to_glyph_ids("Têst→iimm")?,
             font: vera,
             font_size: Length::new(15.),
             origin: point(10., 20.),
-        }).unwrap();
-        page.show_text(&TextRun {
-            glyph_ids: ahem.to_glyph_ids("pÉX").unwrap(),
+        })?
+        .show_text(&TextRun {
+            glyph_ids: ahem.to_glyph_ids("pÉX")?,
             font: ahem,
             font_size: Length::new(15.),
             origin: point(10., 40.),
-        }).unwrap();
-        page.show_text(&TextRun {
-            glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍").unwrap(),
+        })?
+        .show_text(&TextRun {
+            glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍")?,
             font: noto,
             font_size: Length::new(15.),
             origin: point(65., 40.),
-        }).unwrap();
-    }
-    {
-        let mut page = doc.add_page(Size::new(4., 4.));
+        })?;
+    doc.add_page(Size::new(4., 4.))
+        .set_color(&RGBA(0., 0., 1., 1.))
+        .paint_rectangle(&rect(0., 1., 4., 3.))
 
-        page.set_color(&RGBA(0., 0., 1., 1.));
-        page.paint_rectangle(&rect(0., 1., 4., 3.));
+        .set_color(&RGBA(1., 0., 0., 0.5))
+        .paint_rectangle(&rect(0., 0., 1., 2.));
 
-        page.set_color(&RGBA(1., 0., 0., 0.5));
-        page.paint_rectangle(&rect(0., 0., 1., 2.));
-    }
-    let pdf_bytes = doc.write_to_pdf_bytes();
+    Ok(doc.write_to_pdf_bytes())
+}
+
+#[test]
+fn pdf() {
+    let pdf_bytes = doc().unwrap();
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         File::create("/tmp/victor.pdf").unwrap().write_all(&pdf_bytes).unwrap();
