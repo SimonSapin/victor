@@ -55,14 +55,14 @@ fn pdf() {
             },
         ],
     };
-    let bytes = dl.write_to_pdf_bytes();
+    let pdf_bytes = dl.write_to_pdf_bytes();
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
-        File::create("/tmp/victor.pdf").unwrap().write_all(&bytes).unwrap();
+        File::create("/tmp/victor.pdf").unwrap().write_all(&pdf_bytes).unwrap();
     }
     if env::var("VICTOR_PRINT").is_ok() {
-        println!("{}", String::from_utf8_lossy(&bytes));
+        println!("{}", String::from_utf8_lossy(&pdf_bytes));
     }
-    let doc = PdfDocument::from_bytes(&bytes).unwrap();
+    let doc = PdfDocument::from_bytes(&pdf_bytes).unwrap();
     assert_eq!(doc.producer().unwrap().to_str().unwrap(),
                "Victor <https://github.com/SimonSapin/victor>");
 
@@ -116,4 +116,6 @@ fn pdf() {
             BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
         ][..]);
     }
+
+    assert!(pdf_bytes == include_bytes!("expected.pdf").as_ref());
 }
