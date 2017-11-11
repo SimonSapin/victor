@@ -57,6 +57,9 @@ pub enum FontError {
 
     /// One of the required TrueType tables is missing in this font.
     MissingTable,
+
+    /// This font doesn’t have a “PostScript name” string in a supported encoding.
+    NoPostscriptName,
 }
 
 impl Font {
@@ -137,7 +140,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             (MICROSOFT, UNICODE_BMP) => Some(decode_ucs2(&record.offset, &record.length)),
             _ => None,
         }
-    }).next().unwrap()?;
+    }).next().ok_or(FontError::NoPostscriptName)??;
 
     let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp")?)?;
     let glyph_count = maximum_profile.num_glyphs.value() as usize;
