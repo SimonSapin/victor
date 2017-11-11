@@ -7,7 +7,7 @@ use lester::{PdfDocument, RenderOptions, Backdrop};
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use victor::display_lists::*;
+use victor::document::{Document, Size, TextRun, Length, point, RGBA, rect};
 use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont};
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
@@ -18,44 +18,39 @@ fn pdf() {
     let vera = BITSTREAM_VERA_SANS.get().unwrap();
     let noto = NOTO.get().unwrap();
     let ahem = AHEM.get().unwrap();
-    let dl = Document {
-        pages: vec![
-            Page {
-                size: Size::new(140., 50.),
-                display_items: vec![
-                    DisplayItem::Text {
-                        glyph_ids: vera.to_glyph_ids("Têst→iimm").unwrap(),
-                        font: vera,
-                        font_size: Length::new(15.),
-                        color: RGBA(0., 0., 0., 1.),
-                        start: point(10., 20.),
-                    },
-                    DisplayItem::Text {
-                        glyph_ids: ahem.to_glyph_ids("pÉX").unwrap(),
-                        font: ahem,
-                        font_size: Length::new(15.),
-                        color: RGBA(0., 0., 0., 1.),
-                        start: point(10., 40.),
-                    },
-                    DisplayItem::Text {
-                        glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍").unwrap(),
-                        font: noto,
-                        font_size: Length::new(15.),
-                        color: RGBA(0., 0., 0., 1.),
-                        start: point(65., 40.),
-                    },
-                ],
-            },
-            Page {
-                size: Size::new(4., 4.),
-                display_items: vec![
-                    DisplayItem::SolidRectangle(rect(0., 1., 4., 3.), RGBA(0., 0., 1., 1.)),
-                    DisplayItem::SolidRectangle(rect(0., 0., 1., 2.), RGBA(1., 0., 0., 0.5)),
-                ],
-            },
-        ],
-    };
-    let pdf_bytes = dl.write_to_pdf_bytes();
+    let mut doc = Document::new();
+    {
+        let mut page = doc.add_page(Size::new(140., 50.));
+        page.show_text(&TextRun {
+            glyph_ids: vera.to_glyph_ids("Têst→iimm").unwrap(),
+            font: vera,
+            font_size: Length::new(15.),
+            origin: point(10., 20.),
+        }).unwrap();
+        page.show_text(&TextRun {
+            glyph_ids: ahem.to_glyph_ids("pÉX").unwrap(),
+            font: ahem,
+            font_size: Length::new(15.),
+            origin: point(10., 40.),
+        }).unwrap();
+        page.show_text(&TextRun {
+            glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍").unwrap(),
+            font: noto,
+            font_size: Length::new(15.),
+            origin: point(65., 40.),
+        }).unwrap();
+    }
+    {
+        let mut page = doc.add_page(Size::new(4., 4.));
+
+        page.set_color(&RGBA(0., 0., 1., 1.));
+        page.paint_rectangle(&rect(0., 1., 4., 3.));
+
+        page.set_color(&RGBA(1., 0., 0., 0.5));
+        page.paint_rectangle(&rect(0., 0., 1., 2.));
+    }
+    let pdf_bytes = doc.write_to_pdf_bytes();
+
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
         File::create("/tmp/victor.pdf").unwrap().write_all(&pdf_bytes).unwrap();
     }

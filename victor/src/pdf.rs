@@ -1,10 +1,11 @@
-use display_lists::*;
+use document::*;
 use fonts::{Font, GlyphId, FontError};
 use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
 use lopdf::content::{Content, Operation};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::io::Write;
+use std::mem;
 use std::sync::Arc;
 
 macro_rules! array {
@@ -22,27 +23,10 @@ const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
 const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
-pub(crate) type PdfGenrationError = FontError;
-
-pub(crate) fn from_display_lists(dl: &Document) -> Result<lopdf::Document, PdfGenrationError> {
-    let mut doc = InProgressDoc {
-        pdf: lopdf::Document::with_version("1.5"),
-        page_tree_id: (0, 0),
-        extended_graphics_states: None,
-        font_resources: None,
-        alpha_states: HashMap::new(),
-        fonts: HashMap::new(),
-    };
-    doc.page_tree_id = doc.pdf.new_object_id();
-    let page_ids = dl.pages.iter()
-        .map(|p| Ok(doc.add_page(p)?.into()))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(doc.finish(page_ids))
-}
-
-struct InProgressDoc {
+pub(crate) struct InProgressDoc {
     pdf: lopdf::Document,
     page_tree_id: ObjectId,
+    page_ids: Vec<Object>,
     extended_graphics_states: Option<Dictionary>,
     font_resources: Option<Dictionary>,
     alpha_states: HashMap<u16, String>,
@@ -50,11 +34,24 @@ struct InProgressDoc {
 }
 
 impl InProgressDoc {
-    fn finish(mut self, page_ids: Vec<Object>) -> lopdf::Document {
+    pub(crate) fn new() -> Self {
+        let mut pdf = lopdf::Document::with_version("1.5");
+        InProgressDoc {
+            page_tree_id: pdf.new_object_id(),
+            page_ids: Vec::new(),
+            extended_graphics_states: None,
+            font_resources: None,
+            alpha_states: HashMap::new(),
+            fonts: HashMap::new(),
+            pdf,
+        }
+    }
+
+    pub(crate) fn finish(mut self) -> lopdf::Document {
         let mut page_tree = dictionary! {
             "Type" => "Pages",
-            "Count" => page_ids.len() as i64,
-            "Kids" => page_ids,
+            "Count" => self.page_ids.len() as i64,
+            "Kids" => self.page_ids,
         };
 
         let mut resources = None;
@@ -83,40 +80,34 @@ impl InProgressDoc {
         self.pdf.trailer.set("Info", info_id);
         self.pdf
     }
+}
 
-    fn add_page(&mut self, page: &Page) -> Result<ObjectId, PdfGenrationError> {
-        let content = {
-            let mut in_progress = InProgressPage {
-                doc: self,
-                operations: Vec::new(),
-                // Initial state:
-                graphics_state: GraphicsState {
-                    non_stroking_color_rgb: (0., 0., 0.),  // Black
-                    alpha: 1.,  // Fully opaque
-                },
-            };
-            in_progress.add_content(&page.display_items)?;
-            Content { operations: in_progress.operations }
-        };
-        let content_id = self.pdf.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
-        Ok(self.pdf.add_object(dictionary! {
+pub(crate) struct InProgressPage<'a> {
+    doc: &'a mut InProgressDoc,
+    size: Size<CssPx>,
+    operations: Vec<Operation>,
+    graphics_state: GraphicsState,
+}
+
+impl<'a> Drop for InProgressPage<'a> {
+    fn drop(&mut self) {
+        let content = Content { operations: mem::replace(&mut self.operations, Vec::new()) };
+        let content_id = self.doc.pdf.add_object(
+            Stream::new(dictionary! {}, content.encode().unwrap())
+        );
+        let page_id = self.doc.pdf.add_object(dictionary! {
             "Type" => "Page",
-            "Parent" => self.page_tree_id,
+            "Parent" => self.doc.page_tree_id,
             "Contents" => content_id,
             "MediaBox" => array![
                 0,
                 0,
-                page.size.width * CSS_TO_PDF_SCALE_X,
-                page.size.height * CSS_TO_PDF_SCALE_Y,
+                self.size.width * CSS_TO_PDF_SCALE_X,
+                self.size.height * CSS_TO_PDF_SCALE_Y,
             ],
-        }))
+        });
+        self.doc.page_ids.push(page_id.into());
     }
-}
-
-struct InProgressPage<'a> {
-    doc: &'a mut InProgressDoc,
-    operations: Vec<Operation>,
-    graphics_state: GraphicsState,
 }
 
 struct GraphicsState {
@@ -134,65 +125,73 @@ macro_rules! op {
 }
 
 impl<'a> InProgressPage<'a> {
-    fn add_content(&mut self, display_list: &[DisplayItem]) -> Result<(), PdfGenrationError> {
-        op!(self, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
-        for display_item in display_list {
-            match *display_item {
-                DisplayItem::SolidRectangle(ref rect, ref rgba) => {
-                    self.set_non_stroking_color(rgba);
-                    op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
-                    op!(self, FILL);
-                }
-
-                DisplayItem::Text { ref font, ref font_size, ref color, ref start, ref glyph_ids } => {
-                    self.set_non_stroking_color(color);
-                    let font_key = self.add_font(font)?;
-                    // flip the Y axis in to compensate the same flip at the page level.
-                    let x_scale = font_size.0;
-                    let y_scale = -font_size.0;
-                    let mut glyph_codes = Vec::with_capacity(glyph_ids.len() * 2);
-                    for &id in glyph_ids {
-                        // Big-endian
-                        glyph_codes.push((id >> 8) as u8);
-                        glyph_codes.push(id as u8);
-                    }
-                    op!(self, BEGIN_TEXT);
-                    op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
-                    op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, start.x, start.y);
-                    op!(self, SHOW_TEXT, Object::String(glyph_codes, StringFormat::Hexadecimal));
-                    op!(self, END_TEXT);
-
-                    // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
-                    // In the Font resource dictionary:
-                    // subtype (TrueType), PS name, font program (stream), advance width of each glyph
-                    // glyph space: 1/1000 of text space
-                    // text space: controlled by text maxtrix (Tm op) and text size (Tf op) based on user space
-                    // Td op: place current text position (origin of text space) in user space
-                    // glyph displacement vector translates text space when showing a glyph, based on font metrics
-                    // writing mode: 0 is horizontal, 1 is vertical
-                    //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
-                    // more than 1 byte per glyph ID: composite fonts
-                    // Embedded font stream dictionary: /Length1 decoded TrueType size
-                    // TrueType tables required:
-                    // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
-                    // Subset: prefix /BaseFont name with 6 upper case letters
-                    //   (identifying this subset) and "+"
-
-                    // Probably won’t use:
-                    // Word spacing = character spacing for ASCII space 0x20 single-byte code
-                    // Leading = height between consecutive baselines
-                }
-            }
-        }
-        Ok(())
+    pub fn new(doc: &'a mut InProgressDoc, size: Size<CssPx>) -> Self {
+        let mut page = InProgressPage {
+            doc,
+            size,
+            operations: Vec::new(),
+            // Initial state:
+            graphics_state: GraphicsState {
+                non_stroking_color_rgb: (0., 0., 0.),  // Black
+                alpha: 1.,  // Fully opaque
+            },
+        };
+        op!(page, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
+        page
     }
 
-    fn set_non_stroking_color(&mut self, &RGBA(r, g, b, a): &RGBA) {
+    pub(crate) fn set_color(&mut self, &RGBA(r, g, b, a): &RGBA) {
         if self.graphics_state.non_stroking_color_rgb != (r, g, b) {
             self.graphics_state.non_stroking_color_rgb = (r, g, b);
             op!(self, NON_STROKING_RGB_COLOR, r, g, b);
         }
         self.set_alpha(a)
+    }
+
+    pub(crate) fn paint_rectangle(&mut self, rect: &Rect<CssPx>) {
+        op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+        op!(self, FILL);
+    }
+
+    pub(crate) fn show_text(&mut self, text: &TextRun) -> Result<(), FontError> {
+        let TextRun { ref font, ref font_size, ref origin, ref glyph_ids } = *text;
+        let font_key = self.add_font(font)?;
+        // flip the Y axis in to compensate the same flip at the page level.
+        let x_scale = font_size.0;
+        let y_scale = -font_size.0;
+        let mut glyph_codes = Vec::with_capacity(glyph_ids.len() * 2);
+        for &id in glyph_ids {
+            // Big-endian
+            glyph_codes.push((id >> 8) as u8);
+            glyph_codes.push(id as u8);
+        }
+        op!(self, BEGIN_TEXT);
+        op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
+        op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, origin.x, origin.y);
+        op!(self, SHOW_TEXT, Object::String(glyph_codes, StringFormat::Hexadecimal));
+        op!(self, END_TEXT);
+
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
+        // In the Font resource dictionary:
+        // subtype (TrueType), PS name, font program (stream), advance width of each glyph
+        // glyph space: 1/1000 of text space
+        // text space: controlled by text maxtrix (Tm op) and text size (Tf op) based on user space
+        // Td op: place current text position (origin of text space) in user space
+        // glyph displacement vector translates text space when showing a glyph, based on font metrics
+        // writing mode: 0 is horizontal, 1 is vertical
+        //      vertical: no “vhea” and “vmtx” tables, DW2 and W2 entries in a CIDFont dict
+        // more than 1 byte per glyph ID: composite fonts
+        // Embedded font stream dictionary: /Length1 decoded TrueType size
+        // TrueType tables required:
+        // “head”, “hhea”, “loca”, “maxp”, “cvt”, “prep”, “glyf”, “hmtx”, and “fpgm”
+        // Subset: prefix /BaseFont name with 6 upper case letters
+        //   (identifying this subset) and "+"
+
+        // Probably won’t use:
+        // Word spacing = character spacing for ASCII space 0x20 single-byte code
+        // Leading = height between consecutive baselines
+
+        Ok(())
     }
 
     fn set_alpha(&mut self, alpha: f32) {
@@ -224,7 +223,7 @@ impl<'a> InProgressPage<'a> {
         }
     }
 
-    fn add_font(&mut self, font: &Arc<Font>) -> Result<String, PdfGenrationError> {
+    fn add_font(&mut self, font: &Arc<Font>) -> Result<String, FontError> {
         let ptr: *const Font = &**font;
         let hash_key = ptr as usize;
         let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
