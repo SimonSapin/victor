@@ -274,7 +274,8 @@ impl<'a> InProgressPage<'a> {
             <0000> <ffff>\n\
             endcodespacerange\n\
         ".to_vec();
-        for (i, (&code_point, &GlyphId(glyph_id))) in font.cmap.iter().enumerate() {
+        let mut i = 0;
+        font.each_code_point(|ch, GlyphId(glyph_id)| {
             // Max 100 entries per beginbfchar operator
             if i % 100 == 0 {
                 if i != 0 {
@@ -284,11 +285,12 @@ impl<'a> InProgressPage<'a> {
                 write!(to_unicode_cmap, "{} beginbfchar\n", chunk_len).unwrap();
             }
             write!(to_unicode_cmap, "<{:04x}> <", glyph_id).unwrap();
-            for code_unit in code_point.encode_utf16(&mut [0, 0]) {
+            for code_unit in ch.encode_utf16(&mut [0, 0]) {
                 write!(to_unicode_cmap, "{:04x}", code_unit).unwrap()
             }
             to_unicode_cmap.extend(b">\n");
-        }
+            i += 1;
+        })?;
         to_unicode_cmap.extend(b"\
             endbfchar\n\
             endcmap\n\

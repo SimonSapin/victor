@@ -19,6 +19,7 @@ pub struct Font {
     pub(crate) bytes: AlignedCowBytes,
     pub(crate) postscript_name: String,
     pub(crate) cmap: BTreeMap<char, GlyphId>,
+    pub(crate) raw_cmap: Cmap,
     pub(crate) min_x: i32,
     pub(crate) min_y: i32,
     pub(crate) max_x: i32,
@@ -82,6 +83,12 @@ impl Font {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes.0
+    }
+
+    pub(crate) fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
+        where F: FnMut(char, GlyphId)
+    {
+        self.raw_cmap.each_code_point(self.bytes.borrow(), f)
     }
 
     pub fn to_glyph_ids(&self, text: &str) -> Vec<u16> {
@@ -164,7 +171,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         cmap_header.num_tables.value() as usize,
     )?;
     // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 1).
-    let cmap = cmap_records.iter().rev().filter_map(|record| {
+    let raw_cmap = cmap_records.iter().rev().filter_map(|record| {
         let offset = cmap_offset.saturating_add(record.offset.value() as usize);
         let format = match u16_be::cast(bytes, offset) {
             Ok(f) => f.value(),
@@ -185,7 +192,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             _ => None,
         }
     }).next().ok_or(FontError::NoSupportedCmap)??;
-    let cmap = cmap.parse(bytes)?;
+    let cmap = raw_cmap.parse(bytes)?;
 
     let header = FontHeader::cast(bytes, table_offset(b"head")?)?;
     let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea")?)?;
@@ -217,11 +224,11 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         max_y: ttf_to_pdf(header.max_y.value()),
         ascent: ttf_to_pdf(horizontal_header.ascender.value()),
         descent: ttf_to_pdf(horizontal_header.descender.value()),
-        postscript_name, cmap, glyph_widths,
+        postscript_name, cmap, raw_cmap, glyph_widths,
     })
 }
 
-enum Cmap {
+pub(crate) enum Cmap {
     Format4 { offset: usize },
     Format12 { offset: usize },
 }
@@ -235,7 +242,7 @@ impl Cmap {
         Ok(map)
     }
 
-    fn each_code_point<F>(&self, bytes :AlignedBytes, mut f: F)-> Result<(), FontError>
+    pub fn each_code_point<F>(&self, bytes :AlignedBytes, mut f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
         let f = move |code_point, glyph_id| {
