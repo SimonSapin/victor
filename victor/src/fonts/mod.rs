@@ -254,91 +254,116 @@ impl Cmap {
             }
         };
         match *self {
-            Cmap::Format4 { offset } => parse_format4_cmap(bytes, offset, f),
-            Cmap::Format12 { offset } => parse_format12_cmap(bytes, offset, f),
+            Cmap::Format4 { offset } => Format4::parse(bytes, offset)?.each_code_point(f),
+            Cmap::Format12 { offset } => Ok(Format12::parse(bytes, offset)?.each_code_point(f)),
         }
     }
 }
 
-fn parse_format4_cmap<F>(bytes: AlignedBytes, record_offset: usize, mut f: F)
-                         -> Result<(), FontError>
-                         where F: FnMut(u32, u16) {
-    let encoding_header = CmapFormat4Header::cast(bytes, record_offset)?;
-    let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
-    let subtable_size = segment_count.saturating_mul(size_of::<u16>());
+struct Format4<'bytes> {
+    bytes: AlignedBytes<'bytes>,
+    end_codes: &'bytes [u16_be],
+    start_codes: &'bytes [u16_be],
+    id_deltas: &'bytes [u16_be],
+    id_range_offsets: &'bytes [u16_be],
+    id_range_offsets_start: usize,
+}
 
-    let end_codes_start = record_offset
-        .saturating_add(size_of::<CmapFormat4Header>());
-    let start_codes_start = end_codes_start
-        .saturating_add(subtable_size)  // Add end_code subtable
-        .saturating_add(size_of::<u16>());  // Add reserved_padding
-    let id_deltas_start = start_codes_start.saturating_add(subtable_size);
-    let id_range_offsets_start = id_deltas_start.saturating_add(subtable_size);
+impl<'bytes> Format4<'bytes> {
+    fn parse(bytes: AlignedBytes<'bytes>, record_offset: usize) -> Result<Self, FontError> {
+        let encoding_header = CmapFormat4Header::cast(bytes, record_offset)?;
+        let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
+        let subtable_size = segment_count.saturating_mul(size_of::<u16>());
 
-    let end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count)?;
-    let start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count)?;
-    let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count)?;
-    let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count)?;
+        let end_codes_start = record_offset
+            .saturating_add(size_of::<CmapFormat4Header>());
+        let start_codes_start = end_codes_start
+            .saturating_add(subtable_size)  // Add end_code subtable
+            .saturating_add(size_of::<u16>());  // Add reserved_padding
+        let id_deltas_start = start_codes_start.saturating_add(subtable_size);
+        let id_range_offsets_start = id_deltas_start.saturating_add(subtable_size);
 
-    let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
-    for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter.enumerate() {
-        let end_code: u16 = end_code.value();
-        let start_code: u16 = start_code.value();
-        let id_delta: u16 = id_delta.value();  // Really i16, but used modulo 2^16 with wrapping_add.
-        let id_range_offset: u16 = id_range_offset.value();
+        Ok(Format4 {
+            bytes,
+            end_codes: u16_be::cast_slice(bytes, end_codes_start, segment_count)?,
+            start_codes: u16_be::cast_slice(bytes, start_codes_start, segment_count)?,
+            id_deltas: u16_be::cast_slice(bytes, id_deltas_start, segment_count)?,
+            id_range_offsets: u16_be::cast_slice(bytes, id_range_offsets_start, segment_count)?,
+            id_range_offsets_start,
+        })
+    }
 
-        let mut code_point = start_code;
-        loop {
-            let glyph_id;
-            if id_range_offset != 0 {
-                let offset =
-                    id_range_offsets_start +
-                    segment_index * size_of::<u16>() +
-                    id_range_offset as usize +
-                    (code_point - start_code) as usize * size_of::<u16>();
-                let result = u16_be::cast(bytes, offset)?.value();
-                if result != 0 {
-                    glyph_id = result.wrapping_add(id_delta)
+    fn each_code_point<F>(&self, mut f: F) -> Result<(), FontError> where F: FnMut(u32, u16) {
+        let iter = self.end_codes.iter()
+            .zip(self.start_codes)
+            .zip(self.id_deltas)
+            .zip(self.id_range_offsets)
+            .enumerate();
+        for (segment_index, (((end_code, start_code), id_delta), id_range_offset)) in iter {
+            let end_code: u16 = end_code.value();
+            let start_code: u16 = start_code.value();
+            let id_delta: u16 = id_delta.value();  // Really i16, but used modulo 2^16 with wrapping_add.
+            let id_range_offset: u16 = id_range_offset.value();
+
+            let mut code_point = start_code;
+            loop {
+                let glyph_id;
+                if id_range_offset != 0 {
+                    let offset =
+                        self.id_range_offsets_start +
+                        segment_index * size_of::<u16>() +
+                        id_range_offset as usize +
+                        (code_point - start_code) as usize * size_of::<u16>();
+                    let result = u16_be::cast(self.bytes, offset)?.value();
+                    if result != 0 {
+                        glyph_id = result.wrapping_add(id_delta)
+                    } else {
+                        glyph_id = 0
+                    }
                 } else {
-                    glyph_id = 0
-                }
-            } else {
-                glyph_id = code_point.wrapping_add(id_delta)
-            };
-            f(u32::from(code_point), glyph_id);
+                    glyph_id = code_point.wrapping_add(id_delta)
+                };
+                f(u32::from(code_point), glyph_id);
 
-            if code_point == end_code {
-                break
+                if code_point == end_code {
+                    break
+                }
+                code_point += 1;
             }
-            code_point += 1;
         }
+        Ok(())
     }
-    Ok(())
 }
 
-fn parse_format12_cmap<F>(bytes: AlignedBytes, record_offset: usize, mut f: F)
-                          -> Result<(), FontError>
-                          where F: FnMut(u32, u16) {
-    let encoding_header = CmapFormat12Header::cast(bytes, record_offset)?;
-    let groups = CmapFormat12Group::cast_slice(bytes,
-        record_offset.saturating_add(size_of::<CmapFormat12Header>()),
-        encoding_header.num_groups.value() as usize,
-    )?;
+struct Format12<'bytes> {
+    groups: &'bytes [CmapFormat12Group],
+}
 
-    for group in groups {
-        let start_code = group.start_char_code.value();
-        let end_code = group.end_char_code.value();
-        let start_glyph_id = group.start_glyph_id.value();
-        let mut code_point = start_code;
-        loop {
-            let glyph_id = (code_point - start_code) + start_glyph_id;
-            f(code_point, glyph_id as u16);
+impl<'bytes> Format12<'bytes> {
+    fn parse(bytes: AlignedBytes<'bytes>, record_offset: usize) -> Result<Self, FontError> {
+        let encoding_header = CmapFormat12Header::cast(bytes, record_offset)?;
+        let groups = CmapFormat12Group::cast_slice(bytes,
+            record_offset.saturating_add(size_of::<CmapFormat12Header>()),
+            encoding_header.num_groups.value() as usize,
+        )?;
+        Ok(Format12 { groups })
+    }
 
-            if code_point == end_code {
-                break
+    fn each_code_point<F>(&self, mut f: F) where F: FnMut(u32, u16) {
+        for group in self.groups {
+            let start_code = group.start_char_code.value();
+            let end_code = group.end_char_code.value();
+            let start_glyph_id = group.start_glyph_id.value();
+            let mut code_point = start_code;
+            loop {
+                let glyph_id = (code_point - start_code) + start_glyph_id;
+                f(code_point, glyph_id as u16);
+
+                if code_point == end_code {
+                    break
+                }
+                code_point += 1;
             }
-            code_point += 1;
         }
     }
-    Ok(())
 }
