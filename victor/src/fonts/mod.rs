@@ -59,7 +59,10 @@ pub enum FontError {
     MissingTable,
 
     /// This font doesn’t have a “PostScript name” string in a supported encoding.
-    NoPostscriptName,
+    NoSupportedPostscriptName,
+
+    /// This font doesn’t have a character map in a supported format.
+    NoSupportedCmap,
 }
 
 impl Font {
@@ -140,7 +143,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             (MICROSOFT, UNICODE_BMP) => Some(decode_ucs2(&record.offset, &record.length)),
             _ => None,
         }
-    }).next().ok_or(FontError::NoPostscriptName)??;
+    }).next().ok_or(FontError::NoSupportedPostscriptName)??;
 
     let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp")?)?;
     let glyph_count = maximum_profile.num_glyphs.value() as usize;
@@ -173,7 +176,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             }
             _ => None,
         }
-    }).next().unwrap()?;
+    }).next().ok_or(FontError::NoSupportedCmap)??;
 
     let header = FontHeader::cast(bytes, table_offset(b"head")?)?;
     let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea")?)?;
