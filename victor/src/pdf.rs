@@ -230,11 +230,12 @@ impl<'a> InProgressPage<'a> {
         let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
         let next_id = fonts.len();
         let pdf_key = fonts.entry(hash_key).or_insert_with(|| {
+            let font_bytes = font.bytes();
             let truetype_id = pdf.add_object(Stream::new(
                 dictionary! {
-                    "Length1" => font.bytes.len() as i64,
+                    "Length1" => font_bytes.len() as i64,
                 },
-                font.bytes.to_vec()
+                font_bytes.to_vec()
             ));
             let font_descriptor_id = pdf.add_object(dictionary! {
                 "Type" => "FontDescriptor",

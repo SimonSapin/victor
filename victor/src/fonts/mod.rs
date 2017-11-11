@@ -16,7 +16,7 @@ use self::ttf_types::*;
 pub(crate) struct GlyphId(pub u16);
 
 pub struct Font {
-    pub(crate) bytes: Cow<'static, [u8]>,
+    pub(crate) bytes: AlignedCowBytes,
     pub(crate) postscript_name: String,
     pub(crate) cmap: BTreeMap<char, GlyphId>,
     pub(crate) min_x: i32,
@@ -74,9 +74,14 @@ impl Font {
     }
 
     fn from_cow(bytes: Cow<'static, [u8]>, on_unaligned: FontError) -> Result<Arc<Self>, FontError> {
-        let mut font = parse(AlignedBytes::new(&bytes).ok_or(on_unaligned)?)?;
+        let bytes = AlignedCowBytes::new(bytes).ok_or(on_unaligned)?;
+        let mut font = parse(bytes.borrow())?;
         font.bytes = bytes;
         Ok(Arc::new(font))
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes.0
     }
 
     pub fn to_glyph_ids(&self, text: &str) -> Vec<u16> {
@@ -205,7 +210,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     );
 
     Ok(Font {
-        bytes: Cow::Borrowed(&[]),
+        bytes: AlignedCowBytes::empty(),
         min_x: ttf_to_pdf(header.min_x.value()),
         min_y: ttf_to_pdf(header.min_y.value()),
         max_x: ttf_to_pdf(header.max_x.value()),

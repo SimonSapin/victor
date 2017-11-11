@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::{self, Write};
 use std::mem;
 use std::slice;
@@ -100,16 +101,26 @@ const TRUETYPE_TABLE_ALIGNMENT: usize = 4;
 #[derive(Copy, Clone)]
 pub(crate) struct AlignedBytes<'a>(&'a [u8]);
 
-impl<'a> AlignedBytes<'a> {
-    pub fn new(bytes: &'a [u8]) -> Option<Self> {
+pub(crate) struct AlignedCowBytes(pub(crate) Cow<'static, [u8]>);
+
+impl AlignedCowBytes {
+    pub fn new(bytes: Cow<'static, [u8]>) -> Option<Self> {
         let is_aligned = (bytes.as_ptr() as usize) % TRUETYPE_TABLE_ALIGNMENT == 0;
         // Allow empty slices here because we want Pod::cast to return an error
         // rather than Font::from_* to panic.
         if is_aligned || bytes.is_empty() {
-            Some(AlignedBytes(bytes))
+            Some(AlignedCowBytes(bytes))
         } else {
             None
         }
+    }
+
+    pub fn empty() -> Self {
+        AlignedCowBytes(Cow::Borrowed(&[]))
+    }
+
+    pub fn borrow(&self) -> AlignedBytes {
+        AlignedBytes(&self.0)
     }
 }
 
