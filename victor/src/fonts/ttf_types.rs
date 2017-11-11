@@ -49,9 +49,9 @@ pub(crate) struct LongDateTime {
     pub lower_bits: u32_be,
 }
 
-#[derive(Pod, Copy, Clone, PartialEq, Eq)]
+#[derive(Pod)]
 #[repr(C)]
-pub(crate) struct Tag([u8; 4]);
+pub(crate) struct Tag(pub [u8; 4]);
 
 impl LongDateTime {
     fn seconds_since_1904_01_01_midnight(&self) -> i64 {
@@ -92,12 +92,6 @@ impl fmt::Debug for Tag {
             }
         }
         f.write_char('"')
-    }
-}
-
-impl<'a> PartialEq<&'a [u8; 4]> for Tag {
-    fn eq(&self, other: &&'a [u8; 4]) -> bool {
-        self.0 == **other
     }
 }
 

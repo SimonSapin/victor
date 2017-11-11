@@ -100,10 +100,10 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     let table_directory_start = size_of::<OffsetSubtable>();
     let table_directory = TableDirectoryEntry::cast_slice(bytes, table_directory_start, table_count)?;
     let table_offset = |tag: &[u8; 4]| {
-        Ok(table_directory.iter()
-            .find(|e| e.tag == tag)
-            .ok_or(FontError::MissingTable)?
-            .offset.value() as usize)
+        let index = table_directory
+            .binary_search_by_key(tag, |entry| entry.tag.0)
+            .map_err(|_| FontError::MissingTable)?;
+        Ok(table_directory[index].offset.value() as usize)
     };
 
     let naming_table_offset = table_offset(b"name")?;
