@@ -2,7 +2,6 @@ use display_lists::*;
 use fonts::{Font, GlyphId, FontError};
 use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
 use lopdf::content::{Content, Operation};
-use std::cmp;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::io::Write;
@@ -274,25 +273,36 @@ impl<'a> InProgressPage<'a> {
             <0000> <ffff>\n\
             endcodespacerange\n\
         ".to_vec();
-        let mut i = 0;
-        font.each_code_point(|ch, GlyphId(glyph_id)| {
-            // Max 100 entries per beginbfchar operator
-            if i % 100 == 0 {
-                if i != 0 {
-                    to_unicode_cmap.extend(b"endbfchar\n");
+        {
+            let mut write_bfchar = |chars: &[char], glyph_ids: &[u16]| {
+                write!(to_unicode_cmap, "{} beginbfchar\n", chars.len()).unwrap();
+                for (ch, glyph_id) in chars.iter().zip(glyph_ids) {
+                    write!(to_unicode_cmap, "<{:04x}> <", glyph_id).unwrap();
+                    for code_unit in ch.encode_utf16(&mut [0, 0]) {
+                        write!(to_unicode_cmap, "{:04x}", code_unit).unwrap()
+                    }
+                    to_unicode_cmap.extend(b">\n");
                 }
-                let chunk_len = cmp::min(100, font.cmap.len() - i);
-                write!(to_unicode_cmap, "{} beginbfchar\n", chunk_len).unwrap();
+                to_unicode_cmap.extend(b"endbfchar\n");
+            };
+            // Max 100 entries per beginbfchar operator
+            let mut chars = ['\0'; 100];
+            let mut glyph_ids = [0_u16; 100];
+            let mut i = 0;
+            font.each_code_point(|ch, GlyphId(glyph_id)| {
+                if i >= 100 {
+                    write_bfchar(&chars, &glyph_ids);
+                    i = 0
+                }
+                chars[i] = ch;
+                glyph_ids[i] = glyph_id;
+                i += 1;
+            })?;
+            if i > 0 {
+                write_bfchar(&chars[..i], &glyph_ids[..i])
             }
-            write!(to_unicode_cmap, "<{:04x}> <", glyph_id).unwrap();
-            for code_unit in ch.encode_utf16(&mut [0, 0]) {
-                write!(to_unicode_cmap, "{:04x}", code_unit).unwrap()
-            }
-            to_unicode_cmap.extend(b">\n");
-            i += 1;
-        })?;
+        }
         to_unicode_cmap.extend(b"\
-            endbfchar\n\
             endcmap\n\
             CMapName currentdict /CMap defineresource pop\n\
             end\n\
