@@ -1,3 +1,4 @@
+use Error;
 use display_lists;
 use pdf;
 use std::fs;
@@ -6,7 +7,7 @@ use std::path;
 
 impl display_lists::Document {
     /// Encode this document to PDF and write it into the file with the given name.
-    pub fn write_to_pdf_file<P: AsRef<path::Path>>(&self, filename: P) -> io::Result<()> {
+    pub fn write_to_pdf_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), Error> {
         self.write_to_pdf(&mut io::BufWriter::new(fs::File::create(filename)?))
     }
 
@@ -25,7 +26,7 @@ impl display_lists::Document {
     /// this method will likely perform better with that stream wrapped in `BufWriter`.
     ///
     /// See also the `write_to_pdf_file` and `write_to_pdf_bytes` methods.
-    pub fn write_to_pdf<W: Write>(&self, stream: &mut W) -> io::Result<()> {
-        pdf::from_display_lists(self).save_to(stream)
+    pub fn write_to_pdf<W: Write>(&self, stream: &mut W) -> Result<(), Error> {
+        Ok(pdf::from_display_lists(self)?.save_to(stream)?)
     }
 }

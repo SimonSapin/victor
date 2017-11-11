@@ -1,5 +1,5 @@
 use display_lists::*;
-use fonts::{Font, GlyphId};
+use fonts::{Font, GlyphId, FontError};
 use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
 use lopdf::content::{Content, Operation};
 use std::cmp;
@@ -22,7 +22,9 @@ const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
 const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
-pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
+pub(crate) type PdfGenrationError = FontError;
+
+pub(crate) fn from_display_lists(dl: &Document) -> Result<lopdf::Document, PdfGenrationError> {
     let mut doc = InProgressDoc {
         pdf: lopdf::Document::with_version("1.5"),
         page_tree_id: (0, 0),
@@ -32,8 +34,10 @@ pub(crate) fn from_display_lists(dl: &Document) -> lopdf::Document {
         fonts: HashMap::new(),
     };
     doc.page_tree_id = doc.pdf.new_object_id();
-    let page_ids: Vec<Object> = dl.pages.iter().map(|p| doc.add_page(p).into()).collect();
-    doc.finish(page_ids)
+    let page_ids = dl.pages.iter()
+        .map(|p| Ok(doc.add_page(p)?.into()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(doc.finish(page_ids))
 }
 
 struct InProgressDoc {
@@ -80,7 +84,7 @@ impl InProgressDoc {
         self.pdf
     }
 
-    fn add_page(&mut self, page: &Page) -> ObjectId {
+    fn add_page(&mut self, page: &Page) -> Result<ObjectId, PdfGenrationError> {
         let content = {
             let mut in_progress = InProgressPage {
                 doc: self,
@@ -91,11 +95,11 @@ impl InProgressDoc {
                     alpha: 1.,  // Fully opaque
                 },
             };
-            in_progress.add_content(&page.display_items);
+            in_progress.add_content(&page.display_items)?;
             Content { operations: in_progress.operations }
         };
         let content_id = self.pdf.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
-        self.pdf.add_object(dictionary! {
+        Ok(self.pdf.add_object(dictionary! {
             "Type" => "Page",
             "Parent" => self.page_tree_id,
             "Contents" => content_id,
@@ -105,7 +109,7 @@ impl InProgressDoc {
                 page.size.width * CSS_TO_PDF_SCALE_X,
                 page.size.height * CSS_TO_PDF_SCALE_Y,
             ],
-        })
+        }))
     }
 }
 
@@ -130,7 +134,7 @@ macro_rules! op {
 }
 
 impl<'a> InProgressPage<'a> {
-    fn add_content(&mut self, display_list: &[DisplayItem]) {
+    fn add_content(&mut self, display_list: &[DisplayItem]) -> Result<(), PdfGenrationError> {
         op!(self, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
         for display_item in display_list {
             match *display_item {
@@ -142,7 +146,7 @@ impl<'a> InProgressPage<'a> {
 
                 DisplayItem::Text { ref font, ref font_size, ref color, ref start, ref glyph_ids } => {
                     self.set_non_stroking_color(color);
-                    let font_key = self.add_font(font);
+                    let font_key = self.add_font(font)?;
                     // flip the Y axis in to compensate the same flip at the page level.
                     let x_scale = font_size.0;
                     let y_scale = -font_size.0;
@@ -180,6 +184,7 @@ impl<'a> InProgressPage<'a> {
                 }
             }
         }
+        Ok(())
     }
 
     fn set_non_stroking_color(&mut self, &RGBA(r, g, b, a): &RGBA) {
@@ -219,7 +224,7 @@ impl<'a> InProgressPage<'a> {
         }
     }
 
-    fn add_font(&mut self, font: &Arc<Font>) -> String {
+    fn add_font(&mut self, font: &Arc<Font>) -> Result<String, PdfGenrationError> {
         let ptr: *const Font = &**font;
         let hash_key = ptr as usize;
         let InProgressDoc { ref mut pdf, ref mut font_resources, ref mut fonts, .. } = *self.doc;
@@ -319,7 +324,7 @@ impl<'a> InProgressPage<'a> {
             font_resources.get_or_insert_with(Dictionary::new).set(pdf_key.clone(), font_dict);
             pdf_key
         });
-        pdf_key.clone()
+        Ok(pdf_key.clone())
     }
 }
 
