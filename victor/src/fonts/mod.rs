@@ -44,6 +44,16 @@ pub enum FontError {
     /// but that apparently didn’t work.
     /// Please file a bug.
     UnalignedStaticArray,
+
+    /// The font file contains an offset to beyond the end of the file
+    OffsetBeyondEof,
+
+    /// The font file contains an offset that puts the end of the pointed object
+    /// beyond the end of the file.
+    OffsetPlusLengthBeyondEof,
+
+    /// The font file contains an offset not aligned sufficently for the targeted object.
+    UnalignedOffset
 }
 
 impl Font {
@@ -66,7 +76,7 @@ impl Font {
 }
 
 fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
-    let offset_table = OffsetSubtable::cast(bytes, 0);
+    let offset_table = OffsetSubtable::cast(bytes, 0)?;
 
     let scaler_type = offset_table.scaler_type.value();
     const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
@@ -76,18 +86,18 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
 
     let table_count = offset_table.table_count.value() as usize;
     let table_directory_start = size_of::<OffsetSubtable>();
-    let table_directory = TableDirectoryEntry::cast_slice(bytes, table_directory_start, table_count);
+    let table_directory = TableDirectoryEntry::cast_slice(bytes, table_directory_start, table_count)?;
     let table_offset = |tag: &[u8; 4]| {
         table_directory.iter().find(|e| e.tag == tag).unwrap().offset.value() as usize
     };
 
     let naming_table_offset = table_offset(b"name");
-    let naming_table_header = NamingTableHeader::cast(bytes, naming_table_offset);
+    let naming_table_header = NamingTableHeader::cast(bytes, naming_table_offset)?;
     let name_records = NameRecord::cast_slice(
         bytes,
         naming_table_offset.saturating_add(size_of::<NamingTableHeader>()),
         naming_table_header.count.value() as usize,
-    );
+    )?;
     let string_storage_start = naming_table_offset
         .saturating_add(naming_table_header.string_offset.value() as usize);
     let get_string_bytes = |offset: &u16_be, length: &u16_be| u8::cast_slice(
@@ -97,16 +107,16 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     );
     let decode_macintosh = |offset, length| {
         // Macintosh encodings seem to be ASCII-compatible, and a PostScript name is within ASCII
-        String::from_utf8_lossy(get_string_bytes(offset, length)).into_owned()
+        Ok(String::from_utf8_lossy(get_string_bytes(offset, length)?).into_owned())
     };
     let decode_ucs2 = |offset, length| {
-        get_string_bytes(offset, length).chunks(2).map(|chunk| {
+        Ok(get_string_bytes(offset, length)?.chunks(2).map(|chunk| {
             if chunk.len() < 2 || chunk[0] != 0 {
                 '\u{FFFD}'
             } else {
                 chunk[1] as char
             }
-        }).collect::<String>()
+        }).collect::<String>())
     };
 
     let postscript_name = name_records.iter().filter(|record| {
@@ -121,22 +131,25 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             (MICROSOFT, UNICODE_BMP) => Some(decode_ucs2(&record.offset, &record.length)),
             _ => None,
         }
-    }).next().unwrap();
+    }).next().unwrap()?;
 
-    let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp"));
+    let maximum_profile = MaximumProfile::cast(bytes, table_offset(b"maxp"))?;
     let glyph_count = maximum_profile.num_glyphs.value() as usize;
 
     let cmap_offset = table_offset(b"cmap");
-    let cmap_header = CmapHeader::cast(bytes, cmap_offset);
+    let cmap_header = CmapHeader::cast(bytes, cmap_offset)?;
     let cmap_records = CmapEncodingRecord::cast_slice(
         bytes,
         cmap_offset.saturating_add(size_of::<CmapHeader>()),
         cmap_header.num_tables.value() as usize,
-    );
+    )?;
     // Entries are sorted by (platform, encoding). Reverse to prefer (3, 10) over (3, 1).
     let cmap = cmap_records.iter().rev().filter_map(|record| {
         let offset = cmap_offset.saturating_add(record.offset.value() as usize);
-        let format = u16_be::cast(bytes, offset).value();
+        let format = match u16_be::cast(bytes, offset) {
+            Ok(f) => f.value(),
+            Err(e) => return Some(Err(e)),
+        };
         const MICROSOFT: u16 = 3;
         const UNICODE_USC2: u16 = 1;
         const UNICODE_USC4: u16 = 10;
@@ -151,10 +164,10 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
             }
             _ => None,
         }
-    }).next().unwrap();
+    }).next().unwrap()?;
 
-    let header = FontHeader::cast(bytes, table_offset(b"head"));
-    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"));
+    let header = FontHeader::cast(bytes, table_offset(b"head"))?;
+    let horizontal_header = HorizontalHeader::cast(bytes, table_offset(b"hhea"))?;
 
     let ttf_units_per_em = i32::from(header.units_per_em.value());
     const PDF_GLYPH_SPACE_UNITS_PER_EM: i32 = 1000;
@@ -164,7 +177,7 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
         bytes,
         table_offset(b"hmtx"),
         horizontal_header.number_of_long_horizontal_metrics.value() as usize,
-    );
+    )?;
     let mut glyph_widths = horizontal_metrics
         .iter()
         .map(|m| ttf_to_pdf(m.advance_width.value() as i16) as u16)
@@ -187,8 +200,9 @@ fn parse(bytes: AlignedBytes) -> Result<Font, FontError> {
     })
 }
 
-fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<char, GlyphId> {
-    let encoding_header = CmapFormat4Header::cast(bytes, record_offset);
+fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize)
+                      -> Result<BTreeMap<char, GlyphId>, FontError> {
+    let encoding_header = CmapFormat4Header::cast(bytes, record_offset)?;
     let segment_count = encoding_header.segment_count_x2.value() as usize / 2;
     let subtable_size = segment_count.saturating_mul(size_of::<u16>());
 
@@ -200,10 +214,10 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<cha
     let id_deltas_start = start_codes_start.saturating_add(subtable_size);
     let id_range_offsets_start = id_deltas_start.saturating_add(subtable_size);
 
-    let end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count);
-    let start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count);
-    let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count);
-    let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count);
+    let end_codes = u16_be::cast_slice(bytes, end_codes_start, segment_count)?;
+    let start_codes = u16_be::cast_slice(bytes, start_codes_start, segment_count)?;
+    let id_deltas = u16_be::cast_slice(bytes, id_deltas_start, segment_count)?;
+    let id_range_offsets = u16_be::cast_slice(bytes, id_range_offsets_start, segment_count)?;
 
     let mut cmap = BTreeMap::new();
     let iter = end_codes.iter().zip(start_codes).zip(id_deltas).zip(id_range_offsets);
@@ -222,7 +236,7 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<cha
                     segment_index * size_of::<u16>() +
                     id_range_offset as usize +
                     (code_point - start_code) as usize * size_of::<u16>();
-                let result = u16_be::cast(bytes, offset).value();
+                let result = u16_be::cast(bytes, offset)?.value();
                 if result != 0 {
                     glyph_id = result.wrapping_add(id_delta)
                 } else {
@@ -244,15 +258,16 @@ fn parse_format4_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<cha
             code_point += 1;
         }
     }
-    cmap
+    Ok(cmap)
 }
 
-fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<char, GlyphId> {
-    let encoding_header = CmapFormat12Header::cast(bytes, record_offset);
+fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize)
+                       -> Result<BTreeMap<char, GlyphId>, FontError> {
+    let encoding_header = CmapFormat12Header::cast(bytes, record_offset)?;
     let groups = CmapFormat12Group::cast_slice(bytes,
         record_offset.saturating_add(size_of::<CmapFormat12Header>()),
         encoding_header.num_groups.value() as usize,
-    );
+    )?;
 
     let mut cmap = BTreeMap::new();
     for group in groups {
@@ -275,5 +290,5 @@ fn parse_format12_cmap(bytes: AlignedBytes, record_offset: usize) -> BTreeMap<ch
             code_point += 1;
         }
     }
-    cmap
+    Ok(cmap)
 }

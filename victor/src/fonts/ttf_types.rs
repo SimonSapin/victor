@@ -2,6 +2,7 @@ use std::fmt::{self, Write};
 use std::mem;
 use std::slice;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use super::FontError;
 
 macro_rules! big_endian_int_wrappers {
     ($( $Name: ident: $Int: ty; )+) => {
@@ -118,27 +119,35 @@ impl<'a> AlignedBytes<'a> {
     }
 }
 
+#[inline]
+fn cast_ptr<T>(bytes: AlignedBytes, offset: usize, n_items: usize) -> Result<*const T, FontError> {
+    // FIXME: could this be a static assert?
+    let required_alignment = mem::align_of::<T>();
+    assert!(required_alignment <= 4,
+            "This type requires more alignment than TrueType promises");
+
+    let required_len = mem::size_of::<T>().saturating_mul(n_items);
+    let bytes = bytes.0.get(offset..).ok_or(FontError::OffsetBeyondEof)?;
+    let bytes = bytes.get(..required_len).ok_or(FontError::OffsetPlusLengthBeyondEof)?;
+
+    Ok(bytes.as_ptr() as *const T)
+}
+
 /// Plain old data: all bit patterns represent valid values
 pub(crate) unsafe trait Pod: Sized {
-    fn cast(bytes: AlignedBytes, offset: usize) -> &Self {
-        &Self::cast_slice(bytes, offset, 1)[0]
+    #[inline]
+    fn cast(bytes: AlignedBytes, offset: usize) -> Result<&Self, FontError> {
+        let ptr = cast_ptr(bytes, offset, 1)?;
+        unsafe {
+            Ok(&*ptr)
+        }
     }
 
-    fn cast_slice(bytes: AlignedBytes, offset: usize, n_items: usize) -> &[Self] {
-        let required_alignment = mem::align_of::<Self>();
-        assert!(required_alignment <= 4,
-                "This type requires more alignment than TrueType promises");
-
-        let bytes = &bytes.0[offset..];
-
-        let required_len = mem::size_of::<Self>().saturating_mul(n_items);
-        assert!(bytes.len() >= required_len);
-
-        assert!((bytes.as_ptr() as usize) % required_alignment == 0);
-
-        let ptr = bytes.as_ptr() as *const Self;
+    #[inline]
+    fn cast_slice(bytes: AlignedBytes, offset: usize, n_items: usize) -> Result<&[Self], FontError> {
+        let ptr = cast_ptr(bytes, offset, n_items)?;
         unsafe {
-            slice::from_raw_parts(ptr, n_items)
+            Ok(slice::from_raw_parts(ptr, n_items))
         }
     }
 }
