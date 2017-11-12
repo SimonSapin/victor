@@ -23,7 +23,7 @@ pub(crate) struct BasicObjects<'a> {
 }
 
 pub(crate) struct PdfFile {
-    indirect_objects: Vec<Option<Vec<u8>>>,
+    indirect_objects: Vec<Vec<u8>>,
     next_id: IndirectObjectId,
 }
 
@@ -55,28 +55,11 @@ impl PdfFile {
         self.add_indirect_object(obj)
     }
 
-    pub fn set_dictionary(&mut self, id: IndirectObjectId, dict: Dictionary) {
-        let mut obj = Vec::new();
-        dict.write(&mut obj).unwrap();
-        self.set_indirect_object(id, obj)
-    }
-
     pub fn add_indirect_object(&mut self, serialized_contents: Vec<u8>) -> IndirectObjectId {
-        self.indirect_objects.push(Some(serialized_contents));
+        self.indirect_objects.push(serialized_contents);
         let id = self.next_id;
         self.next_id.0 += 1;
         id
-    }
-
-    pub fn assign_indirect_object_id(&mut self) -> IndirectObjectId {
-        self.indirect_objects.push(None);
-        let id = self.next_id;
-        self.next_id.0 += 1;
-        id
-    }
-
-    pub fn set_indirect_object(&mut self, id: IndirectObjectId, serialized_contents: Vec<u8>) {
-        self.indirect_objects[(id.0 - FIRST_AVAILABLE_ID.0) as usize] = Some(serialized_contents)
     }
 
     pub fn write<W: Write>(&self, w: &mut W, basic_objects: &BasicObjects) -> io::Result<()> {
@@ -118,7 +101,7 @@ impl PdfFile {
                 indirect_object_offsets.push(w.bytes_written as u32);
                 itoa(&mut w, object_id.0)?;
                 w.write_all(b" 0 obj\n")?;  // Generation number is always zero for us
-                w.write_all(contents.as_ref().expect("Assigned indirect object was not set"))?;
+                w.write_all(contents)?;
                 w.write_all(b"\nendobj\n")?;
             }
 
