@@ -31,12 +31,12 @@ impl Document {
     }
 
     /// Encode this document to PDF and write it into the file with the given name.
-    pub fn write_to_pdf_file<P: AsRef<path::Path>>(self, filename: P) -> Result<(), io::Error> {
+    pub fn write_to_pdf_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), io::Error> {
         self.write_to_pdf(&mut io::BufWriter::new(fs::File::create(filename)?))
     }
 
     /// Encode this document to PDF and return a vector of bytes
-    pub fn write_to_pdf_bytes(self) -> Vec<u8> {
+    pub fn write_to_pdf_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         // Unwrap io::Result because <io::Write for Vec<u8>> never emits errors.
         self.write_to_pdf(&mut bytes).unwrap();
@@ -50,7 +50,7 @@ impl Document {
     /// this method will likely perform better with that stream wrapped in `BufWriter`.
     ///
     /// See also the `write_to_pdf_file` and `write_to_pdf_bytes` methods.
-    pub fn write_to_pdf<W: Write>(self, stream: &mut W) -> Result<(), io::Error> {
+    pub fn write_to_pdf<W: Write>(&self, stream: &mut W) -> Result<(), io::Error> {
         Ok(self.in_progress.write(stream)?)
     }
 }

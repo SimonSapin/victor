@@ -6,17 +6,32 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 use super::object::Dictionary;
 
-pub(crate) struct PdfFile {
-    indirect_objects: Vec<Option<Vec<u8>>>,
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) struct IndirectObjectId(pub u32);
+
+// IDs start at 1. The first few indirect objects are always the same in Victor.
+const FIRST_ID: IndirectObjectId = IndirectObjectId(1);
+pub(crate) const PAGE_TREE_ID: IndirectObjectId = IndirectObjectId(1);
+const CATALOG_ID: IndirectObjectId = IndirectObjectId(2);
+const INFO_ID: IndirectObjectId = IndirectObjectId(3);
+const FIRST_AVAILABLE_ID: IndirectObjectId = IndirectObjectId(4);
+
+pub(crate) struct BasicObjects<'a> {
+    pub page_tree: Dictionary<'a>,
+    pub catalog: Dictionary<'a>,
+    pub info: Dictionary<'a>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub(crate) struct IndirectObjectId(pub u32);
+pub(crate) struct PdfFile {
+    indirect_objects: Vec<Option<Vec<u8>>>,
+    next_id: IndirectObjectId,
+}
 
 impl PdfFile {
     pub fn new() -> Self {
         PdfFile {
             indirect_objects: Vec::new(),
+            next_id: FIRST_AVAILABLE_ID,
         }
     }
 
@@ -48,23 +63,27 @@ impl PdfFile {
 
     pub fn add_indirect_object(&mut self, serialized_contents: Vec<u8>) -> IndirectObjectId {
         self.indirect_objects.push(Some(serialized_contents));
-        IndirectObjectId(self.indirect_objects.len() as u32)  // IDs start at 1
+        let id = self.next_id;
+        self.next_id.0 += 1;
+        id
     }
 
     pub fn assign_indirect_object_id(&mut self) -> IndirectObjectId {
         self.indirect_objects.push(None);
-        IndirectObjectId(self.indirect_objects.len() as u32)
+        let id = self.next_id;
+        self.next_id.0 += 1;
+        id
     }
 
     pub fn set_indirect_object(&mut self, id: IndirectObjectId, serialized_contents: Vec<u8>) {
-        self.indirect_objects[(id.0 - 1) as usize] = Some(serialized_contents)
+        self.indirect_objects[(id.0 - FIRST_AVAILABLE_ID.0) as usize] = Some(serialized_contents)
     }
-}
 
-impl PdfFile {
-    pub fn write<W: Write>(&self, catalog_id: IndirectObjectId, info_id: IndirectObjectId,
-                           w: &mut W) -> io::Result<()> {
-        let mut indirect_object_offsets;
+    pub fn write<W: Write>(&self, w: &mut W, basic_objects: &BasicObjects) -> io::Result<()> {
+        let total_indirect_object_count =
+            (FIRST_AVAILABLE_ID.0 - FIRST_ID.0) as usize +
+            self.indirect_objects.len();
+        let mut indirect_object_offsets = Vec::with_capacity(total_indirect_object_count);
         let startxref;
         {
             let mut w = CountingWrite {
@@ -73,12 +92,31 @@ impl PdfFile {
             };
             w.write_all(b"%PDF-1.5\n%\xB5\xED\xAE\xFB\n")?;
 
-            indirect_object_offsets = Vec::with_capacity(self.indirect_objects.len());
-            for (object_id, contents) in (1..).zip(&self.indirect_objects) {
-                // Indirect Objects
-                // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1638996
+            // Indirect Objects
+            // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1638996
+            let mut next_object_id = FIRST_ID;
+
+            for &(object_id, dictionary) in &[
+                (PAGE_TREE_ID, &basic_objects.page_tree),
+                (CATALOG_ID, &basic_objects.catalog),
+                (INFO_ID, &basic_objects.info),
+            ] {
+                assert_eq!(next_object_id, object_id);
+                next_object_id.0 += 1;
+
                 indirect_object_offsets.push(w.bytes_written as u32);
-                itoa(&mut w, object_id)?;
+                itoa(&mut w, object_id.0)?;
+                w.write_all(b" 0 obj\n")?;  // Generation number is always zero for us
+                dictionary.write(&mut w)?;
+                w.write_all(b"\nendobj\n")?;
+            }
+            assert_eq!(next_object_id, FIRST_AVAILABLE_ID);
+            for contents in &self.indirect_objects {
+                let object_id = next_object_id;
+                next_object_id.0 += 1;
+
+                indirect_object_offsets.push(w.bytes_written as u32);
+                itoa(&mut w, object_id.0)?;
                 w.write_all(b" 0 obj\n")?;  // Generation number is always zero for us
                 w.write_all(contents.as_ref().expect("Assigned indirect object was not set"))?;
                 w.write_all(b"\nendobj\n")?;
@@ -88,7 +126,7 @@ impl PdfFile {
         }
 
         w.write_all(b"xref\n0 ")?;
-        itoa(&mut *w, self.indirect_objects.len())?;
+        itoa(&mut *w, indirect_object_offsets.len())?;
         w.write_all(b"\n0000000000 65535 f \n")?;
         let mut buffer: [u8; 20] = *b"0000000000 00000 n \n";
         for &offset in &indirect_object_offsets {
@@ -101,8 +139,8 @@ impl PdfFile {
         w.write_all(b"trailer\n")?;
         let trailer = dictionary! {
             "Size" => indirect_object_offsets.len(),
-            "Root" => catalog_id,
-            "Info" => info_id,
+            "Root" => CATALOG_ID,
+            "Info" => INFO_ID,
         };
         trailer.write(w)?;
         w.write_all(b"\nstartxref\n")?;

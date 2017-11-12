@@ -1,6 +1,6 @@
 use fonts::{Font, GlyphId, FontError};
 use pdf::object::{Object, Dictionary};
-use pdf::syntax::{PdfFile, IndirectObjectId};
+use pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
 use primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -17,7 +17,6 @@ const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it de
 
 pub(crate) struct InProgressDoc {
     pdf: PdfFile,
-    page_tree_id: IndirectObjectId,
     page_ids: Vec<Object<'static>>,
     extended_graphics_states: Vec<(Vec<u8>, Object<'static>)>,
     font_resources: Vec<(Vec<u8>, Object<'static>)>,
@@ -27,37 +26,35 @@ pub(crate) struct InProgressDoc {
 
 impl InProgressDoc {
     pub(crate) fn new() -> Self {
-        let mut pdf = PdfFile::new();
         InProgressDoc {
-            page_tree_id: pdf.assign_indirect_object_id(),
+            pdf: PdfFile::new(),
             page_ids: Vec::new(),
             extended_graphics_states: Vec::new(),
             font_resources: Vec::new(),
             alpha_states: HashMap::new(),
             fonts: HashMap::new(),
-            pdf,
         }
     }
 
-    pub(crate) fn write<W: Write>(mut self, w: &mut W) -> io::Result<()> {
-        self.pdf.set_dictionary(self.page_tree_id, dictionary! {
-            "Type" => "Pages",
-            "Count" => self.page_ids.len(),
-            "Kids" => &*self.page_ids,
-            "Resources" => dictionary! {
-                "Font" => Object::DictionaryWithOwnedKeys(&self.font_resources),
-                "ExtGState" => Object::DictionaryWithOwnedKeys(&self.extended_graphics_states),
+    pub(crate) fn write<W: Write>(&self, w: &mut W) -> io::Result<()> {
+        self.pdf.write(w, &BasicObjects {
+            page_tree: dictionary! {
+                "Type" => "Pages",
+                "Count" => self.page_ids.len(),
+                "Kids" => &*self.page_ids,
+                "Resources" => dictionary! {
+                    "Font" => Object::DictionaryWithOwnedKeys(&self.font_resources),
+                    "ExtGState" => Object::DictionaryWithOwnedKeys(&self.extended_graphics_states),
+                },
             },
-        });
-        let catalog_id = self.pdf.add_dictionary(dictionary!(
-            "Type" => "Catalog",
-            "Pages" => self.page_tree_id,
-        ));
-        let info_id = self.pdf.add_dictionary(dictionary!(
-            "Producer" => Object::LiteralString(b"Victor <https://github.com/SimonSapin/victor>"),
-        ));
-
-        self.pdf.write(catalog_id, info_id, w)
+            catalog: dictionary! {
+                "Type" => "Catalog",
+                "Pages" => PAGE_TREE_ID,
+            },
+            info: dictionary! {
+                "Producer" => Object::LiteralString(b"Victor <https://github.com/SimonSapin/victor>"),
+            },
+        })
     }
 }
 
@@ -93,7 +90,7 @@ impl<'a> Drop for InProgressPage<'a> {
         );
         let page_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Page",
-            "Parent" => self.doc.page_tree_id,
+            "Parent" => PAGE_TREE_ID,
             "Contents" => content_id,
             "MediaBox" => array![
                 0,
