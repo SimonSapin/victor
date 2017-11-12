@@ -4,7 +4,9 @@ use pdf::syntax::{PdfFile, IndirectObjectId};
 use primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::hash;
 use std::io::{self, Write};
+use std::ops::Deref;
 use std::sync::Arc;
 
 const PT_PER_INCH: f32 = 72.;
@@ -20,7 +22,7 @@ pub(crate) struct InProgressDoc {
     extended_graphics_states: Vec<(Vec<u8>, Object<'static>)>,
     font_resources: Vec<(Vec<u8>, Object<'static>)>,
     alpha_states: HashMap<u16, String>,
-    fonts: HashMap<usize, String>,
+    fonts: HashMap<ByAddress<Arc<Font>>, String>,
 }
 
 impl InProgressDoc {
@@ -58,6 +60,23 @@ impl InProgressDoc {
         self.pdf.write(catalog_id, info_id, w)
     }
 }
+
+struct ByAddress<T>(T);
+
+impl<T> hash::Hash for ByAddress<T> where T: Deref, T::Target: Sized {
+    fn hash<H>(&self, state: &mut H) where H: hash::Hasher {
+        (self.0.deref() as *const T::Target as usize).hash(state)
+    }
+}
+
+impl<T> PartialEq for ByAddress<T> where T: Deref, T::Target: Sized {
+    fn eq(&self, other: &Self) -> bool {
+        (self.0.deref() as *const T::Target as usize) ==
+        (other.0.deref() as *const T::Target as usize)
+    }
+}
+
+impl<T> Eq for ByAddress<T> where T: Deref, T::Target: Sized {}
 
 pub(crate) struct InProgressPage<'a> {
     doc: &'a mut InProgressDoc,
@@ -203,10 +222,8 @@ impl<'a> InProgressPage<'a> {
     }
 
     fn add_font(&mut self, font: &Arc<Font>) -> Result<String, FontError> {
-        let ptr: *const Font = &**font;
-        let hash_key = ptr as usize;
         let next_id = self.doc.fonts.len();
-        let vacant_entry = match self.doc.fonts.entry(hash_key) {
+        let vacant_entry = match self.doc.fonts.entry(ByAddress(font.clone())) {
             Entry::Occupied(entry) => return Ok(entry.get().clone()),
             Entry::Vacant(entry) => entry,
         };
