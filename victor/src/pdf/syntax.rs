@@ -78,7 +78,6 @@ impl PdfFile {
             // Indirect Objects
             // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1638996
             let mut next_object_id = FIRST_ID;
-
             for &(object_id, dictionary) in &[
                 (PAGE_TREE_ID, &basic_objects.page_tree),
                 (CATALOG_ID, &basic_objects.catalog),
@@ -107,9 +106,15 @@ impl PdfFile {
 
             startxref = w.bytes_written;
         }
+        assert_eq!(total_indirect_object_count, indirect_object_offsets.len());
 
+        // Cross-reference table
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1839814
+
+        // Add 1 for the mandatory free object with ID zero.
+        let xref_table_size = total_indirect_object_count + 1;
         w.write_all(b"xref\n0 ")?;
-        itoa(&mut *w, indirect_object_offsets.len())?;
+        itoa(&mut *w, xref_table_size)?;
         w.write_all(b"\n0000000000 65535 f \n")?;
         let mut buffer: [u8; 20] = *b"0000000000 00000 n \n";
         for &offset in &indirect_object_offsets {
@@ -121,7 +126,7 @@ impl PdfFile {
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
         w.write_all(b"trailer\n")?;
         let trailer = dictionary! {
-            "Size" => indirect_object_offsets.len(),
+            "Size" => xref_table_size,
             "Root" => CATALOG_ID,
             "Info" => INFO_ID,
         };
