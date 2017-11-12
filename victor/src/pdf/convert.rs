@@ -17,8 +17,8 @@ pub(crate) struct InProgressDoc {
     pdf: PdfFile,
     page_tree_id: IndirectObjectId,
     page_ids: Vec<Object<'static>>,
-    extended_graphics_states: Vec<(String, IndirectObjectId)>,
-    font_resources: Vec<(String, IndirectObjectId)>,
+    extended_graphics_states: Vec<(Vec<u8>, Object<'static>)>,
+    font_resources: Vec<(Vec<u8>, Object<'static>)>,
     alpha_states: HashMap<u16, String>,
     fonts: HashMap<usize, String>,
 }
@@ -38,19 +38,13 @@ impl InProgressDoc {
     }
 
     pub(crate) fn write<W: Write>(mut self, w: &mut W) -> io::Result<()> {
-        // FIXME avoid realloc
-        let fonts: Vec<_> = self.font_resources
-            .iter().map(|&(ref k, v)| (k.as_bytes(), Object::from(v))).collect();
-        let states: Vec<_> = self.extended_graphics_states
-            .iter().map(|&(ref k, ref v)| (k.as_bytes(), Object::from(v))).collect();
-
         self.pdf.set_dictionary(self.page_tree_id, dictionary! {
             "Type" => "Pages",
             "Count" => self.page_ids.len(),
             "Kids" => &*self.page_ids,
             "Resources" => dictionary! {
-                "Font" => &*fonts,
-                "ExtGState" => &*states,
+                "Font" => Object::DictionaryWithOwnedKeys(&self.font_resources),
+                "ExtGState" => Object::DictionaryWithOwnedKeys(&self.extended_graphics_states),
             },
         });
         let catalog_id = self.pdf.add_dictionary(dictionary!(
@@ -203,16 +197,10 @@ impl<'a> InProgressPage<'a> {
 
             let next_id = self.doc.alpha_states.len();
             let states = &mut self.doc.extended_graphics_states;
-            let pdf = &mut self.doc.pdf;
             let pdf_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
-                // FIXME: revert to direct object
-                let extended_graphics_state_id = pdf.add_dictionary(dictionary! {
-                    "CA" => alpha,
-                    "ca" => alpha,
-                });
-
                 let pdf_key = format!("a{}", next_id);
-                states.push((pdf_key.clone(), extended_graphics_state_id));
+                states.push((pdf_key.clone().into_bytes(),
+                             Object::GraphicsStateDictionaryAlpha(alpha)));
                 pdf_key
             });
             op!(self, EXTENDED_GRAPHICS_STATE, &*pdf_key);
@@ -300,7 +288,7 @@ impl<'a> InProgressPage<'a> {
             endcmap\n\
             CMapName currentdict /CMap defineresource pop\n\
             end\n\
-            end\n\
+            end\
         ".as_ref());
         let to_unicode_id = self.doc.pdf.add_stream(dictionary! {}, to_unicode_cmap.into());
         // Type 0 Font Dictionaries
@@ -334,7 +322,7 @@ impl<'a> InProgressPage<'a> {
         });
 
         let pdf_key = format!("f{}", next_id);
-        self.doc.font_resources.push((pdf_key.clone(), font_dict_id));
+        self.doc.font_resources.push((pdf_key.clone().into_bytes(), font_dict_id.into()));
         vacant_entry.insert(pdf_key.clone());
         Ok(pdf_key)
     }

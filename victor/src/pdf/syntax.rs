@@ -30,7 +30,7 @@ impl PdfFile {
         meta.write(&mut obj).unwrap();
         obj.extend_from_slice(b"\nstream\n");
         obj.extend_from_slice(&contents);  // FIXME: avoid this copy?
-        obj.extend_from_slice(b"\nendstream\n");
+        obj.extend_from_slice(b"\nendstream");
         self.add_indirect_object(obj)
     }
 

@@ -12,6 +12,13 @@ pub(crate) enum Object<'a> {
     Array(&'a [Object<'a>]),
     Dictionary(Dictionary<'a>),
     Reference(IndirectObjectId),
+
+    GraphicsStateDictionaryAlpha(f32),
+    DictionaryWithOwnedKeys(&'a [(Vec<u8>, Object<'a>)])
+}
+
+fn _static_assert_size() {
+    let _ = ::std::mem::transmute::<Object<'static>, [u8; 32]>;
 }
 
 pub(crate) type KeyValuePairs<'a> = &'a [(&'a [u8], Object<'a>)];
@@ -166,6 +173,23 @@ impl<'a> Object<'a> {
             Object::Reference(IndirectObjectId(id)) => {
                 ::itoa::write(&mut *w, id)?;
                 w.write_all(b" 0 R")
+            }
+            Object::GraphicsStateDictionaryAlpha(value) => {
+                let dict = dictionary! {
+                    "CA" => value,
+                    "ca" => value,
+                };
+                dict.write(w)
+            }
+            Object::DictionaryWithOwnedKeys(value) => {
+                w.write_all(b"<<")?;
+                for &(ref key, ref value) in value {
+                    w.write_all(b" ")?;
+                    write_name(key, w)?;
+                    w.write_all(b" ")?;
+                    value.write(w)?
+                }
+                w.write_all(b" >>")
             }
         }
     }
