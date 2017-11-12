@@ -3,8 +3,6 @@ use super::syntax::IndirectObjectId;
 
 #[derive(Debug)]
 pub(crate) enum Object<'a> {
-    Null,
-    Boolean(bool),
     Usize(usize),
     I32(i32),
     Float(f32),
@@ -70,18 +68,6 @@ impl<'a, T: Copy> From<&'a T> for Object<'a> where Object<'a>: From<T> {
     }
 }
 
-impl<'a> From<()> for Object<'a> {
-    fn from(_: ()) -> Self {
-        Object::Null
-    }
-}
-
-impl<'a> From<bool> for Object<'a> {
-    fn from(value: bool) -> Self {
-        Object::Boolean(value)
-    }
-}
-
 impl<'a> From<i32> for Object<'a> {
     fn from(value: i32) -> Self {
         Object::I32(value)
@@ -143,9 +129,6 @@ impl<'a> Object<'a> {
     pub fn write<W: Write>(&self, w: &mut W) -> io::Result<()> {
         match *self {
             // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1965566
-            Object::Null => w.write_all(b"null"),
-            Object::Boolean(true) => w.write_all(b"null"),
-            Object::Boolean(false) => w.write_all(b"false"),
             Object::I32(value) => ::itoa::write(w, value).map(|_| ()),
             Object::Usize(value) => ::itoa::write(w, value).map(|_| ()),
             Object::Float(value) => ::dtoa::write(w, value).map(|_| ()),
