@@ -1,6 +1,6 @@
 use fonts::{Font, GlyphId, FontError};
-use lopdf::{self, Object, Stream, ObjectId, Dictionary, StringFormat};
-use lopdf::content::{Content, Operation};
+use lopdf::{self, Object, Stream, ObjectId, Dictionary};
+use pdf::object;
 use primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -85,15 +85,14 @@ impl InProgressDoc {
 pub(crate) struct InProgressPage<'a> {
     doc: &'a mut InProgressDoc,
     size: Size<CssPx>,
-    operations: Vec<Operation>,
+    operations: Vec<u8>,
     graphics_state: GraphicsState,
 }
 
 impl<'a> Drop for InProgressPage<'a> {
     fn drop(&mut self) {
-        let content = Content { operations: mem::replace(&mut self.operations, Vec::new()) };
         let content_id = self.doc.pdf.add_object(
-            Stream::new(dictionary! {}, content.encode().unwrap())
+            Stream::new(dictionary! {}, mem::replace(&mut self.operations, Vec::new()))
         );
         let page_id = self.doc.pdf.add_object(dictionary! {
             "Type" => "Page",
@@ -119,8 +118,15 @@ macro_rules! op {
     ( $self_: expr, $operator: expr ) => {
         op!($self_, $operator,)
     };
-    ( $self_: expr, $operator: expr, $( $operands: tt )*) => {
-        $self_.operations.push(Operation::new($operator, array![ $($operands)* ]))
+    ( $self_: expr, $operator: expr, $( $operands: expr ),*) => {
+        {
+            $(
+                object::Object::from(&$operands).write(&mut $self_.operations).unwrap();
+                $self_.operations.push(b' ');
+            )*
+            $self_.operations.extend(str::as_bytes($operator));
+            $self_.operations.push(b'\n');
+        }
     }
 }
 
@@ -168,7 +174,7 @@ impl<'a> InProgressPage<'a> {
         op!(self, BEGIN_TEXT);
         op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
         op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, origin.x, origin.y);
-        op!(self, SHOW_TEXT, Object::String(glyph_codes, StringFormat::Hexadecimal));
+        op!(self, SHOW_TEXT, object::Object::HexString(&glyph_codes));
         op!(self, END_TEXT);
 
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927

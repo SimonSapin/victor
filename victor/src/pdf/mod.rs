@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use std::path;
 
 mod convert;
+mod object;
 
 pub struct Document {
     in_progress: InProgressDoc,
