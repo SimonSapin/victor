@@ -62,7 +62,8 @@ impl PdfFile {
 }
 
 impl PdfFile {
-    pub fn write<W: Write>(&self, trailer: Dictionary, w: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, catalog_id: IndirectObjectId, info_id: IndirectObjectId,
+                           w: &mut W) -> io::Result<()> {
         let mut indirect_object_offsets;
         let startxref;
         {
@@ -86,7 +87,7 @@ impl PdfFile {
             startxref = w.bytes_written;
         }
 
-        w.write_all(b"xref\n 0 ")?;
+        w.write_all(b"xref\n0 ")?;
         itoa(&mut *w, self.indirect_objects.len())?;
         w.write_all(b"\n0000000000 65535 f \n")?;
         let mut buffer: [u8; 20] = *b"0000000000 00000 n \n";
@@ -95,7 +96,14 @@ impl PdfFile {
             w.write_all(&buffer)?;
         }
 
+        // PDF file trailer:
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
         w.write_all(b"trailer\n")?;
+        let trailer = dictionary! {
+            "Size" => indirect_object_offsets.len(),
+            "Root" => catalog_id,
+            "Info" => info_id,
+        };
         trailer.write(w)?;
         w.write_all(b"\nstartxref\n")?;
         itoa(&mut *w, startxref)?;

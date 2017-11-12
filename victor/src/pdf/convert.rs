@@ -55,12 +55,7 @@ impl InProgressDoc {
             "Producer" => Object::LiteralString(b"Victor <https://github.com/SimonSapin/victor>"),
         ));
 
-        // PDF file trailer:
-        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
-        self.pdf.write(dictionary! {
-            "Root" => catalog_id,
-            "Info" => info_id,
-        }, w)
+        self.pdf.write(catalog_id, info_id, w)
     }
 }
 
