@@ -5,8 +5,9 @@ use std::fs;
 use std::io::{self, Write};
 use std::path;
 
+#[macro_use] mod object;
 mod convert;
-mod object;
+mod syntax;
 
 pub struct Document {
     in_progress: InProgressDoc,
@@ -50,7 +51,7 @@ impl Document {
     ///
     /// See also the `write_to_pdf_file` and `write_to_pdf_bytes` methods.
     pub fn write_to_pdf<W: Write>(self, stream: &mut W) -> Result<(), io::Error> {
-        Ok(self.in_progress.finish().save_to(stream)?)
+        Ok(self.in_progress.write(stream)?)
     }
 }
 

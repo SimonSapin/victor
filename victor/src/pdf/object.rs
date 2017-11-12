@@ -1,39 +1,72 @@
-use lopdf::ObjectId;
 use std::io::{self, Write};
+use super::syntax::IndirectObjectId;
 
 #[derive(Debug)]
 pub(crate) enum Object<'a> {
     Null,
     Boolean(bool),
-    Integer(i32),
+    Usize(usize),
+    I32(i32),
     Float(f32),
     Name(&'a [u8]),
     LiteralString(&'a [u8]),
     HexString(&'a [u8]),
     Array(&'a [Object<'a>]),
-    Dictionary(&'a [(&'a [u8], Object<'a>)]),
-    Reference(ObjectId),
+    Dictionary(Dictionary<'a>),
+    Reference(IndirectObjectId),
+}
+
+pub(crate) type KeyValuePairs<'a> = &'a [(&'a [u8], Object<'a>)];
+
+#[derive(Debug)]
+pub(crate) struct Dictionary<'a> {
+    pub prev: Option<&'a Dictionary<'a>>,
+    pub pairs: KeyValuePairs<'a>,
+}
+
+macro_rules! array {
+    ($( $value: expr ),* ,) => {
+        array![ $( $value ),* ]
+    };
+    ($( $value: expr ),*) => {
+        &[ $( ::pdf::object::Object::from($value) ),* ][..]
+    }
+}
+
+macro_rules! key_value_pairs {
+    ($( $key: expr => $value: expr ),+ ,) => {
+        key_value_pairs!( $($key => $value),+ )
+    };
+    ($( $key: expr => $value: expr ),*) => {
+        &[
+            $(
+                (AsRef::<[u8]>::as_ref($key), ::pdf::object::Object::from($value)),
+            )*
+        ]
+    };
+}
+
+macro_rules! dictionary {
+    ($($pairs: tt)*) => {
+        Dictionary {
+            prev: None,
+            pairs: key_value_pairs!($($pairs)*),
+        }
+    }
+}
+
+macro_rules! linked_dictionary {
+    ($prev: expr, $($pairs: tt)*) => {
+        Dictionary {
+            prev: Some(::std::borrow::Borrow::borrow($prev)),
+            pairs: key_value_pairs!($($pairs)*),
+        }
+    }
 }
 
 impl<'a, T: Copy> From<&'a T> for Object<'a> where Object<'a>: From<T> {
     fn from(value: &'a T) -> Self {
         Object::from(*value)
-    }
-}
-
-impl<'a> From<&'a Object<'a>> for Object<'a> {
-    fn from(value: &'a Object<'a>) -> Self {
-        macro_rules! copy {
-            ($( $Variant: ident )+) => {
-                match *value {
-                    Object::Null => Object::Null,
-                    $(
-                        Object::$Variant(value) => Object::$Variant(value),
-                    )+
-                }
-            }
-        }
-        copy!(Boolean Integer Float Name LiteralString HexString Array Dictionary Reference)
     }
 }
 
@@ -51,7 +84,13 @@ impl<'a> From<bool> for Object<'a> {
 
 impl<'a> From<i32> for Object<'a> {
     fn from(value: i32) -> Self {
-        Object::Integer(value)
+        Object::I32(value)
+    }
+}
+
+impl<'a> From<usize> for Object<'a> {
+    fn from(value: usize) -> Self {
+        Object::Usize(value)
     }
 }
 
@@ -74,20 +113,29 @@ impl<'a> From<&'a String> for Object<'a> {
 }
 
 impl<'a> From<&'a [Object<'a>]> for Object<'a> {
-    fn from(array: &'a [Object]) -> Self {
-        Object::Array(array)
+    fn from(value: &'a [Object]) -> Self {
+        Object::Array(value)
     }
 }
 
-impl<'a> From<&'a [(&'a [u8], Object<'a>)]> for Object<'a> {
-    fn from(array: &'a [(&'a [u8], Object<'a>)]) -> Self {
-        Object::Dictionary(array)
+impl<'a> From<KeyValuePairs<'a>> for Object<'a> {
+    fn from(value: KeyValuePairs<'a>) -> Self {
+        Object::Dictionary(Dictionary {
+            prev: None,
+            pairs: value,
+        })
     }
 }
 
-impl<'a> From<ObjectId> for Object<'a> {
-    fn from(id: ObjectId) -> Self {
-        Object::Reference(id)
+impl<'a> From<Dictionary<'a>> for Object<'a> {
+    fn from(value: Dictionary<'a>) -> Self {
+        Object::Dictionary(value)
+    }
+}
+
+impl<'a> From<IndirectObjectId> for Object<'a> {
+    fn from(value: IndirectObjectId) -> Self {
+        Object::Reference(value)
     }
 }
 
@@ -98,9 +146,11 @@ impl<'a> Object<'a> {
             Object::Null => w.write_all(b"null"),
             Object::Boolean(true) => w.write_all(b"null"),
             Object::Boolean(false) => w.write_all(b"false"),
-            Object::Integer(value) => ::itoa::write(w, value).map(|_| ()),
+            Object::I32(value) => ::itoa::write(w, value).map(|_| ()),
+            Object::Usize(value) => ::itoa::write(w, value).map(|_| ()),
             Object::Float(value) => ::dtoa::write(w, value).map(|_| ()),
             Object::Name(value) => write_name(value, w),
+            Object::Dictionary(ref value) => value.write(w),
             Object::LiteralString(value) => {
                 w.write_all(b"(")?;
                 for &byte in value {
@@ -130,28 +180,37 @@ impl<'a> Object<'a> {
                 }
                 w.write_all(b"]")
             }
-            Object::Dictionary(value) => {
-                w.write_all(b"<<")?;
-                for &(key, ref value) in value {
-                    w.write_all(b" ")?;
-                    write_name(key, w)?;
-                    w.write_all(b" ")?;
-                    value.write(w)?
-                }
-                w.write_all(b" >>")
-            }
-            Object::Reference((id, generation)) => {
+            Object::Reference(IndirectObjectId(id)) => {
                 ::itoa::write(&mut *w, id)?;
-                w.write_all(b" ")?;
-                ::itoa::write(&mut *w, generation)?;
-                w.write_all(b" R")
+                w.write_all(b" 0 R")
             }
         }
     }
 }
 
+impl<'a> Dictionary<'a> {
+    pub fn write<W: Write>(&self, w: &mut W) -> io::Result<()> {
+        w.write_all(b"<<")?;
+        self.write_pairs(w)?;
+        w.write_all(b" >>")
+    }
+
+    pub fn write_pairs<W: Write>(&self, w: &mut W) -> io::Result<()> {
+        if let Some(prev) = self.prev {
+            prev.write_pairs(w)?
+        }
+        for &(key, ref value) in self.pairs {
+            w.write_all(b" ")?;
+            write_name(key, w)?;
+            w.write_all(b" ")?;
+            value.write(w)?
+        }
+        Ok(())
+    }
+}
+
 fn write_hex<W: Write>(byte: u8, w: &mut W) -> io::Result<()> {
-    static HEX_DIGITS: [u8; 16] = *b"0123456789ABCDEF";
+    const HEX_DIGITS: [u8; 16] = *b"0123456789ABCDEF";
     w.write_all(&[
         HEX_DIGITS[(byte >> 4) as usize],
         HEX_DIGITS[(byte & 0x0F) as usize],

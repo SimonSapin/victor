@@ -1,21 +1,11 @@
 use fonts::{Font, GlyphId, FontError};
-use lopdf::{self, Object, Stream, ObjectId, Dictionary};
-use pdf::object;
+use pdf::object::{Object, Dictionary};
+use pdf::syntax::{PdfFile, IndirectObjectId};
 use primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::io::Write;
-use std::mem;
+use std::io::{self, Write};
 use std::sync::Arc;
-
-macro_rules! array {
-    ($( $value: expr ),* ,) => {
-        array![ $( $value ),* ]
-    };
-    ($( $value: expr ),*) => {
-        vec![ $( Object::from($value) ),* ]
-    }
-}
 
 const PT_PER_INCH: f32 = 72.;
 const PX_PER_INCH: f32 = 96.;
@@ -24,61 +14,59 @@ const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
 
 pub(crate) struct InProgressDoc {
-    pdf: lopdf::Document,
-    page_tree_id: ObjectId,
-    page_ids: Vec<Object>,
-    extended_graphics_states: Option<Dictionary>,
-    font_resources: Option<Dictionary>,
+    pdf: PdfFile,
+    page_tree_id: IndirectObjectId,
+    page_ids: Vec<Object<'static>>,
+    extended_graphics_states: Vec<(String, IndirectObjectId)>,
+    font_resources: Vec<(String, IndirectObjectId)>,
     alpha_states: HashMap<u16, String>,
     fonts: HashMap<usize, String>,
 }
 
 impl InProgressDoc {
     pub(crate) fn new() -> Self {
-        let mut pdf = lopdf::Document::with_version("1.5");
+        let mut pdf = PdfFile::new();
         InProgressDoc {
-            page_tree_id: pdf.new_object_id(),
+            page_tree_id: pdf.assign_indirect_object_id(),
             page_ids: Vec::new(),
-            extended_graphics_states: None,
-            font_resources: None,
+            extended_graphics_states: Vec::new(),
+            font_resources: Vec::new(),
             alpha_states: HashMap::new(),
             fonts: HashMap::new(),
             pdf,
         }
     }
 
-    pub(crate) fn finish(mut self) -> lopdf::Document {
-        let mut page_tree = dictionary! {
+    pub(crate) fn write<W: Write>(mut self, w: &mut W) -> io::Result<()> {
+        // FIXME avoid realloc
+        let fonts: Vec<_> = self.font_resources
+            .iter().map(|&(ref k, v)| (k.as_bytes(), Object::from(v))).collect();
+        let states: Vec<_> = self.extended_graphics_states
+            .iter().map(|&(ref k, ref v)| (k.as_bytes(), Object::from(v))).collect();
+
+        self.pdf.set_dictionary(self.page_tree_id, dictionary! {
             "Type" => "Pages",
-            "Count" => self.page_ids.len() as i64,
-            "Kids" => self.page_ids,
-        };
-
-        let mut resources = None;
-        if let Some(fonts) = self.font_resources {
-            resources.get_or_insert_with(Dictionary::new).set("Font", fonts)
-        }
-        if let Some(states) = self.extended_graphics_states {
-            resources.get_or_insert_with(Dictionary::new).set("ExtGState", states)
-        }
-        if let Some(resources) = resources {
-            page_tree.set("Resources", resources)
-        }
-
-        self.pdf.objects.insert(self.page_tree_id, Object::Dictionary(page_tree));
-        let catalog_id = self.pdf.add_object(dictionary!(
+            "Count" => self.page_ids.len(),
+            "Kids" => &*self.page_ids,
+            "Resources" => dictionary! {
+                "Font" => &*fonts,
+                "ExtGState" => &*states,
+            },
+        });
+        let catalog_id = self.pdf.add_dictionary(dictionary!(
             "Type" => "Catalog",
             "Pages" => self.page_tree_id,
         ));
-        let info_id = self.pdf.add_object(dictionary!(
-            "Producer" => Object::string_literal("Victor <https://github.com/SimonSapin/victor>"),
+        let info_id = self.pdf.add_dictionary(dictionary!(
+            "Producer" => Object::LiteralString(b"Victor <https://github.com/SimonSapin/victor>"),
         ));
 
         // PDF file trailer:
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1941947
-        self.pdf.trailer.set("Root", catalog_id);
-        self.pdf.trailer.set("Info", info_id);
-        self.pdf
+        self.pdf.write(dictionary! {
+            "Root" => catalog_id,
+            "Info" => info_id,
+        }, w)
     }
 }
 
@@ -91,10 +79,11 @@ pub(crate) struct InProgressPage<'a> {
 
 impl<'a> Drop for InProgressPage<'a> {
     fn drop(&mut self) {
-        let content_id = self.doc.pdf.add_object(
-            Stream::new(dictionary! {}, mem::replace(&mut self.operations, Vec::new()))
+        let content_id = self.doc.pdf.add_stream(
+            dictionary! {},
+            self.operations.as_slice().into()
         );
-        let page_id = self.doc.pdf.add_object(dictionary! {
+        let page_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Page",
             "Parent" => self.doc.page_tree_id,
             "Contents" => content_id,
@@ -121,7 +110,7 @@ macro_rules! op {
     ( $self_: expr, $operator: expr, $( $operands: expr ),*) => {
         {
             $(
-                object::Object::from(&$operands).write(&mut $self_.operations).unwrap();
+                Object::from($operands).write(&mut $self_.operations).unwrap();
                 $self_.operations.push(b' ');
             )*
             $self_.operations.extend(str::as_bytes($operator));
@@ -172,9 +161,9 @@ impl<'a> InProgressPage<'a> {
             glyph_codes.push(id as u8);
         }
         op!(self, BEGIN_TEXT);
-        op!(self, TEXT_FONT_AND_SIZE, font_key, 1);
+        op!(self, TEXT_FONT_AND_SIZE, &*font_key, 1);
         op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, origin.x, origin.y);
-        op!(self, SHOW_TEXT, object::Object::HexString(&glyph_codes));
+        op!(self, SHOW_TEXT, Object::HexString(&glyph_codes));
         op!(self, END_TEXT);
 
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1910927
@@ -214,18 +203,19 @@ impl<'a> InProgressPage<'a> {
 
             let next_id = self.doc.alpha_states.len();
             let states = &mut self.doc.extended_graphics_states;
+            let pdf = &mut self.doc.pdf;
             let pdf_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
+                // FIXME: revert to direct object
+                let extended_graphics_state_id = pdf.add_dictionary(dictionary! {
+                    "CA" => alpha,
+                    "ca" => alpha,
+                });
+
                 let pdf_key = format!("a{}", next_id);
-                states.get_or_insert_with(Dictionary::new).set(
-                    pdf_key.clone(),
-                    dictionary! {
-                        "CA" => alpha,
-                        "ca" => alpha,
-                    },
-                );
+                states.push((pdf_key.clone(), extended_graphics_state_id));
                 pdf_key
             });
-            op!(self, EXTENDED_GRAPHICS_STATE, pdf_key.clone());
+            op!(self, EXTENDED_GRAPHICS_STATE, &*pdf_key);
         }
     }
 
@@ -238,13 +228,13 @@ impl<'a> InProgressPage<'a> {
             Entry::Vacant(entry) => entry,
         };
         let font_bytes = font.bytes();
-        let truetype_id = self.doc.pdf.add_object(Stream::new(
+        let truetype_id = self.doc.pdf.add_stream(
             dictionary! {
-                "Length1" => font_bytes.len() as i64,
+                "Length1" => font_bytes.len(),
             },
-            font_bytes.to_vec()
-        ));
-        let font_descriptor_id = self.doc.pdf.add_object(dictionary! {
+            font_bytes.into()
+        );
+        let font_descriptor_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "FontDescriptor",
             "FontName" => &*font.postscript_name,
             "FontBBox" => array![
@@ -312,10 +302,12 @@ impl<'a> InProgressPage<'a> {
             end\n\
             end\n\
         ".as_ref());
-        let to_unicode_id = self.doc.pdf.add_object(Stream::new(dictionary! {}, to_unicode_cmap));
+        let to_unicode_id = self.doc.pdf.add_stream(dictionary! {}, to_unicode_cmap.into());
         // Type 0 Font Dictionaries
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
-        let font_dict = dictionary! {
+
+        // FIXME: revert to direct object
+        let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Font",
             "Subtype" => "Type0",
             "BaseFont" => &*font.postscript_name,
@@ -329,20 +321,20 @@ impl<'a> InProgressPage<'a> {
                 "Subtype" => "CIDFontType2",
                 "BaseFont" => &*font.postscript_name,
                 "CIDSystemInfo" => dictionary! {
-                    "Registry" => Object::string_literal("Adobe"),
-                    "Ordering" => Object::string_literal("Identity"),
+                    "Registry" => Object::LiteralString(b"Adobe"),
+                    "Ordering" => Object::LiteralString(b"Identity"),
                     "Supplement" => 0,
                 },
                 "FontDescriptor" => font_descriptor_id,
                 "W" => array![
                     0,  // start CID
-                    font.glyph_widths.iter().map(|&w| w.into()).collect::<Vec<Object>>(),
+                    &*font.glyph_widths.iter().map(|&w| i32::from(w).into()).collect::<Vec<Object>>(),
                 ],
             }],
-        };
+        });
 
         let pdf_key = format!("f{}", next_id);
-        self.doc.font_resources.get_or_insert_with(Dictionary::new).set(pdf_key.clone(), font_dict);
+        self.doc.font_resources.push((pdf_key.clone(), font_dict_id));
         vacant_entry.insert(pdf_key.clone());
         Ok(pdf_key)
     }
