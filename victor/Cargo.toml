@@ -15,4 +15,4 @@ dtoa = "0.4"
 euclid = "0.15.4"
 itoa = "0.3"
 parking_lot_core = "0.1"
-victor-internal-derive = {path = "../derive"}
+victor-internal-proc-macros = {path = "../proc-macros"}

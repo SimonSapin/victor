@@ -7,7 +7,7 @@ pub mod primitives;
 extern crate dtoa;
 extern crate itoa;
 extern crate parking_lot_core;
-#[macro_use] extern crate victor_internal_derive;
+#[macro_use] extern crate victor_internal_proc_macros;
 
 /*
 
