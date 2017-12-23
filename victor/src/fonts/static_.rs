@@ -1,8 +1,6 @@
+use lazy_arc::LazyArc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
-use std::mem;
 use super::{Font, FontError};
-use raw_mutex::{RawMutex, RAW_MUTEX_INIT};
 
 /// Include a TrueType file with `include_bytes!()` and create a [`LazyStaticFont`] value.
 ///
@@ -21,7 +19,7 @@ macro_rules! include_font {
                 force_alignment: [],
                 byte_array: *include_bytes!($filename),
             },
-            private: $crate::fonts::LAZY_STATIC_FONT_PRIVATE_INIT,
+            lazy_arc: $crate::lazy_arc::LazyArc::INIT,
         }
     }
 }
@@ -36,7 +34,7 @@ pub struct LazyStaticFont {
     // but these are not avaiable on stable as of this writing.
 
     #[doc(hidden)] pub data: &'static U32Aligned<[u8]>,
-    #[doc(hidden)] pub private: LazyStaticFontPrivate,
+    #[doc(hidden)] pub lazy_arc: LazyArc<Font>,
 }
 
 #[doc(hidden)]
@@ -44,18 +42,6 @@ pub struct LazyStaticFont {
 pub struct U32Aligned<T: ?Sized> {
     pub force_alignment: [u32; 0],
     pub byte_array: T,
-}
-
-#[doc(hidden)]
-pub const LAZY_STATIC_FONT_PRIVATE_INIT: LazyStaticFontPrivate = LazyStaticFontPrivate {
-    mutex: RAW_MUTEX_INIT,
-    ptr: ATOMIC_USIZE_INIT,
-};
-
-#[doc(hidden)]
-pub struct LazyStaticFontPrivate {
-    mutex: RawMutex,
-    ptr: AtomicUsize,
 }
 
 impl LazyStaticFont {
@@ -73,42 +59,9 @@ impl LazyStaticFont {
     ///
     /// Calling this reapeatedly will only parse once (until `.drop()` is called).
     pub fn get(&self) -> Result<Arc<Font>, FontError> {
-        macro_rules! try_load {
-            () => {
-                let ptr = self.private.ptr.load(Ordering::SeqCst);
-                if ptr != 0 {
-                    // Already initialized
-                    unsafe {
-                        return Ok(clone_raw_arc(ptr))
-                    }
-                }
-            }
-        }
-
-        // First try to obtain a font from the atomic pointer without taking the mutex
-        try_load!();
-
-        // Synchronize initialization
-        struct RawMutexGuard<'a>(&'a RawMutex);
-        impl<'a> Drop for RawMutexGuard<'a> {
-            fn drop(&mut self) {
-                self.0.unlock()
-            }
-        }
-
-        self.private.mutex.lock();
-        let _guard = RawMutexGuard(&self.private.mutex);
-
-        // Try again in case some other thread raced us while we were taking the mutex
-        try_load!();
-
-        // Now we’ve observed the atomic pointer uninitialized after taking the mutex:
-        // we’re definitely first
-
-        let font = Font::from_cow(self.bytes().into(), FontError::UnalignedStaticArray)?;
-        let new_ptr = Arc::into_raw(font.clone()) as usize;
-        self.private.ptr.store(new_ptr, Ordering::SeqCst);
-        Ok(font)
+        self.lazy_arc.get_or_create(|| {
+            Font::from_cow(self.bytes().into(), FontError::UnalignedStaticArray)
+        })
     }
 
     /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
@@ -118,15 +71,6 @@ impl LazyStaticFont {
     /// The previous `Font` object may continue to live as long
     /// as other `Arc` references to it exist.
     pub fn drop(&self) {
-        let ptr = self.private.ptr.swap(0, Ordering::SeqCst);
-        if ptr != 0 {
-            unsafe {
-                mem::drop(Arc::from_raw(ptr as *const Font))
-            }
-        }
+        self.lazy_arc.drop()
     }
-}
-
-unsafe fn clone_raw_arc<T: Send + Sync>(ptr: usize) -> Arc<T> {
-    Arc::clone(&*mem::ManuallyDrop::new(Arc::from_raw(ptr as *const T)))
 }

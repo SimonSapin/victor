@@ -5,6 +5,11 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+//! `Mutex<()>` with a `const` initializer.
+//!
+//! Imported from an older (simpler) version of https://crates.io/crates/parking_lot
+//! https://github.com/Amanieu/parking_lot/blob/79af298dd8f3b1b848baffce992c340ce8ac73de/src/raw_mutex.rs
+
 use std::sync::atomic::{AtomicUsize as AtomicU8, ATOMIC_USIZE_INIT as ATOMIC_U8_INIT, Ordering};
 use parking_lot_core::{self, UnparkResult, SpinWait, UnparkToken, DEFAULT_PARK_TOKEN};
 
@@ -25,11 +30,11 @@ pub struct RawMutex {
     state: AtomicU8,
 }
 
-pub const RAW_MUTEX_INIT: RawMutex = RawMutex {
-    state: ATOMIC_U8_INIT,
-};
-
 impl RawMutex {
+    pub const INIT: Self = RawMutex {
+        state: ATOMIC_U8_INIT,
+    };
+
     #[inline]
     pub fn lock(&self) {
         if self.state
