@@ -19,9 +19,10 @@
 //! ```
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+use std::sync::atomic::{AtomicPtr, Ordering};
 use std::marker::PhantomData;
 use std::mem::{self, ManuallyDrop};
+use std::ptr;
 use self::raw_mutex::RawMutex;
 
 mod raw_mutex;
@@ -29,14 +30,14 @@ mod raw_mutex;
 pub struct LazyArc<T: Send + Sync> {
     poltergeist: PhantomData<Arc<T>>,
     mutex: RawMutex,
-    ptr: AtomicUsize,
+    ptr: AtomicPtr<T>,
 }
 
 impl<T: Send + Sync> LazyArc<T> {
     pub const INIT: Self = LazyArc {
         poltergeist: PhantomData,
         mutex: RawMutex::INIT,
-        ptr: ATOMIC_USIZE_INIT,
+        ptr: AtomicPtr::new(ptr::null_mut()),
     };
 
     // FIXME: figure out minimal Ordering for atomic operations
@@ -53,14 +54,13 @@ impl<T: Send + Sync> LazyArc<T> {
         macro_rules! try_load {
             () => {
                 let ptr = self.ptr.load(Ordering::SeqCst);
-                if ptr != 0 {
+                if !ptr.is_null() {
                     // Already initialized
 
                     // We want to create a new strong reference (with `clone()`)
                     // but not drop the existing one.
                     // `Arc::from_raw` normally takes ownership of a strong reference,
                     // so use `ManuallyDrop` to skip running that destructor.
-                    let ptr = ptr as *const T;
                     let careful_dont_drop_it = ManuallyDrop::new(unsafe { Arc::from_raw(ptr) });
                     return Ok(Arc::clone(&*careful_dont_drop_it))
                 }
@@ -88,7 +88,7 @@ impl<T: Send + Sync> LazyArc<T> {
         // we’re definitely first
 
         let data = create()?;
-        let new_ptr = Arc::into_raw(data.clone()) as usize;
+        let new_ptr = Arc::into_raw(data.clone()) as *mut T;
         self.ptr.store(new_ptr, Ordering::SeqCst);
         Ok(data)
     }
@@ -100,10 +100,10 @@ impl<T: Send + Sync> LazyArc<T> {
     /// The previous `T` object may continue to live as long
     /// as other `Arc` references to it exist.
     pub fn drop(&self) {
-        let ptr = self.ptr.swap(0, Ordering::SeqCst);
-        if ptr != 0 {
+        let ptr = self.ptr.swap(ptr::null_mut(), Ordering::SeqCst);
+        if !ptr.is_null() {
             unsafe {
-                mem::drop(Arc::from_raw(ptr as *const T))
+                mem::drop(Arc::from_raw(ptr))
             }
         }
     }
