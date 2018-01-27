@@ -6,16 +6,12 @@ extern crate syn;
 
 #[proc_macro_derive(Pod)]
 pub fn derive_pod(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    expand_string(&input.to_string()).parse().unwrap()
-}
+    let input: syn::DeriveInput = syn::parse(input).unwrap();
 
-fn expand_string(input: &str) -> String {
-    let type_ = syn::parse_derive_input(input).unwrap();
-
-    let has_repr_c = type_.attrs.iter().any(|a| match a.value {
-        syn::MetaItem::List(ref name, ref contents) if name == "repr" => {
-            contents.len() == 1 && match contents[0] {
-                syn::NestedMetaItem::MetaItem(syn::MetaItem::Word(ref word)) => word == "C",
+    let has_repr_c = input.attrs.iter().any(|a| match a.interpret_meta() {
+        Some(syn::Meta::List(ref list)) if list.ident == "repr" => {
+            list.nested.len() == 1 && match list.nested[0] {
+                syn::NestedMeta::Meta(syn::Meta::Word(ref word)) => word == "C",
                 _ => false
             }
         }
@@ -23,26 +19,24 @@ fn expand_string(input: &str) -> String {
     });
     assert!(has_repr_c, "#[derive(Pod)] requires #[repr(C)]");
 
-    let fields = if let syn::Body::Struct(ref body) = type_.body {
-        body.fields().iter().enumerate().map(|(i, f)| {
-            f.ident.clone().unwrap_or_else(|| i.to_string().into())
+    let fields = if let syn::Data::Struct(ref struct_) = input.data {
+        struct_.fields.iter().enumerate().map(|(i, f)| {
+            if let Some(ref ident) = f.ident {
+                syn::Member::Named(ident.clone())
+            } else {
+                syn::Member::Unnamed(syn::Index::from(i))
+            }
         })
     } else {
         panic!("#[derive(Pod)] only supports structs")
     };
 
-    let name = &type_.ident;
-    let assert_fields = syn::Ident::new(format!("_assert_{}_fields_are_pod", name));
-    let assert_packed = syn::Ident::new(format!("_assert_{}_repr_is_packed", name));
-    let mut packed = type_.clone();
-    packed.attrs = vec![syn::Attribute {
-        style: syn::AttrStyle::Outer,
-        value: syn::MetaItem::List("repr".into(), vec![
-            syn::NestedMetaItem::MetaItem(syn::MetaItem::Word("packed".into()))
-        ]),
-        is_sugared_doc: false,
-    }];
-    packed.ident = syn::Ident::new(format!("{}Packed", name));
+    let name = &input.ident;
+    let assert_fields = syn::Ident::from(format!("_assert_{}_fields_are_pod", name));
+    let assert_packed = syn::Ident::from(format!("_assert_{}_repr_is_packed", name));
+    let mut packed = input.clone();
+    packed.attrs.clear();
+    packed.ident = syn::Ident::from(format!("{}Packed", name));
     let packed_name = &packed.ident;
 
     let tokens = quote! {
@@ -59,10 +53,11 @@ fn expand_string(input: &str) -> String {
 
         #[allow(non_snake_case, non_camel_case_types)]
         fn #assert_packed() {
+            #[repr(packed)]
             #packed
             let _ = ::std::mem::transmute::<#name, #packed_name>;
         }
     };
 
-    tokens.to_string()
+    tokens.into()
 }
