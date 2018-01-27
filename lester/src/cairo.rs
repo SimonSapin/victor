@@ -279,7 +279,7 @@ impl ImageSurface {
     pub fn read_from_png<R: Read>(stream: R) -> Result<Self, LesterError> {
         let mut surface = with_c_callback! {
             stream: R: Read;
-            fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
+            fn callback(buffer: *mut c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {
                 let slice = slice::from_raw_parts_mut(buffer, length.try_into().unwrap());
                 stream.read_exact(slice)
             }
@@ -300,7 +300,7 @@ impl ImageSurface {
     pub fn write_to_png<W: Write>(&self, stream: W) -> Result<(), LesterError> {
         let status = with_c_callback! {
             stream: W: Write;
-            fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_READ_ERROR {
+            fn callback(buffer: *const c_uchar, length: c_uint) -> CAIRO_STATUS_WRITE_ERROR {
                 let slice = slice::from_raw_parts(buffer, length.try_into().unwrap());
                 stream.write_all(slice)
             }
