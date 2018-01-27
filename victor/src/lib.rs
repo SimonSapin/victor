@@ -1,5 +1,6 @@
 pub extern crate euclid;
 pub mod fonts;
+pub mod fonts2;
 #[doc(hidden)] pub mod lazy_arc;  // Only public for `include_font!`
 pub mod pdf;
 pub mod primitives;
