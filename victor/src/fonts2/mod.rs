@@ -18,11 +18,14 @@ pub struct Font {
     postscript_name: String,
     cmap: Cmap,
     metrics: Metrics,
+
+    /// Indexed by glyph ID
+    glyph_widths: Vec<euclid::Length<u16, FontDesignUnit>>,
 }
 
 #[derive(Debug)]
 struct Metrics {
-    num_glyphs: u16,
+    glyph_count: u16,
     font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
 
     /// Distance from baseline of highest ascender
@@ -40,7 +43,7 @@ struct Metrics {
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
     let _ = ::std::mem::transmute::<Metrics, [u8; 16]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 112]>;
+    let _ = ::std::mem::transmute::<Font, [u8; 136]>;
 }
 
 impl Font {
@@ -52,6 +55,7 @@ impl Font {
         let postscript_name;
         let metrics;
         let cmap;
+        let mut glyph_widths;
         {
             let bytes: &[u8] = &*bytes;
             let offset_table = Position::<OffsetSubtable>::initial();
@@ -67,9 +71,10 @@ impl Font {
 
             let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
             let header = table_directory.find_table::<FontHeader>(bytes)?;
+            let glyph_count = maxp.num_glyphs().read_from(bytes)?;
             let horizontal_header = table_directory.find_table::<HorizontalHeader>(bytes)?;
             metrics = Metrics {
-                num_glyphs: maxp.num_glyphs().read_from(bytes)?,
+                glyph_count,
                 font_design_units_per_em: header.units_per_em().read_from(bytes)?,
                 ascender: horizontal_header.ascender().read_from(bytes)?,
                 descender: horizontal_header.descender().read_from(bytes)?,
@@ -82,11 +87,27 @@ impl Font {
                     header.max_y().read_from(bytes)?,
                 ),
             };
+
+            let number_of_long_horizontal_metrics =
+                horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?;
+            let horizontal_metrics = Slice::new(
+                table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
+                number_of_long_horizontal_metrics,
+            );
+            glyph_widths = horizontal_metrics.into_iter().map(|record| {
+                record.advance_width().read_from(bytes)
+            }).collect::<Result<Vec<_>, _>>()?;
+            let last_glyph_width = *glyph_widths.last().ok_or(FontError::NoHorizontalGlyphMetrics)?;
+            glyph_widths.extend(
+                (number_of_long_horizontal_metrics..glyph_count)
+                .map(|_| last_glyph_width)
+            );
+
             postscript_name = read_postscript_name(&bytes, table_directory)?;
             cmap = Cmap::parse(bytes, table_directory)?;
         }
 
-        Ok(Arc::new(Font { bytes, postscript_name, metrics, cmap }))
+        Ok(Arc::new(Font { bytes, postscript_name, metrics, cmap, glyph_widths }))
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -197,7 +218,7 @@ impl fmt::Debug for Font {
             }
         }
 
-        let Font { bytes: _, ref postscript_name, ref cmap, ref metrics } = *self;
+        let Font { bytes: _, ref postscript_name, ref cmap, ref metrics, glyph_widths: _ } = *self;
         f.debug_struct("Font")
             .field("bytes", &DebugAsDisplay("[…]"))
             .field("postscript_name", postscript_name)
@@ -205,6 +226,7 @@ impl fmt::Debug for Font {
                 Cmap::Format4(_) => "Format4(…)",
                 Cmap::Format12(_) => "Format12(…)",
             }))
+            .field("glyph_widths", &DebugAsDisplay("[…]"))
             .field("metrics", metrics)
             .finish()
     }

@@ -131,12 +131,12 @@ pub(in fonts2) struct HorizontalHeader {
     __reserved_3: i16,
     __reserved_4: i16,
     _metric_data_format: i16,
-    _number_of_long_horizontal_metrics: u16,
+    number_of_long_horizontal_metrics: u16,
 }
 
 #[derive(SfntTable)]
 #[tag = "hmtx"]
 pub(in fonts2) struct LongHorizontalMetricsRecord {
-    _advance_width: u16,
+    advance_width: UFWord,
     _left_side_bearing: i16,
 }
