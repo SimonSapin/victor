@@ -2,7 +2,9 @@
 #![allow(dead_code)]
 
 use fonts2::parsing::Position;
-use fonts2::Tag;
+use fonts2::{SfntTable, Tag};
+
+type FixedPoint = u32;
 
 #[derive(SfntTable)]
 pub(in fonts2) struct OffsetSubtable {
@@ -17,6 +19,15 @@ pub(in fonts2) struct OffsetSubtable {
 pub(in fonts2) struct TableDirectoryEntry {
     tag: Tag,
     _checksum: u32,
-    _offset: u32,
+    table_offset: u32,
     _length: u32,
+}
+
+#[derive(SfntTable)]
+#[tag = "maxp"]
+pub(in fonts2) struct MaximumProfile {
+    _version: FixedPoint,
+    num_glyphs: u16,
+    // Depending of `version`, this table may have more fields that we don’t use.
+    _padding: u16
 }

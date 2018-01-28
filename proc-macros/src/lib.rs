@@ -1,14 +1,38 @@
 //! It is valid to implement `Pod` automatically for `#[repr(C)]` structs whose fields are all `Pod`.
 
 extern crate proc_macro;
+extern crate proc_macro2;
 #[macro_use] extern crate quote;
 extern crate syn;
 
 use quote::ToTokens;
 
-#[proc_macro_derive(SfntTable)]
+#[proc_macro_derive(SfntTable, attributes(tag))]
 pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
+    let name = &input.ident;
+
+    let mut table_impl = quote!();
+    for attr in &input.attrs {
+        if let Some(syn::Meta::NameValue(ref meta)) = attr.interpret_meta() {
+             if meta.ident == "tag" {
+                if let syn::Lit::Str(ref tag) = meta.lit {
+                    let value = tag.value();
+                    assert_eq!(value.len(), 4);
+                    let tag = syn::LitByteStr::new(value.as_bytes(), tag.span);
+                    table_impl = quote! {
+                        #[warn(dead_code)]
+                        impl SfntTable for #name {
+                            const TAG: Tag = Tag(*#tag);
+                        }
+                    };
+                    break
+                }
+            }
+        }
+    }
+
+
     let struct_ = if let syn::Data::Struct(ref struct_) = input.data {
         struct_
     } else {
@@ -28,7 +52,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         assert!(ty.qself.is_none());
         let size = match ty.path.segments.last().unwrap().value().ident.as_ref() {
             "u16" => 2,
-            "u32" | "Tag" => 4,
+            "u32" | "FixedPoint" | "Tag" => 4,
             _ => panic!("The size of {} is unknown", ty.clone().into_tokens())
         };
         // The TrueType format seems to be designed so that this never happens:
@@ -42,8 +66,9 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     }
     let size_of = offset as usize;
 
-    let name = &input.ident;
     let tokens = quote! {
+        #table_impl
+
         impl #name {
             fn _assert_size_of() {
                 let _ = ::std::mem::transmute::<Self, [u8; #size_of]>;

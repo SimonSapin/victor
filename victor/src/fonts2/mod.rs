@@ -24,10 +24,27 @@ pub fn read(bytes: &[u8]) -> Result<(), FontError> {
         println!("{:?}", tag)
     }
 
+    let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
+    println!("{}", maxp.num_glyphs().read_from(bytes));
+
     Ok(())
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct Tag(pub [u8; 4]);
+
+trait SfntTable {
+    const TAG: Tag;
+}
+
+impl Slice<TableDirectoryEntry> {
+    fn find_table<T: SfntTable>(&self, bytes: &[u8]) -> Result<Position<T>, FontError> {
+        let search = self.binary_search_by_key(&T::TAG, |entry| entry.tag().read_from(bytes));
+        let entry = search.ok_or(FontError::MissingTable)?;
+        let offset = entry.table_offset().read_from(bytes);
+        Ok(Position::<OffsetSubtable>::initial().offset(offset))
+    }
+}
 
 impl fmt::Debug for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

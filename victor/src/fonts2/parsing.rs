@@ -88,6 +88,47 @@ impl ReadFromBytes for u32 {
     }
 }
 
+impl<T> Slice<T> {
+    /// This is not an `unsafe fn` because invalid `Position`s are safe,
+    /// they might just panic when reading or return nonsense values.
+    pub(in fonts2) fn get_unchecked(&self, index: u32) -> Position<T> {
+        self.start.offset(mem::size_of::<T>() as u32 * index)
+    }
+
+    #[inline]
+    pub(in fonts2) fn binary_search_by_key<B, F>(&self, b: &B, mut f: F) -> Option<Position<T>>
+        where F: FnMut(Position<T>) -> B,
+              B: Ord
+    {
+        self.binary_search_by(|k| f(k).cmp(b))
+    }
+
+    /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
+    pub(in fonts2) fn binary_search_by<'a, F>(&self, mut f: F) -> Option<Position<T>>
+        where F: FnMut(Position<T>) -> ::std::cmp::Ordering
+    {
+        use std::cmp::Ordering::*;
+        let mut size = self.count;
+        if size == 0 {
+            return None;
+        }
+        let mut base: u32 = 0;
+        while size > 1 {
+            let half = size / 2;
+            let mid = base + half;
+            // mid is always in [0, size), that means mid is >= 0 and < size.
+            // mid >= 0: by definition
+            // mid < size: mid = size / 2 + size / 4 + size / 8 ...
+            let cmp = f(self.get_unchecked(mid));
+            base = if cmp == Greater { base } else { mid };
+            size -= half;
+        }
+        // base is always in [0, size) because base <= mid.
+        let cmp = f(self.get_unchecked(base));
+        if cmp == Equal { Some(self.get_unchecked(base)) } else { None }
+    }
+}
+
 // ~~~~ Boring trait impls ~~~~
 
 impl<T> Copy for Position<T> {}

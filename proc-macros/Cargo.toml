@@ -12,5 +12,6 @@ test = false
 doctest = false
 
 [dependencies]
+proc-macro2 = "0.2"
 syn = "0.12"
 quote = "0.4"
