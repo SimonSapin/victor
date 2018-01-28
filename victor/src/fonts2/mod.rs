@@ -5,15 +5,15 @@ mod tables;
 mod types;
 
 use euclid;
-use fonts2::cmap::Cmap;
-use fonts2::parsing::*;
-use fonts2::tables::*;
-use fonts2::types::Tag;
+use fonts::cmap::Cmap;
+use fonts::parsing::*;
+use fonts::tables::*;
+use fonts::types::Tag;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
-pub use fonts2::static_::*;
+pub use fonts::static_::*;
 
 /// The EM square unit
 pub(crate) struct Em;

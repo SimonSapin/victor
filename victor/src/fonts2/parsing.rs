@@ -1,6 +1,6 @@
 use euclid;
-use fonts2::FontError;
-use fonts2::tables::OffsetSubtable;
+use fonts::FontError;
+use fonts::tables::OffsetSubtable;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -8,49 +8,49 @@ use std::mem;
 /// in bytes from the start of the file.
 ///
 /// The type parameter indicates what data is expected to be found there.
-pub(in fonts2) struct Position<T> {
+pub(in fonts) struct Position<T> {
     byte_position: u32,
     ty: PhantomData<T>
 }
 
 /// The position and length of a consecutive sequence of homogeneous data in a font file
 /// This is similar to `&[T]` in the same way that `Position<T>` is similar to `&T`.
-pub(in fonts2) struct Slice<T> {
+pub(in fonts) struct Slice<T> {
     start: Position<T>,
     count: u32,
 }
 
 /// An iterator for `Slice<T>`.
-pub(in fonts2) struct SliceIter<T> {
+pub(in fonts) struct SliceIter<T> {
     start: Position<T>,
     end: Position<T>,
 }
 
 impl Position<OffsetSubtable> {
-    pub(in fonts2) fn initial() -> Self {
+    pub(in fonts) fn initial() -> Self {
         Position { byte_position: 0, ty: PhantomData }
     }
 }
 
 impl<T> Position<T> {
-    pub(in fonts2) fn cast<U>(self) -> Position<U> {
+    pub(in fonts) fn cast<U>(self) -> Position<U> {
         Position { byte_position: self.byte_position, ty: PhantomData }
     }
 
-    pub(in fonts2) fn offset<U, O: Into<u32>>(self, by: O) -> Position<U> {
+    pub(in fonts) fn offset<U, O: Into<u32>>(self, by: O) -> Position<U> {
         Position { byte_position: self.byte_position + by.into(), ty: PhantomData }
     }
 
-    pub(in fonts2) fn followed_by<U>(self) -> Position<U> {
+    pub(in fonts) fn followed_by<U>(self) -> Position<U> {
         self.offset(mem::size_of::<T>() as u32)
     }
 
-    pub(in fonts2) fn read_from(self, bytes: &[u8]) -> Result<T, FontError> where T: ReadFromBytes {
+    pub(in fonts) fn read_from(self, bytes: &[u8]) -> Result<T, FontError> where T: ReadFromBytes {
         T::read_from(bytes.get(self.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?)
     }
 }
 
-pub(in fonts2) trait ReadFromBytes: Sized {
+pub(in fonts) trait ReadFromBytes: Sized {
     fn read_from(bytes: &[u8]) -> Result<Self, FontError>;
 }
 
@@ -118,33 +118,33 @@ impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit> where T: ReadFromBytes {
 }
 
 impl Slice<u8> {
-    pub(in fonts2) fn read_from<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8], FontError> {
+    pub(in fonts) fn read_from<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8], FontError> {
         bytes.get(self.start.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?
              .get(..self.count as usize).ok_or(FontError::OffsetPlusLengthBeyondEof)
     }
 }
 
 impl<T> Slice<T> {
-    pub(in fonts2) fn new<C: Into<u32>>(start: Position<T>, count: C) -> Self {
+    pub(in fonts) fn new<C: Into<u32>>(start: Position<T>, count: C) -> Self {
         Slice { start, count: count.into() }
     }
 
-    pub(in fonts2) fn start(&self) -> Position<T> {
+    pub(in fonts) fn start(&self) -> Position<T> {
         self.start
     }
 
-    pub(in fonts2) fn followed_by<U>(&self) -> Position<U> {
+    pub(in fonts) fn followed_by<U>(&self) -> Position<U> {
         self.start.offset(mem::size_of::<T>() as u32 * self.count)
     }
 
     /// This is not an `unsafe fn` because invalid `Position`s are safe,
     /// they might just panic when reading or return nonsense values.
-    pub(in fonts2) fn get_unchecked(&self, index: u32) -> Position<T> {
+    pub(in fonts) fn get_unchecked(&self, index: u32) -> Position<T> {
         self.start.offset(mem::size_of::<T>() as u32 * index)
     }
 
     #[inline]
-    pub(in fonts2) fn binary_search_by_key<V, F>(&self, value: &V, mut f: F)
+    pub(in fonts) fn binary_search_by_key<V, F>(&self, value: &V, mut f: F)
                                                  -> Result<Option<Position<T>>, FontError>
         where F: FnMut(Position<T>) -> Result<V, FontError>,
               V: Ord
@@ -154,7 +154,7 @@ impl<T> Slice<T> {
     }
 
     /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
-    pub(in fonts2) fn binary_search_by<'a, F, E>(&self, mut f: F) -> Result<Option<u32>, E>
+    pub(in fonts) fn binary_search_by<'a, F, E>(&self, mut f: F) -> Result<Option<u32>, E>
         where F: FnMut(u32) -> Result<::std::cmp::Ordering, E>
     {
         use std::cmp::Ordering::*;

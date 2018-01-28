@@ -1,5 +1,5 @@
 use euclid;
-use fonts2::{Font, GlyphId, FontError, Em, FontDesignUnit};
+use fonts::{Font, GlyphId, FontError, Em, FontDesignUnit};
 use pdf::object::{Object, Dictionary};
 use pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
 use primitives::*;

@@ -14,8 +14,8 @@ use super::{Font, FontError};
 #[macro_export]
 macro_rules! include_font {
     ($filename: expr) => {
-        $crate::fonts2::LazyStaticFont {
-            data: &$crate::fonts2::U32Aligned {
+        $crate::fonts::LazyStaticFont {
+            data: &$crate::fonts::U32Aligned {
                 force_alignment: [],
                 byte_array: *include_bytes!($filename),
             },

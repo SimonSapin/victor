@@ -22,7 +22,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
                     let tag = syn::LitByteStr::new(value.as_bytes(), tag.span);
                     table_impl = quote! {
                         #[warn(dead_code)]
-                        impl ::fonts2::SfntTable for #name {
+                        impl ::fonts::SfntTable for #name {
                             const TAG: Tag = Tag(*#tag);
                         }
                     };
@@ -60,7 +60,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         let expected_align = std::cmp::min(size, 4);
         assert_eq!(offset % expected_align, 0, "Field {} is misaligned", name);
         methods.append_all(quote! {
-            pub(in fonts2) fn #name(self) -> ::fonts2::parsing::Position<#ty> {
+            pub(in fonts) fn #name(self) -> ::fonts::parsing::Position<#ty> {
                 self.offset(#offset)
             }
         });
@@ -78,7 +78,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         }
 
         #[warn(dead_code)]
-        impl ::fonts2::parsing::Position<#name> {
+        impl ::fonts::parsing::Position<#name> {
             #methods
         }
     };
@@ -92,9 +92,9 @@ pub fn derive_read_from_bytes(input: proc_macro::TokenStream) -> proc_macro::Tok
     let name = &input.ident;
 
     let tokens = quote! {
-        impl ::fonts2::parsing::ReadFromBytes for #name {
-            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts2::FontError> {
-                use fonts2::parsing::ReadFromBytes;
+        impl ::fonts::parsing::ReadFromBytes for #name {
+            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+                use fonts::parsing::ReadFromBytes;
                 ReadFromBytes::read_from(bytes).map(#name)  // Assume single unnamed field
             }
         }

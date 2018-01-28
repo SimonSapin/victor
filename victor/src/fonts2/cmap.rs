@@ -1,17 +1,17 @@
-use fonts2::{FontError, GlyphId};
-use fonts2::parsing::{Position, Slice};
-use fonts2::tables::*;
+use fonts::{FontError, GlyphId};
+use fonts::parsing::{Position, Slice};
+use fonts::tables::*;
 use std::char;
 use std::cmp::Ordering;
 use std::mem;
 
-pub(in fonts2) enum Cmap {
+pub(in fonts) enum Cmap {
     Format4(Format4),
     Format12(Format12),
 }
 
 impl Cmap {
-    pub(in fonts2) fn parse(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
+    pub(in fonts) fn parse(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
                             -> Result<Self, FontError> {
         let cmap_header = table_directory.find_table::<CmapHeader>(bytes)?;
         let cmap_records = Slice::new(
@@ -46,7 +46,7 @@ impl Cmap {
         Err(FontError::NoSupportedCmap)
     }
 
-    pub(in fonts2) fn each_code_point<F>(&self, bytes: &[u8], mut f: F)-> Result<(), FontError>
+    pub(in fonts) fn each_code_point<F>(&self, bytes: &[u8], mut f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
         let f = move |code_point, glyph_id| {
@@ -64,7 +64,7 @@ impl Cmap {
     }
 }
 
-pub(in fonts2) struct Format4 {
+pub(in fonts) struct Format4 {
     end_codes: Slice<u16>,
     start_codes: Slice<u16>,
     // id_delta is really i16, but only used modulo 2^16 with u16::wrapping_add
@@ -89,7 +89,7 @@ impl Format4 {
         Ok(Format4 { end_codes, start_codes, id_deltas, id_range_offsets })
     }
 
-    pub(in fonts2) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
         if code_point > 0xFFFF {
             return Ok(None)
         }
@@ -161,7 +161,7 @@ impl Format4 {
     }
 }
 
-pub(in fonts2) struct Format12 {
+pub(in fonts) struct Format12 {
     groups: Slice<CmapFormat12Group>,
 }
 
@@ -175,7 +175,7 @@ impl Format12 {
         })
     }
 
-    pub(in fonts2) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
         let result = self.groups.binary_search_by(|index| {
             let group = self.groups.get_unchecked(index);
             if code_point < group.start_char_code().read_from(bytes)? {

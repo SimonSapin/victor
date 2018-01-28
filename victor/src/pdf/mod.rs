@@ -1,4 +1,4 @@
-use fonts2::FontError;
+use fonts::FontError;
 use primitives::{CssPx, Size, Rect, RGBA, TextRun};
 use self::convert::{InProgressDoc, InProgressPage};
 use std::fs;
