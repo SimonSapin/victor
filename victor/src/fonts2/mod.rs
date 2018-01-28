@@ -17,7 +17,7 @@ pub fn read(bytes: &[u8]) -> Result<(), FontError> {
 
     let table_directory = Slice {
         start: offset_table.followed_by::<TableDirectoryEntry>(),
-        count: offset_table.table_count().read_from(bytes) as usize,
+        count: offset_table.table_count().read_from(bytes) as u32,
     };
     for table in table_directory {
         let tag = table.tag().read_from(bytes);

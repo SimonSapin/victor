@@ -7,7 +7,7 @@ use std::mem;
 ///
 /// The type parameter indicates what data is expected to be found there.
 pub(in fonts2) struct Position<T> {
-    byte_position: usize,
+    byte_position: u32,
     ty: PhantomData<T>
 }
 
@@ -15,7 +15,7 @@ pub(in fonts2) struct Position<T> {
 /// This is similar to `&[T]` in the same way that `Position<T>` is similar to `&T`.
 pub(in fonts2) struct Slice<T> {
     pub(in fonts2) start: Position<T>,
-    pub(in fonts2) count: usize,
+    pub(in fonts2) count: u32,
 }
 
 /// An iterator for `Slice<T>`.
@@ -31,16 +31,16 @@ impl Position<OffsetSubtable> {
 }
 
 impl<T> Position<T> {
-    pub(in fonts2) fn offset<U>(self, by: usize) -> Position<U> {
+    pub(in fonts2) fn offset<U>(self, by: u32) -> Position<U> {
         Position { byte_position: self.byte_position + by, ty: PhantomData }
     }
 
     pub(in fonts2) fn followed_by<U>(self) -> Position<U> {
-        self.offset(mem::size_of::<T>())
+        self.offset(mem::size_of::<T>() as u32)
     }
 
     pub(in fonts2) fn read_from(self, bytes: &[u8]) -> T where T: ReadFromBytes {
-        T::read_from(&bytes[self.byte_position..])
+        T::read_from(&bytes[self.byte_position as usize..])
     }
 }
 
@@ -117,7 +117,7 @@ impl<T> IntoIterator for Slice<T> {
     fn into_iter(self) -> SliceIter<T> {
         SliceIter {
             start: self.start,
-            end: self.start.offset(mem::size_of::<T>() * self.count),
+            end: self.start.offset(mem::size_of::<T>() as u32 * self.count),
         }
     }
 }

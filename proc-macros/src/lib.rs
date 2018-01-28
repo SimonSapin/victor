@@ -16,7 +16,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     };
 
     let mut methods = quote!();
-    let mut offset: usize = 0;
+    let mut offset: u32 = 0;
     for field in struct_.fields.iter() {
         let name = field.ident.as_ref().expect("Unsupported unnamed field");
 
@@ -40,7 +40,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         });
         offset += size;
     }
-    let size_of = offset;
+    let size_of = offset as usize;
 
     let name = &input.ident;
     let tokens = quote! {
