@@ -1,9 +1,7 @@
 // The structs’ fields are not actually used, they are only input to #[derive(SfntTable)]
 #![allow(dead_code)]
 
-use fonts2::Tag;
-
-type FixedPoint = u32;
+use fonts2::types::*;
 
 #[derive(SfntTable)]
 pub(in fonts2) struct OffsetSubtable {

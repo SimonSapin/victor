@@ -1,13 +1,15 @@
+mod cmap;
 mod parsing;
 mod tables;
-mod cmap;
+mod types;
 
 use std::borrow::Cow;
-use std::fmt::{self, Write};
+use std::fmt;
 use fonts::{FontError, GlyphId};
 use fonts2::cmap::Cmap;
-use fonts2::tables::*;
 use fonts2::parsing::*;
+use fonts2::tables::*;
+use fonts2::types::Tag;
 
 pub struct Font {
     bytes: Cow<'static, [u8]>,
@@ -138,9 +140,6 @@ fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry
     Err(FontError::NoSupportedPostscriptName)
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, ReadFromBytes)]
-struct Tag(pub [u8; 4]);
-
 trait SfntTable {
     const TAG: Tag;
 }
@@ -151,16 +150,6 @@ impl Slice<TableDirectoryEntry> {
         let entry = search.ok_or(FontError::MissingTable)?;
         let offset = entry.table_offset().read_from(bytes)?;
         Ok(Position::<OffsetSubtable>::initial().offset(offset))
-    }
-}
-
-impl fmt::Debug for Tag {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for &b in &self.0 {
-            // ASCII printable or space
-            f.write_char(if b' ' <= b && b <= b'~' { b } else { b'?' } as char)?
-        }
-        Ok(())
     }
 }
 
