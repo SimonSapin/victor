@@ -87,3 +87,56 @@ pub(in fonts2) struct CmapFormat12Group {
     end_char_code: u32,
     start_glyph_id: u32,
 }
+
+
+#[derive(SfntTable)]
+#[tag = "head"]
+pub(in fonts2) struct FontHeader {
+    _version: FixedPoint,
+    _font_revision: FixedPoint,
+    _checksum_adjustment: u32,
+    _magic_number: u32,
+    _flags: u16,
+    _units_per_em: FontDesignUnitsPerEmFactorU16,
+    _created: LongDateTime,
+    _modified: LongDateTime,
+    _min_x: FWord,
+    _min_y: FWord,
+    _max_x: FWord,
+    _max_y: FWord,
+    _mac_style: u16,
+    _smallest_readable_size_in_px_per_em: u16,
+    _font_direction_hint: i16,
+    _index_to_loc_format: i16,
+    _glyph_data_format: i16,
+    __padding: u16,
+}
+
+#[derive(SfntTable)]
+#[tag = "hhea"]
+pub(in fonts2) struct HorizontalHeader {
+    _version: FixedPoint,
+    _ascender: FWord,
+    _descender: FWord,
+    _line_gap: FWord,
+    _max_advance_width: UFWord,
+    _min_left_side_bearing: FWord,
+    _max_left_side_bearing: FWord,
+    _x_max_extent: FWord,
+    _caret_slope_rise: i16,
+    _caret_slope_run: i16,
+    _carret_offset: FWord,
+    __reserved_1: i16,
+    __reserved_2: i16,
+    __reserved_3: i16,
+    __reserved_4: i16,
+    _metric_data_format: i16,
+    _number_of_long_horizontal_metrics: u16,
+}
+
+#[derive(SfntTable)]
+#[tag = "hmtx"]
+pub(in fonts2) struct LongHorizontalMetricsRecord {
+    _advance_width: u16,
+    _left_side_bearing: i16,
+}

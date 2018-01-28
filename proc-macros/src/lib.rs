@@ -51,12 +51,14 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         };
         assert!(ty.qself.is_none());
         let size = match ty.path.segments.last().unwrap().value().ident.as_ref() {
-            "u16" => 2,
+            "u16" | "i16" | "FWord" | "UFWord" | "FontDesignUnitsPerEmFactorU16" => 2,
             "u32" | "FixedPoint" | "Tag" => 4,
+            "LongDateTime" => 8,
             _ => panic!("The size of {} is unknown", ty.clone().into_tokens())
         };
         // The TrueType format seems to be designed so that this never happens:
-        assert_eq!(offset % size, 0, "Field {} is misaligned", name);
+        let expected_align = std::cmp::min(size, 4);
+        assert_eq!(offset % expected_align, 0, "Field {} is misaligned", name);
         methods.append_all(quote! {
             pub(in fonts2) fn #name(self) -> ::fonts2::parsing::Position<#ty> {
                 self.offset(#offset)
