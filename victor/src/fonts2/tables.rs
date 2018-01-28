@@ -31,3 +31,21 @@ pub(in fonts2) struct MaximumProfile {
     // Depending of `version`, this table may have more fields that we don’t use.
     _padding: u16
 }
+
+#[derive(SfntTable)]
+#[tag = "name"]
+pub(in fonts2) struct NamingTableHeader {
+    _format: u16,
+    count: u16,
+    string_offset: u16,
+}
+
+#[derive(SfntTable)]
+pub(in fonts2) struct NameRecord {
+    platform_id: u16,
+    encoding_id: u16,
+    _language_id: u16,
+    name_id: u16,
+    length: u16,
+    string_offset: u16,
+}

@@ -90,6 +90,13 @@ impl ReadFromBytes for u32 {
     }
 }
 
+impl Slice<u8> {
+    pub(in fonts2) fn read_from<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8], FontError> {
+        bytes.get(self.start.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?
+             .get(..self.count as usize).ok_or(FontError::OffsetPlusLengthBeyondEof)
+    }
+}
+
 impl<T> Slice<T> {
     pub(in fonts2) fn new<C: Into<u32>>(start: Position<T>, count: C) -> Self {
         Slice { start, count: count.into() }

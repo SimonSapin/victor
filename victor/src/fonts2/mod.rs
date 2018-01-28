@@ -27,7 +27,65 @@ pub fn read(bytes: &[u8]) -> Result<(), FontError> {
     let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
     println!("{}", maxp.num_glyphs().read_from(bytes)?);
 
+    println!("{}", postscript_name(bytes, table_directory)?);
+
     Ok(())
+}
+
+fn postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
+                   -> Result<String, FontError> {
+    /// Macintosh encodings seem to be ASCII-compatible, and a PostScript name is within ASCII
+    fn decode_macintosh(string_bytes: &[u8]) -> String {
+        String::from_utf8_lossy(string_bytes).into_owned()
+    }
+
+    /// Latin-1 range only
+    fn decode_ucs2(string_bytes: &[u8]) -> String {
+        string_bytes.chunks(2).map(|chunk| {
+            if chunk.len() < 2 || chunk[0] != 0 {
+                '\u{FFFD}'
+            } else {
+                chunk[1] as char
+            }
+        }).collect::<String>()
+    };
+
+    let naming_table_header = table_directory.find_table::<NamingTableHeader>(bytes)?;
+    let name_records = Slice::new(
+        naming_table_header.followed_by::<NameRecord>(),
+        naming_table_header.count().read_from(bytes)?,
+    );
+    let string_storage_start: Position<()> = naming_table_header.offset(
+        naming_table_header.string_offset().read_from(bytes)?
+    );
+    let string_bytes = |record: Position<NameRecord>| {
+        Slice::<u8>::new(
+            string_storage_start.offset(record.string_offset().read_from(bytes)?),
+            record.length().read_from(bytes)?
+        ).read_from(bytes)
+    };
+
+    for record in name_records {
+        const POSTSCRIPT_NAME: u16 = 6;
+        if record.name_id().read_from(bytes)? != POSTSCRIPT_NAME {
+            continue
+        }
+
+        const MACINTOSH: u16 = 1;
+        const MICROSOFT: u16 = 3;
+        const UNICODE_BMP: u16 = 1;
+        let postscript_name = match (
+            record.platform_id().read_from(bytes)?,
+            record.encoding_id().read_from(bytes)?,
+        ) {
+            (MACINTOSH, _) => decode_macintosh(string_bytes(record)?),
+            (MICROSOFT, UNICODE_BMP) => decode_ucs2(string_bytes(record)?),
+            _ => continue,
+        };
+        return Ok(postscript_name)
+    }
+
+    Err(FontError::NoSupportedPostscriptName)
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
