@@ -1,5 +1,5 @@
 use euclid;
-use fonts::{Font, GlyphId};
+use fonts2::{Font, GlyphId};
 use std::sync::Arc;
 
 /// Origin at top-left corner, unit `1px`

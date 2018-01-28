@@ -1,5 +1,6 @@
 mod cmap;
 mod parsing;
+mod static_;
 mod tables;
 mod types;
 
@@ -7,10 +8,19 @@ use euclid;
 use fonts2::cmap::Cmap;
 use fonts2::parsing::*;
 use fonts2::tables::*;
-use fonts2::types::{Tag, Em, FontDesignUnit};
+use fonts2::types::Tag;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
+
+pub use fonts2::static_::*;
+
+/// The EM square unit
+pub(crate) struct Em;
+
+/// The unit of FWord and UFWord
+pub(crate) struct FontDesignUnit;
+
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct GlyphId(pub u16);
@@ -42,28 +52,30 @@ pub enum FontError {
 
 pub struct Font {
     bytes: Cow<'static, [u8]>,
-    postscript_name: String,
     cmap: Cmap,
-    metrics: Metrics,
+    pub(crate) postscript_name: String,
+    pub(crate) metrics: Metrics,
 
     /// Indexed by glyph ID
-    glyph_widths: Vec<euclid::Length<u16, FontDesignUnit>>,
+    pub(crate) glyph_widths: Vec<euclid::Length<u16, FontDesignUnit>>,
 }
 
 #[derive(Debug)]
-struct Metrics {
-    glyph_count: u16,
-    font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
+pub(crate) struct Metrics {
+    pub(crate) glyph_count: u16,
+    pub(crate) font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
 
     /// Distance from baseline of highest ascender
-    ascender: euclid::Length<i16, FontDesignUnit>,
+    pub(crate) ascender: euclid::Length<i16, FontDesignUnit>,
 
     /// Distance from baseline of lowest descender
-    descender: euclid::Length<i16, FontDesignUnit>,
+    pub(crate) descender: euclid::Length<i16, FontDesignUnit>,
 
     /// The bounding box of the union of all glyphs
-    bounding_box_min: euclid::TypedPoint2D<i16, FontDesignUnit>,
-    bounding_box_max: euclid::TypedPoint2D<i16, FontDesignUnit>,
+    pub(crate) min_x: euclid::Length<i16, FontDesignUnit>,
+    pub(crate) min_y: euclid::Length<i16, FontDesignUnit>,
+    pub(crate) max_x: euclid::Length<i16, FontDesignUnit>,
+    pub(crate) max_y: euclid::Length<i16, FontDesignUnit>,
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -105,14 +117,10 @@ impl Font {
                 font_design_units_per_em: header.units_per_em().read_from(bytes)?,
                 ascender: horizontal_header.ascender().read_from(bytes)?,
                 descender: horizontal_header.descender().read_from(bytes)?,
-                bounding_box_min: euclid::TypedPoint2D::from_lengths(
-                    header.min_x().read_from(bytes)?,
-                    header.min_y().read_from(bytes)?,
-                ),
-                bounding_box_max: euclid::TypedPoint2D::from_lengths(
-                    header.max_x().read_from(bytes)?,
-                    header.max_y().read_from(bytes)?,
-                ),
+                min_x: header.min_x().read_from(bytes)?,
+                min_y: header.min_y().read_from(bytes)?,
+                max_x: header.max_x().read_from(bytes)?,
+                max_y: header.max_y().read_from(bytes)?,
             };
 
             let number_of_long_horizontal_metrics =

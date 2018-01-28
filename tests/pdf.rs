@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Write;
 use victor::pdf::Document;
 use victor::primitives::{Size, TextRun, Length, point, RGBA, rect};
-use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
+use victor::fonts2::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
 static NOTO: LazyStaticFont = include_font!("fonts/noto/NotoSansLinearB-Regular.ttf");

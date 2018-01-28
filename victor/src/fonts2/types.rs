@@ -1,11 +1,6 @@
 use euclid;
+use fonts2::{Em, FontDesignUnit};
 use std::fmt::{self, Write};
-
-/// The EM square unit
-pub(in fonts2) struct Em;
-
-/// The unit of FWord and UFWord
-pub(in fonts2) struct FontDesignUnit;
 
 pub(in fonts2) type FontDesignUnitsPerEmFactorU16 = euclid::TypedScale<u16, Em, FontDesignUnit>;
 

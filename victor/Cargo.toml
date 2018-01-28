@@ -14,6 +14,7 @@ doctest = false
 dtoa = "0.4"
 euclid = "0.16"
 itoa = "0.3"
+num-traits = "0.1"
 parking_lot_core = "0.1"
 victor-internal-proc-macros = {path = "../proc-macros"}
 xi-unicode = "0.1"

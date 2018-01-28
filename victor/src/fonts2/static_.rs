@@ -14,8 +14,8 @@ use super::{Font, FontError};
 #[macro_export]
 macro_rules! include_font {
     ($filename: expr) => {
-        $crate::fonts::LazyStaticFont {
-            data: &$crate::fonts::U32Aligned {
+        $crate::fonts2::LazyStaticFont {
+            data: &$crate::fonts2::U32Aligned {
                 force_alignment: [],
                 byte_array: *include_bytes!($filename),
             },
@@ -59,9 +59,7 @@ impl LazyStaticFont {
     ///
     /// Calling this reapeatedly will only parse once (until `.drop()` is called).
     pub fn get(&self) -> Result<Arc<Font>, FontError> {
-        self.lazy_arc.get_or_create(|| {
-            Font::from_cow(self.bytes().into(), FontError::UnalignedStaticArray)
-        })
+        self.lazy_arc.get_or_create(|| Font::parse(self.bytes()))
     }
 
     /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.

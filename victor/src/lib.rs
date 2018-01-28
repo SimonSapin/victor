@@ -1,5 +1,4 @@
 pub extern crate euclid;
-pub mod fonts;
 pub mod fonts2;
 #[doc(hidden)] pub mod lazy_arc;  // Only public for `include_font!`
 pub mod pdf;
@@ -8,6 +7,7 @@ pub mod text;
 
 extern crate dtoa;
 extern crate itoa;
+extern crate num_traits;
 extern crate parking_lot_core;
 #[macro_use] extern crate victor_internal_proc_macros;
 extern crate xi_unicode;
