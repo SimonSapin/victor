@@ -15,10 +15,7 @@ use super::{Font, FontError};
 macro_rules! include_font {
     ($filename: expr) => {
         $crate::fonts::LazyStaticFont {
-            data: &$crate::fonts::U32Aligned {
-                force_alignment: [],
-                byte_array: *include_bytes!($filename),
-            },
+            bytes: include_bytes!($filename),
             lazy_arc: $crate::lazy_arc::LazyArc::INIT,
         }
     }
@@ -29,27 +26,16 @@ pub static BITSTREAM_VERA_SANS: LazyStaticFont = include_font!("../../fonts/vera
 
 /// A lazily-parsed font backed by a static bytes slice.
 pub struct LazyStaticFont {
-    // Fields needs to be public so that static initializers can construct them.
+    /// The raw data for this font
+    pub bytes: &'static [u8],
+
+    // This field needs to be public so that static initializers can construct it.
     // A `const fn` constructor would be better,
     // but these are not avaiable on stable as of this writing.
-
-    #[doc(hidden)] pub data: &'static U32Aligned<[u8]>,
     #[doc(hidden)] pub lazy_arc: LazyArc<Font>,
 }
 
-#[doc(hidden)]
-#[repr(C)]
-pub struct U32Aligned<T: ?Sized> {
-    pub force_alignment: [u32; 0],
-    pub byte_array: T,
-}
-
 impl LazyStaticFont {
-    /// The raw data for this font
-    pub fn bytes(&self) -> &'static [u8] {
-        &self.data.byte_array
-    }
-
     // FIXME: figure out minimal Ordering for atomic operations
 
     /// Return a new `Arc` reference to the singleton `Font` object.
@@ -59,7 +45,7 @@ impl LazyStaticFont {
     ///
     /// Calling this reapeatedly will only parse once (until `.drop()` is called).
     pub fn get(&self) -> Result<Arc<Font>, FontError> {
-        self.lazy_arc.get_or_create(|| Font::parse(self.bytes()))
+        self.lazy_arc.get_or_create(|| Font::parse(self.bytes))
     }
 
     /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
