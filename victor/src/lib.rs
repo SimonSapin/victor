@@ -1,5 +1,5 @@
 pub extern crate euclid;
-#[path = "fonts2/mod.rs"] pub mod fonts;
+pub mod fonts;
 #[doc(hidden)] pub mod lazy_arc;  // Only public for `include_font!`
 pub mod pdf;
 pub mod primitives;
