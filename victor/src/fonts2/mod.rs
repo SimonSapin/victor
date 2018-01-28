@@ -15,10 +15,10 @@ pub fn read(bytes: &[u8]) -> Result<(), FontError> {
         Err(FontError::UnsupportedFormat)?
     }
 
-    let table_directory = Slice {
-        start: offset_table.followed_by::<TableDirectoryEntry>(),
-        count: offset_table.table_count().read_from(bytes)? as u32,
-    };
+    let table_directory = Slice::new(
+        offset_table.followed_by::<TableDirectoryEntry>(),
+        offset_table.table_count().read_from(bytes)?,
+    );
     for table in table_directory {
         let tag = table.tag().read_from(bytes)?;
         println!("{:?}", tag)

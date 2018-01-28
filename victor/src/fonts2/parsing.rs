@@ -15,8 +15,8 @@ pub(in fonts2) struct Position<T> {
 /// The position and length of a consecutive sequence of homogeneous data in a font file
 /// This is similar to `&[T]` in the same way that `Position<T>` is similar to `&T`.
 pub(in fonts2) struct Slice<T> {
-    pub(in fonts2) start: Position<T>,
-    pub(in fonts2) count: u32,
+    start: Position<T>,
+    count: u32,
 }
 
 /// An iterator for `Slice<T>`.
@@ -32,8 +32,8 @@ impl Position<OffsetSubtable> {
 }
 
 impl<T> Position<T> {
-    pub(in fonts2) fn offset<U>(self, by: u32) -> Position<U> {
-        Position { byte_position: self.byte_position + by, ty: PhantomData }
+    pub(in fonts2) fn offset<U, O: Into<u32>>(self, by: O) -> Position<U> {
+        Position { byte_position: self.byte_position + by.into(), ty: PhantomData }
     }
 
     pub(in fonts2) fn followed_by<U>(self) -> Position<U> {
@@ -91,6 +91,10 @@ impl ReadFromBytes for u32 {
 }
 
 impl<T> Slice<T> {
+    pub(in fonts2) fn new<C: Into<u32>>(start: Position<T>, count: C) -> Self {
+        Slice { start, count: count.into() }
+    }
+
     /// This is not an `unsafe fn` because invalid `Position`s are safe,
     /// they might just panic when reading or return nonsense values.
     pub(in fonts2) fn get_unchecked(&self, index: u32) -> Position<T> {
