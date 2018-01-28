@@ -11,6 +11,7 @@ use fonts2::tables::*;
 use fonts2::types::{Tag, Em, FontDesignUnit};
 use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
 
 pub struct Font {
     bytes: Cow<'static, [u8]>,
@@ -39,11 +40,11 @@ fn _assert_size_of() {
 }
 
 impl Font {
-    pub fn parse<B: Into<Cow<'static, [u8]>>>(bytes: B) -> Result<Self, FontError> {
+    pub fn parse<B: Into<Cow<'static, [u8]>>>(bytes: B) -> Result<Arc<Self>, FontError> {
         Self::parse_cow(bytes.into())
     }
 
-    fn parse_cow(bytes: Cow<'static, [u8]>) -> Result<Self, FontError> {
+    fn parse_cow(bytes: Cow<'static, [u8]>) -> Result<Arc<Self>, FontError> {
         let postscript_name;
         let metrics;
         let cmap;
@@ -73,7 +74,7 @@ impl Font {
             cmap = Cmap::parse(bytes, table_directory)?;
         }
 
-        Ok(Font { bytes, postscript_name, metrics, cmap })
+        Ok(Arc::new(Font { bytes, postscript_name, metrics, cmap }))
     }
 
     pub fn bytes(&self) -> &[u8] {
