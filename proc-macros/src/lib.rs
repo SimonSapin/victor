@@ -84,6 +84,23 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     tokens.into()
 }
 
+#[proc_macro_derive(ReadFromBytes)]
+pub fn derive_read_from_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input: syn::DeriveInput = syn::parse(input).unwrap();
+    let name = &input.ident;
+
+    let tokens = quote! {
+        impl ::fonts2::parsing::ReadFromBytes for #name {
+            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+                use fonts2::parsing::ReadFromBytes;
+                ReadFromBytes::read_from(bytes).map(#name)  // Assume single unnamed field
+            }
+        }
+    };
+
+    tokens.into()
+}
+
 #[proc_macro_derive(Pod)]
 pub fn derive_pod(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();

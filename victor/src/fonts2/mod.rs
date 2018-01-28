@@ -138,7 +138,7 @@ fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry
     Err(FontError::NoSupportedPostscriptName)
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, ReadFromBytes)]
 struct Tag(pub [u8; 4]);
 
 trait SfntTable {
@@ -161,12 +161,6 @@ impl fmt::Debug for Tag {
             f.write_char(if b' ' <= b && b <= b'~' { b } else { b'?' } as char)?
         }
         Ok(())
-    }
-}
-
-impl ReadFromBytes for Tag {
-    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
-        ReadFromBytes::read_from(bytes).map(Tag)
     }
 }
 
