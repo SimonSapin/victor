@@ -1,5 +1,6 @@
 mod parsing;
 mod tables;
+mod cmap;
 
 use std::fmt::{self, Write};
 use fonts2::tables::*;
@@ -7,27 +8,29 @@ use fonts2::parsing::*;
 
 pub use fonts::FontError;
 
-pub fn read(bytes: &[u8]) -> Result<(), FontError> {
+pub fn parse(bytes: &[u8]) -> Result<(), FontError> {
     let offset_table = Position::<OffsetSubtable>::initial();
     let scaler_type = offset_table.scaler_type().read_from(bytes)?;
     const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
     if scaler_type != TRUETYPE && scaler_type != 0x_0001_0000 {
         Err(FontError::UnsupportedFormat)?
     }
-
     let table_directory = Slice::new(
         offset_table.followed_by::<TableDirectoryEntry>(),
         offset_table.table_count().read_from(bytes)?,
     );
-    for table in table_directory {
-        let tag = table.tag().read_from(bytes)?;
-        println!("{:?}", tag)
-    }
 
     let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
     println!("{}", maxp.num_glyphs().read_from(bytes)?);
 
     println!("{}", postscript_name(bytes, table_directory)?);
+
+    let cmap = cmap::Cmap::parse(bytes, table_directory)?;
+    cmap.each_code_point(bytes, |_, _| {})?;
+    println!("{:?}", match cmap {
+        cmap::Cmap::Format4(ref table) => table.get(bytes, 42)?,
+        cmap::Cmap::Format12(ref table) => table.get(bytes, 42)?,
+    });
 
     Ok(())
 }

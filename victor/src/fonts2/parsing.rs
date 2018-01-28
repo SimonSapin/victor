@@ -32,6 +32,10 @@ impl Position<OffsetSubtable> {
 }
 
 impl<T> Position<T> {
+    pub(in fonts2) fn cast<U>(self) -> Position<U> {
+        Position { byte_position: self.byte_position, ty: PhantomData }
+    }
+
     pub(in fonts2) fn offset<U, O: Into<u32>>(self, by: O) -> Position<U> {
         Position { byte_position: self.byte_position + by.into(), ty: PhantomData }
     }
@@ -102,6 +106,14 @@ impl<T> Slice<T> {
         Slice { start, count: count.into() }
     }
 
+    pub(in fonts2) fn start(&self) -> Position<T> {
+        self.start
+    }
+
+    pub(in fonts2) fn followed_by<U>(&self) -> Position<U> {
+        self.start.offset(mem::size_of::<T>() as u32 * self.count)
+    }
+
     /// This is not an `unsafe fn` because invalid `Position`s are safe,
     /// they might just panic when reading or return nonsense values.
     pub(in fonts2) fn get_unchecked(&self, index: u32) -> Position<T> {
@@ -109,18 +121,18 @@ impl<T> Slice<T> {
     }
 
     #[inline]
-    pub(in fonts2) fn binary_search_by_key<B, F>(&self, b: &B, mut f: F)
+    pub(in fonts2) fn binary_search_by_key<V, F>(&self, value: &V, mut f: F)
                                                  -> Result<Option<Position<T>>, FontError>
-        where F: FnMut(Position<T>) -> Result<B, FontError>,
-              B: Ord
+        where F: FnMut(Position<T>) -> Result<V, FontError>,
+              V: Ord
     {
-        self.binary_search_by(|k| Ok(f(k)?.cmp(b)))
+        self.binary_search_by(|index| Ok(f(self.get_unchecked(index))?.cmp(value)))
+            .map(|opt| opt.map(|index| self.get_unchecked(index)))
     }
 
     /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
-    pub(in fonts2) fn binary_search_by<'a, F>(&self, mut f: F)
-                                              -> Result<Option<Position<T>>, FontError>
-        where F: FnMut(Position<T>) -> Result<::std::cmp::Ordering, FontError>
+    pub(in fonts2) fn binary_search_by<'a, F, E>(&self, mut f: F) -> Result<Option<u32>, E>
+        where F: FnMut(u32) -> Result<::std::cmp::Ordering, E>
     {
         use std::cmp::Ordering::*;
         let mut size = self.count;
@@ -134,13 +146,13 @@ impl<T> Slice<T> {
             // mid is always in [0, size), that means mid is >= 0 and < size.
             // mid >= 0: by definition
             // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-            let cmp = f(self.get_unchecked(mid))?;
+            let cmp = f(mid)?;
             base = if cmp == Greater { base } else { mid };
             size -= half;
         }
         // base is always in [0, size) because base <= mid.
-        let cmp = f(self.get_unchecked(base))?;
-        if cmp == Equal { Ok(Some(self.get_unchecked(base))) } else { Ok(None) }
+        let cmp = f(base)?;
+        if cmp == Equal { Ok(Some(base)) } else { Ok(None) }
     }
 }
 
@@ -173,7 +185,7 @@ impl<T> IntoIterator for Slice<T> {
     fn into_iter(self) -> SliceIter<T> {
         SliceIter {
             start: self.start,
-            end: self.start.offset(mem::size_of::<T>() as u32 * self.count),
+            end: self.followed_by(),
         }
     }
 }
@@ -185,6 +197,19 @@ impl<T> Iterator for SliceIter<T> {
         if self.start != self.end {
             let next = self.start;
             self.start = next.followed_by();
+            Some(next)
+        } else {
+            None
+        }
+    }
+}
+
+impl<T> DoubleEndedIterator for SliceIter<T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start != self.end {
+            let next = self.end;
+            let byte_position = next.byte_position - mem::size_of::<T>() as u32;
+            self.end = Position { byte_position, ty: PhantomData };
             Some(next)
         } else {
             None

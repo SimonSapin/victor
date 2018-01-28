@@ -49,3 +49,44 @@ pub(in fonts2) struct NameRecord {
     length: u16,
     string_offset: u16,
 }
+
+#[derive(SfntTable)]
+#[tag = "cmap"]
+pub(in fonts2) struct CmapHeader {
+    _version: u16,
+    num_tables: u16,
+}
+
+#[derive(SfntTable)]
+pub(in fonts2) struct CmapEncodingRecord {
+    platform_id: u16,
+    encoding_id: u16,
+    subtable_offset: u32,
+}
+
+#[derive(SfntTable)]
+pub(in fonts2) struct CmapFormat4Header {
+    _format: u16,
+    _length: u16,
+    _language: u16,
+    segment_count_x2: u16,
+    _search_range: u16,
+    _entry_selector: u16,
+    _range_shift: u16,
+}
+
+#[derive(SfntTable)]
+pub(in fonts2) struct CmapFormat12Header {
+    _format: u16,
+    __reserved: u16,
+    _length: u32,
+    _language: u32,
+    num_groups: u32,
+}
+
+#[derive(SfntTable)]
+pub(in fonts2) struct CmapFormat12Group {
+    start_char_code: u32,
+    end_char_code: u32,
+    start_glyph_id: u32,
+}
