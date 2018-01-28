@@ -23,13 +23,19 @@ pub struct Font {
 struct Metrics {
     num_glyphs: u16,
     font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
+
+    /// Distance from baseline of highest ascender
+    ascender: euclid::Length<i16, FontDesignUnit>,
+
+    /// Distance from baseline of lowest descender
+    descender: euclid::Length<i16, FontDesignUnit>,
 }
 
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
-    let _ = ::std::mem::transmute::<Metrics, [u8; 4]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 96]>;
+    let _ = ::std::mem::transmute::<Metrics, [u8; 8]>;
+    let _ = ::std::mem::transmute::<Font, [u8; 104]>;
 }
 
 impl Font {
@@ -56,9 +62,12 @@ impl Font {
 
             let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
             let header = table_directory.find_table::<FontHeader>(bytes)?;
+            let horizontal_header = table_directory.find_table::<HorizontalHeader>(bytes)?;
             metrics = Metrics {
                 num_glyphs: maxp.num_glyphs().read_from(bytes)?,
                 font_design_units_per_em: header.units_per_em().read_from(bytes)?,
+                ascender: horizontal_header.ascender().read_from(bytes)?,
+                descender: horizontal_header.descender().read_from(bytes)?,
             };
             postscript_name = read_postscript_name(&bytes, table_directory)?;
             cmap = Cmap::parse(bytes, table_directory)?;

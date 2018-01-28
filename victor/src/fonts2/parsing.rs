@@ -75,12 +75,22 @@ macro_rules! byte_arrays {
 
 byte_arrays!(2, 4);
 
+fn i16_from_bytes(bytes: [u8; 2]) -> i16 {
+    unsafe { mem::transmute(bytes) }
+}
+
 fn u16_from_bytes(bytes: [u8; 2]) -> u16 {
     unsafe { mem::transmute(bytes) }
 }
 
 fn u32_from_bytes(bytes: [u8; 4]) -> u32 {
     unsafe { mem::transmute(bytes) }
+}
+
+impl ReadFromBytes for i16 {
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
+        Ok(i16::from_be(i16_from_bytes(ReadFromBytes::read_from(bytes)?)))
+    }
 }
 
 impl ReadFromBytes for u16 {
@@ -98,6 +108,12 @@ impl ReadFromBytes for u32 {
 impl<T, Src, Dst> ReadFromBytes for euclid::TypedScale<T, Src, Dst> where T: ReadFromBytes {
     fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
         ReadFromBytes::read_from(bytes).map(euclid::TypedScale::new)
+    }
+}
+
+impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit> where T: ReadFromBytes {
+    fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+        ReadFromBytes::read_from(bytes).map(euclid::Length::new)
     }
 }
 

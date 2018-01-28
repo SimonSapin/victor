@@ -116,8 +116,8 @@ pub(in fonts2) struct FontHeader {
 #[tag = "hhea"]
 pub(in fonts2) struct HorizontalHeader {
     _version: FixedPoint,
-    _ascender: FWord,
-    _descender: FWord,
+    ascender: FWord,
+    descender: FWord,
     _line_gap: FWord,
     _max_advance_width: UFWord,
     _min_left_side_bearing: FWord,
