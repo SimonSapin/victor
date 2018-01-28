@@ -93,7 +93,7 @@ pub fn derive_read_from_bytes(input: proc_macro::TokenStream) -> proc_macro::Tok
 
     let tokens = quote! {
         impl ::fonts2::parsing::ReadFromBytes for #name {
-            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts2::FontError> {
                 use fonts2::parsing::ReadFromBytes;
                 ReadFromBytes::read_from(bytes).map(#name)  // Assume single unnamed field
             }

@@ -1,5 +1,5 @@
 use euclid;
-use fonts::FontError;
+use fonts2::FontError;
 use fonts2::tables::OffsetSubtable;
 use std::marker::PhantomData;
 use std::mem;
@@ -106,13 +106,13 @@ impl ReadFromBytes for u32 {
 }
 
 impl<T, Src, Dst> ReadFromBytes for euclid::TypedScale<T, Src, Dst> where T: ReadFromBytes {
-    fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
         ReadFromBytes::read_from(bytes).map(euclid::TypedScale::new)
     }
 }
 
 impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit> where T: ReadFromBytes {
-    fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
         ReadFromBytes::read_from(bytes).map(euclid::Length::new)
     }
 }

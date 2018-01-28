@@ -1,4 +1,4 @@
-use fonts::{FontError, GlyphId};
+use fonts2::{FontError, GlyphId};
 use fonts2::parsing::{Position, Slice};
 use fonts2::tables::*;
 use std::char;

@@ -4,7 +4,6 @@ mod tables;
 mod types;
 
 use euclid;
-use fonts::{FontError, GlyphId};
 use fonts2::cmap::Cmap;
 use fonts2::parsing::*;
 use fonts2::tables::*;
@@ -12,6 +11,34 @@ use fonts2::types::{Tag, Em, FontDesignUnit};
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct GlyphId(pub u16);
+
+#[derive(Debug)]
+pub enum FontError {
+    /// Victor only supports TrueType fonts at the moment.
+    UnsupportedFormat,
+
+    /// The font file contains an offset to beyond the end of the file.
+    OffsetBeyondEof,
+
+    /// The font file contains an offset that puts the end of the pointed object
+    /// beyond the end of the file.
+    OffsetPlusLengthBeyondEof,
+
+    /// One of the required TrueType tables is missing in this font.
+    MissingTable,
+
+    /// This font doesn’t have a “PostScript name” string in a supported encoding.
+    NoSupportedPostscriptName,
+
+    /// This font doesn’t have a character map in a supported format.
+    NoSupportedCmap,
+
+    /// This font doesn’t have any horizontal metrics for glyphs.
+    NoHorizontalGlyphMetrics,
+}
 
 pub struct Font {
     bytes: Cow<'static, [u8]>,
