@@ -1,3 +1,4 @@
+use euclid;
 use fonts::FontError;
 use fonts2::tables::OffsetSubtable;
 use std::marker::PhantomData;
@@ -91,6 +92,12 @@ impl ReadFromBytes for u16 {
 impl ReadFromBytes for u32 {
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
         Ok(u32::from_be(u32_from_bytes(ReadFromBytes::read_from(bytes)?)))
+    }
+}
+
+impl<T, Src, Dst> ReadFromBytes for euclid::TypedScale<T, Src, Dst> where T: ReadFromBytes {
+    fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
+        ReadFromBytes::read_from(bytes).map(euclid::TypedScale::new)
     }
 }
 

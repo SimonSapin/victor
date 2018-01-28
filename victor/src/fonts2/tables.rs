@@ -97,7 +97,7 @@ pub(in fonts2) struct FontHeader {
     _checksum_adjustment: u32,
     _magic_number: u32,
     _flags: u16,
-    _units_per_em: FontDesignUnitsPerEmFactorU16,
+    units_per_em: FontDesignUnitsPerEmFactorU16,
     _created: LongDateTime,
     _modified: LongDateTime,
     _min_x: FWord,

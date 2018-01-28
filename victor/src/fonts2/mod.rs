@@ -3,24 +3,32 @@ mod parsing;
 mod tables;
 mod types;
 
-use std::borrow::Cow;
-use std::fmt;
+use euclid;
 use fonts::{FontError, GlyphId};
 use fonts2::cmap::Cmap;
 use fonts2::parsing::*;
 use fonts2::tables::*;
-use fonts2::types::Tag;
+use fonts2::types::{Tag, Em, FontDesignUnit};
+use std::borrow::Cow;
+use std::fmt;
 
 pub struct Font {
     bytes: Cow<'static, [u8]>,
     postscript_name: String,
-    num_glyphs: u16,
     cmap: Cmap,
+    metrics: Metrics,
+}
+
+#[derive(Debug)]
+struct Metrics {
+    num_glyphs: u16,
+    font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
 }
 
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
+    let _ = ::std::mem::transmute::<Metrics, [u8; 4]>;
     let _ = ::std::mem::transmute::<Font, [u8; 96]>;
 }
 
@@ -31,7 +39,7 @@ impl Font {
 
     fn parse_cow(bytes: Cow<'static, [u8]>) -> Result<Self, FontError> {
         let postscript_name;
-        let num_glyphs;
+        let metrics;
         let cmap;
         {
             let bytes: &[u8] = &*bytes;
@@ -47,12 +55,16 @@ impl Font {
             );
 
             let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
-            num_glyphs = maxp.num_glyphs().read_from(bytes)?;
+            let header = table_directory.find_table::<FontHeader>(bytes)?;
+            metrics = Metrics {
+                num_glyphs: maxp.num_glyphs().read_from(bytes)?,
+                font_design_units_per_em: header.units_per_em().read_from(bytes)?,
+            };
             postscript_name = read_postscript_name(&bytes, table_directory)?;
             cmap = Cmap::parse(bytes, table_directory)?;
         }
 
-        Ok(Font { bytes, postscript_name, num_glyphs, cmap })
+        Ok(Font { bytes, postscript_name, metrics, cmap })
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -163,15 +175,15 @@ impl fmt::Debug for Font {
             }
         }
 
-        let Font { bytes: _, ref postscript_name, ref num_glyphs, ref cmap } = *self;
+        let Font { bytes: _, ref postscript_name, ref cmap, ref metrics } = *self;
         f.debug_struct("Font")
             .field("bytes", &DebugAsDisplay("[…]"))
             .field("postscript_name", postscript_name)
-            .field("num_glyphs", num_glyphs)
             .field("cmap", &DebugAsDisplay(match *cmap {
                 Cmap::Format4(_) => "Format4(…)",
                 Cmap::Format12(_) => "Format12(…)",
             }))
+            .field("metrics", metrics)
             .finish()
     }
 }
