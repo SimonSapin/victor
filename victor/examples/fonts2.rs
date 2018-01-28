@@ -1,5 +1,8 @@
 extern crate victor;
 
+use victor::fonts2::Font;
+
 fn main() {
-    victor::fonts2::parse(victor::fonts::BITSTREAM_VERA_SANS.bytes()).unwrap()
+    let f: Font = Font::parse(victor::fonts::BITSTREAM_VERA_SANS.bytes()).unwrap();
+    println!("{:#?}", f);
 }
