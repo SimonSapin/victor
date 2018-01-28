@@ -30,13 +30,17 @@ struct Metrics {
 
     /// Distance from baseline of lowest descender
     descender: euclid::Length<i16, FontDesignUnit>,
+
+    /// The bounding box of the union of all glyphs
+    bounding_box_min: euclid::TypedPoint2D<i16, FontDesignUnit>,
+    bounding_box_max: euclid::TypedPoint2D<i16, FontDesignUnit>,
 }
 
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
-    let _ = ::std::mem::transmute::<Metrics, [u8; 8]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 104]>;
+    let _ = ::std::mem::transmute::<Metrics, [u8; 16]>;
+    let _ = ::std::mem::transmute::<Font, [u8; 112]>;
 }
 
 impl Font {
@@ -69,6 +73,14 @@ impl Font {
                 font_design_units_per_em: header.units_per_em().read_from(bytes)?,
                 ascender: horizontal_header.ascender().read_from(bytes)?,
                 descender: horizontal_header.descender().read_from(bytes)?,
+                bounding_box_min: euclid::TypedPoint2D::from_lengths(
+                    header.min_x().read_from(bytes)?,
+                    header.min_y().read_from(bytes)?,
+                ),
+                bounding_box_max: euclid::TypedPoint2D::from_lengths(
+                    header.max_x().read_from(bytes)?,
+                    header.max_y().read_from(bytes)?,
+                ),
             };
             postscript_name = read_postscript_name(&bytes, table_directory)?;
             cmap = Cmap::parse(bytes, table_directory)?;
