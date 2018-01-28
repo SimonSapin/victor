@@ -22,7 +22,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
                     let tag = syn::LitByteStr::new(value.as_bytes(), tag.span);
                     table_impl = quote! {
                         #[warn(dead_code)]
-                        impl SfntTable for #name {
+                        impl ::fonts2::SfntTable for #name {
                             const TAG: Tag = Tag(*#tag);
                         }
                     };
@@ -58,7 +58,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         // The TrueType format seems to be designed so that this never happens:
         assert_eq!(offset % size, 0, "Field {} is misaligned", name);
         methods.append_all(quote! {
-            pub(in fonts2) fn #name(self) -> Position<#ty> {
+            pub(in fonts2) fn #name(self) -> ::fonts2::parsing::Position<#ty> {
                 self.offset(#offset)
             }
         });
@@ -76,7 +76,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         }
 
         #[warn(dead_code)]
-        impl Position<#name> {
+        impl ::fonts2::parsing::Position<#name> {
             #methods
         }
     };

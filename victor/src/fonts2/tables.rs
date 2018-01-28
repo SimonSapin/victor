@@ -1,8 +1,7 @@
 // The structs’ fields are not actually used, they are only input to #[derive(SfntTable)]
 #![allow(dead_code)]
 
-use fonts2::parsing::Position;
-use fonts2::{SfntTable, Tag};
+use fonts2::Tag;
 
 type FixedPoint = u32;
 
