@@ -1,3 +1,4 @@
+use fonts::FontError;
 use fonts2::tables::OffsetSubtable;
 use std::marker::PhantomData;
 use std::mem;
@@ -39,26 +40,27 @@ impl<T> Position<T> {
         self.offset(mem::size_of::<T>() as u32)
     }
 
-    pub(in fonts2) fn read_from(self, bytes: &[u8]) -> T where T: ReadFromBytes {
-        T::read_from(&bytes[self.byte_position as usize..])
+    pub(in fonts2) fn read_from(self, bytes: &[u8]) -> Result<T, FontError> where T: ReadFromBytes {
+        T::read_from(bytes.get(self.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?)
     }
 }
 
-pub(in fonts2) trait ReadFromBytes {
-    fn read_from(bytes: &[u8]) -> Self;
+pub(in fonts2) trait ReadFromBytes: Sized {
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError>;
 }
 
 macro_rules! byte_arrays {
     ( $( $size: expr ),+ ) => {
         $(
             impl ReadFromBytes for [u8; $size] {
-                fn read_from(bytes: &[u8]) -> Self {
-                    // `bytes[..$size].as_ptr()` returns the same pointer as `bytes.as_ptr()`,
-                    // but also asserts that bytes.len() is large enough.
-                    let ptr = bytes[..$size].as_ptr() as *const [u8; $size];
+                fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
+                    // This checks the length for the cast below,
+                    // but doesn’t change the pointer’s address.
+                    let bytes = bytes.get(..$size).ok_or(FontError::OffsetPlusLengthBeyondEof)?;
 
+                    let ptr = bytes.as_ptr() as *const [u8; $size];
                     unsafe {
-                        *ptr
+                        Ok(*ptr)
                     }
                 }
             }
@@ -77,14 +79,14 @@ fn u32_from_bytes(bytes: [u8; 4]) -> u32 {
 }
 
 impl ReadFromBytes for u16 {
-    fn read_from(bytes: &[u8]) -> Self {
-        u16::from_be(u16_from_bytes(ReadFromBytes::read_from(bytes)))
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
+        Ok(u16::from_be(u16_from_bytes(ReadFromBytes::read_from(bytes)?)))
     }
 }
 
 impl ReadFromBytes for u32 {
-    fn read_from(bytes: &[u8]) -> Self {
-        u32::from_be(u32_from_bytes(ReadFromBytes::read_from(bytes)))
+    fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
+        Ok(u32::from_be(u32_from_bytes(ReadFromBytes::read_from(bytes)?)))
     }
 }
 
@@ -96,21 +98,23 @@ impl<T> Slice<T> {
     }
 
     #[inline]
-    pub(in fonts2) fn binary_search_by_key<B, F>(&self, b: &B, mut f: F) -> Option<Position<T>>
-        where F: FnMut(Position<T>) -> B,
+    pub(in fonts2) fn binary_search_by_key<B, F>(&self, b: &B, mut f: F)
+                                                 -> Result<Option<Position<T>>, FontError>
+        where F: FnMut(Position<T>) -> Result<B, FontError>,
               B: Ord
     {
-        self.binary_search_by(|k| f(k).cmp(b))
+        self.binary_search_by(|k| Ok(f(k)?.cmp(b)))
     }
 
     /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
-    pub(in fonts2) fn binary_search_by<'a, F>(&self, mut f: F) -> Option<Position<T>>
-        where F: FnMut(Position<T>) -> ::std::cmp::Ordering
+    pub(in fonts2) fn binary_search_by<'a, F>(&self, mut f: F)
+                                              -> Result<Option<Position<T>>, FontError>
+        where F: FnMut(Position<T>) -> Result<::std::cmp::Ordering, FontError>
     {
         use std::cmp::Ordering::*;
         let mut size = self.count;
         if size == 0 {
-            return None;
+            return Ok(None);
         }
         let mut base: u32 = 0;
         while size > 1 {
@@ -119,13 +123,13 @@ impl<T> Slice<T> {
             // mid is always in [0, size), that means mid is >= 0 and < size.
             // mid >= 0: by definition
             // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-            let cmp = f(self.get_unchecked(mid));
+            let cmp = f(self.get_unchecked(mid))?;
             base = if cmp == Greater { base } else { mid };
             size -= half;
         }
         // base is always in [0, size) because base <= mid.
-        let cmp = f(self.get_unchecked(base));
-        if cmp == Equal { Some(self.get_unchecked(base)) } else { None }
+        let cmp = f(self.get_unchecked(base))?;
+        if cmp == Equal { Ok(Some(self.get_unchecked(base))) } else { Ok(None) }
     }
 }
 
