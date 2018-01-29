@@ -1,5 +1,4 @@
-use euclid;
-use fonts::{Font, GlyphId, FontError, Em, FontDesignUnit};
+use fonts::{Font, GlyphId, FontError};
 use pdf::object::{Object, Dictionary};
 use pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
 use primitives::*;
@@ -15,20 +14,6 @@ const PX_PER_INCH: f32 = 96.;
 const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
 const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
 const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
-
-struct PdfGlyphSpace;
-
-/// FIXME: Is this precisely defined somewhere?
-type PdfTextSpace = Em;
-
-/// https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1695902
-/// “for all font types except Type 3,
-///  the units of glyph space are one-thousandth of a unit of text space”
-fn glyph_space_units_per_em<T>() -> euclid::TypedScale<T, PdfTextSpace, PdfGlyphSpace>
-    where T: ::num_traits::FromPrimitive
-{
-    euclid::TypedScale::new(T::from_u16(1000).unwrap())
-}
 
 pub(crate) struct InProgressDoc {
     pdf: PdfFile,
@@ -246,26 +231,23 @@ impl<'a> InProgressPage<'a> {
             },
             font_bytes.into()
         );
-        let convert = |x: euclid::Length<i16, FontDesignUnit>| -> euclid::Length<i32, PdfGlyphSpace> {
-            (font.to_ems(x) * glyph_space_units_per_em()).cast().unwrap()
-        };
         let font_descriptor_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "FontDescriptor",
             "FontName" => &*font.postscript_name,
             "FontBBox" => array![
-                convert(font.min_x).get(),
-                convert(font.min_y).get(),
-                convert(font.max_x).get(),
-                convert(font.max_y).get(),
+                font.to_ems(font.min_x),
+                font.to_ems(font.min_y),
+                font.to_ems(font.max_x),
+                font.to_ems(font.max_y),
             ],
-            "Ascent" => convert(font.ascender).get(),
-            "Descent" => convert(font.descender).get(),
+            "Ascent" => font.to_ems(font.ascender),
+            "Descent" => font.to_ems(font.descender),
             "FontFile2" => truetype_id,
 
             // These seem somewhat arbitrary, they’re copied from cairo:
             "ItalicAngle" => 0,
             "Flags" => 4,
-            "CapHeight" => convert(font.max_y).get(),
+            "CapHeight" => font.to_ems(font.max_y),
             "StemV" => 80,
             "StemH" => 80,
         });
@@ -324,10 +306,7 @@ impl<'a> InProgressPage<'a> {
         // FIXME: revert to direct object
         let mut glyph_widths = Vec::with_capacity(font.glyph_count as usize);
         for i in 0..font.glyph_count {
-            let width = font.glyph_width(GlyphId(i))?;
-            let width: euclid::Length<i32, PdfGlyphSpace> =
-                (font.to_ems(width) * glyph_space_units_per_em()).cast().unwrap();
-            glyph_widths.push(Object::from(width.get()));
+            glyph_widths.push(Object::from(font.to_ems(font.glyph_width(GlyphId(i))?)));
         }
         let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Font",

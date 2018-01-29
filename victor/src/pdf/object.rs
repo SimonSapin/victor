@@ -1,3 +1,5 @@
+use euclid;
+use fonts::Em;
 use std::io::{self, Write};
 use super::syntax::IndirectObjectId;
 
@@ -90,6 +92,17 @@ impl<'a> From<usize> for Object<'a> {
 impl<'a> From<f32> for Object<'a> {
     fn from(value: f32) -> Self {
         Object::Float(value)
+    }
+}
+
+impl<'a> From<euclid::Length<f32, Em>> for Object<'a> {
+    fn from(value: euclid::Length<f32, Em>) -> Self {
+        // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1695902
+        // “for all font types except Type 3,
+        //  the units of glyph space are one-thousandth of a unit of text space”
+
+        // FIXME: is it precisely defined that the unit of text space is the em square?
+        Object::I32((value.get() * 1000.) as i32)
     }
 }
 
