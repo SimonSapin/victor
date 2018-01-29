@@ -73,8 +73,8 @@ pub struct Font {
 
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
-    let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 120]>;
+    let _ = ::std::mem::transmute::<Cmap, [u8; 24]>;
+    let _ = ::std::mem::transmute::<Font, [u8; 112]>;
 }
 
 impl Font {
