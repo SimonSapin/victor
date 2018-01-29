@@ -61,7 +61,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         assert_eq!(offset % expected_align, 0, "Field {} is misaligned", name);
         methods.append_all(quote! {
             pub(in fonts) fn #name(self) -> ::fonts::parsing::Position<#ty> {
-                self.offset(#offset)
+                self.offset_bytes(#offset)
             }
         });
         offset += size;

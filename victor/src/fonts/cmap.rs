@@ -21,7 +21,7 @@ impl Cmap {
         // Entries are sorted by (platform, encoding).
         // Iterator in reverse order to prefer (3, 10) over (3, 1).
         for record in cmap_records.into_iter().rev() {
-            let subtable = cmap_header.offset(record.subtable_offset().read_from(bytes)?);
+            let subtable = cmap_header.offset_bytes(record.subtable_offset().read_from(bytes)?);
             let format = subtable.read_from(bytes)?;
             const MICROSOFT: u16 = 3;
             const UNICODE_USC2: u16 = 1;
@@ -144,7 +144,7 @@ impl Format4 {
             let offset = u32::from(id_range_offset) + mem::size_of::<u16>() as u32 * (
                 segment_index + (code_point - start_code) as u32
             );
-            let result: u16 = self.id_range_offsets.start().offset(offset).read_from(bytes)?;
+            let result: u16 = self.id_range_offsets.start().offset_bytes(offset).read_from(bytes)?;
             if result != 0 {
                 result.wrapping_add(id_delta)
             } else {

@@ -201,12 +201,12 @@ fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry
         naming_table_header.followed_by::<NameRecord>(),
         naming_table_header.count().read_from(bytes)?,
     );
-    let string_storage_start: Position<()> = naming_table_header.offset(
+    let string_storage_start: Position<()> = naming_table_header.offset_bytes(
         naming_table_header.string_offset().read_from(bytes)?
     );
     let string_bytes = |record: Position<NameRecord>| {
         Slice::<u8>::new(
-            string_storage_start.offset(record.string_offset().read_from(bytes)?),
+            string_storage_start.offset_bytes(record.string_offset().read_from(bytes)?),
             record.length().read_from(bytes)?
         ).read_from(bytes)
     };
@@ -243,6 +243,6 @@ impl Slice<TableDirectoryEntry> {
         let search = self.binary_search_by_key(&T::TAG, |entry| entry.tag().read_from(bytes))?;
         let entry = search.ok_or(FontError::MissingTable)?;
         let offset = entry.table_offset().read_from(bytes)?;
-        Ok(Position::<OffsetSubtable>::initial().offset(offset))
+        Ok(Position::<OffsetSubtable>::initial().offset_bytes(offset))
     }
 }
