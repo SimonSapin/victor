@@ -345,14 +345,15 @@ impl<'a> InProgressPage<'a> {
                 "FontDescriptor" => font_descriptor_id,
                 "W" => array![
                     0,  // start CID
-                    &*font.glyph_widths.iter().map(|&width| {
+                    &*(0..font.glyph_count).map(|i| {
+                        let width = font.glyph_width(GlyphId(i))?;
                         let width: euclid::Length<i32, PdfGlyphSpace> = (
                             width.cast::<f32>().unwrap()
                                 / font_design_units_per_em
                                 * glyph_space_units_per_em()
                         ).cast().unwrap();
-                        width.get().into()
-                    }).collect::<Vec<Object>>(),
+                        Ok(width.get().into())
+                    }).collect::<Result<Vec<Object>, _>>()?,
                 ],
             }],
         });

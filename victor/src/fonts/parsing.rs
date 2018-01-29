@@ -133,6 +133,10 @@ impl<T> Slice<T> {
         self.start
     }
 
+    pub(in fonts) fn count(&self) -> u32 {
+        self.count
+    }
+
     pub(in fonts) fn followed_by<U>(&self) -> Position<U> {
         self.start.offset(mem::size_of::<T>() as u32 * self.count)
     }

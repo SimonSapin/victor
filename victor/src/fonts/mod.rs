@@ -10,6 +10,7 @@ use fonts::parsing::*;
 use fonts::tables::*;
 use fonts::types::Tag;
 use std::borrow::Cow;
+use std::cmp;
 use std::sync::Arc;
 
 pub use fonts::static_::*;
@@ -54,8 +55,8 @@ pub struct Font {
     cmap: Cmap,
     pub(crate) postscript_name: String,
 
-    /// Indexed by glyph ID
-    pub(crate) glyph_widths: Vec<euclid::Length<u16, FontDesignUnit>>,
+    pub(crate) glyph_count: u16,
+    horizontal_metrics: Slice<LongHorizontalMetricsRecord>,
 
     pub(crate) font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
 
@@ -75,7 +76,7 @@ pub struct Font {
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 136]>;
+    let _ = ::std::mem::transmute::<Font, [u8; 120]>;
 }
 
 impl Font {
@@ -107,26 +108,16 @@ impl Font {
         let header = table_directory.find_table::<FontHeader>(bytes)?;
         let glyph_count = maxp.num_glyphs().read_from(bytes)?;
         let horizontal_header = table_directory.find_table::<HorizontalHeader>(bytes)?;
-        let number_of_long_horizontal_metrics =
-            horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?;
-        let horizontal_metrics = Slice::new(
-            table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
-            number_of_long_horizontal_metrics,
-        );
-        let mut glyph_widths = horizontal_metrics.into_iter().map(|record| {
-            record.advance_width().read_from(bytes)
-        }).collect::<Result<Vec<_>, _>>()?;
-        let last_glyph_width = *glyph_widths.last().ok_or(FontError::NoHorizontalGlyphMetrics)?;
-        glyph_widths.extend(
-            (number_of_long_horizontal_metrics..glyph_count)
-            .map(|_| last_glyph_width)
-        );
 
         Ok(Font {
             bytes: b""[..].into(),
             postscript_name: read_postscript_name(&bytes, table_directory)?,
             cmap: Cmap::parse(bytes, table_directory)?,
-            glyph_widths,
+            glyph_count,
+            horizontal_metrics: Slice::new(
+                table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
+                horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?,
+            ),
             font_design_units_per_em: header.units_per_em().read_from(bytes)?,
             ascender: horizontal_header.ascender().read_from(bytes)?,
             descender: horizontal_header.descender().read_from(bytes)?,
@@ -141,7 +132,7 @@ impl Font {
         &self.bytes
     }
 
-    pub fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
+    pub(crate) fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
         self.cmap.each_code_point(&self.bytes, f)
@@ -163,6 +154,14 @@ impl Font {
             Cmap::Format4(ref table) => convert!(|c| table.get(bytes, c)),
             Cmap::Format12(ref table) => convert!(|c| table.get(bytes, c)),
         }
+    }
+
+    pub(crate) fn glyph_width(&self, glyph_id: GlyphId)
+                              -> Result<euclid::Length<u16, FontDesignUnit>, FontError> {
+        let last_index = self.horizontal_metrics.count().checked_sub(1)
+            .ok_or(FontError::NoHorizontalGlyphMetrics)?;
+        let index = cmp::min(glyph_id.0 as u32, last_index);
+        self.horizontal_metrics.get_unchecked(index).advance_width().read_from(&self.bytes)
     }
 }
 
