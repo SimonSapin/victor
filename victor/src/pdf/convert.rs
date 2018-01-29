@@ -246,7 +246,7 @@ impl<'a> InProgressPage<'a> {
             },
             font_bytes.into()
         );
-        let font_design_units_per_em = font.metrics.font_design_units_per_em.cast::<f32>().unwrap();
+        let font_design_units_per_em = font.font_design_units_per_em.cast::<f32>().unwrap();
         let convert = |x: euclid::Length<i16, FontDesignUnit>| -> euclid::Length<i32, PdfGlyphSpace> {
             (x.cast::<f32>().unwrap() / font_design_units_per_em * glyph_space_units_per_em())
                 .cast().unwrap()
@@ -255,19 +255,19 @@ impl<'a> InProgressPage<'a> {
             "Type" => "FontDescriptor",
             "FontName" => &*font.postscript_name,
             "FontBBox" => array![
-                convert(font.metrics.min_x).get(),
-                convert(font.metrics.min_y).get(),
-                convert(font.metrics.max_x).get(),
-                convert(font.metrics.max_y).get(),
+                convert(font.min_x).get(),
+                convert(font.min_y).get(),
+                convert(font.max_x).get(),
+                convert(font.max_y).get(),
             ],
-            "Ascent" => convert(font.metrics.ascender).get(),
-            "Descent" => convert(font.metrics.descender).get(),
+            "Ascent" => convert(font.ascender).get(),
+            "Descent" => convert(font.descender).get(),
             "FontFile2" => truetype_id,
 
             // These seem somewhat arbitrary, they’re copied from cairo:
             "ItalicAngle" => 0,
             "Flags" => 4,
-            "CapHeight" => convert(font.metrics.max_y).get(),
+            "CapHeight" => convert(font.max_y).get(),
             "StemV" => 80,
             "StemH" => 80,
         });

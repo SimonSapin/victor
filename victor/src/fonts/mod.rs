@@ -10,7 +10,6 @@ use fonts::parsing::*;
 use fonts::tables::*;
 use fonts::types::Tag;
 use std::borrow::Cow;
-use std::fmt;
 use std::sync::Arc;
 
 pub use fonts::static_::*;
@@ -54,15 +53,10 @@ pub struct Font {
     bytes: Cow<'static, [u8]>,
     cmap: Cmap,
     pub(crate) postscript_name: String,
-    pub(crate) metrics: Metrics,
 
     /// Indexed by glyph ID
     pub(crate) glyph_widths: Vec<euclid::Length<u16, FontDesignUnit>>,
-}
 
-#[derive(Debug)]
-pub(crate) struct Metrics {
-    pub(crate) glyph_count: u16,
     pub(crate) font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
 
     /// Distance from baseline of highest ascender
@@ -81,7 +75,6 @@ pub(crate) struct Metrics {
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
     let _ = ::std::mem::transmute::<Cmap, [u8; 36]>;
-    let _ = ::std::mem::transmute::<Metrics, [u8; 16]>;
     let _ = ::std::mem::transmute::<Font, [u8; 136]>;
 }
 
@@ -91,58 +84,57 @@ impl Font {
     }
 
     fn parse_cow(bytes: Cow<'static, [u8]>) -> Result<Arc<Self>, FontError> {
-        let postscript_name;
-        let metrics;
-        let cmap;
-        let mut glyph_widths;
-        {
-            let bytes: &[u8] = &*bytes;
-            let offset_table = Position::<OffsetSubtable>::initial();
-            let scaler_type = offset_table.scaler_type().read_from(bytes)?;
-            const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
-            if scaler_type != TRUETYPE && scaler_type != 0x_0001_0000 {
-                Err(FontError::UnsupportedFormat)?
-            }
-            let table_directory = Slice::new(
-                offset_table.followed_by::<TableDirectoryEntry>(),
-                offset_table.table_count().read_from(bytes)?,
-            );
+        let mut font = Self::parse_without_cow_bytes_field(&bytes)?;
+        font.bytes = bytes;
+        Ok(Arc::new(font))
+    }
 
-            let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
-            let header = table_directory.find_table::<FontHeader>(bytes)?;
-            let glyph_count = maxp.num_glyphs().read_from(bytes)?;
-            let horizontal_header = table_directory.find_table::<HorizontalHeader>(bytes)?;
-            metrics = Metrics {
-                glyph_count,
-                font_design_units_per_em: header.units_per_em().read_from(bytes)?,
-                ascender: horizontal_header.ascender().read_from(bytes)?,
-                descender: horizontal_header.descender().read_from(bytes)?,
-                min_x: header.min_x().read_from(bytes)?,
-                min_y: header.min_y().read_from(bytes)?,
-                max_x: header.max_x().read_from(bytes)?,
-                max_y: header.max_y().read_from(bytes)?,
-            };
-
-            let number_of_long_horizontal_metrics =
-                horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?;
-            let horizontal_metrics = Slice::new(
-                table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
-                number_of_long_horizontal_metrics,
-            );
-            glyph_widths = horizontal_metrics.into_iter().map(|record| {
-                record.advance_width().read_from(bytes)
-            }).collect::<Result<Vec<_>, _>>()?;
-            let last_glyph_width = *glyph_widths.last().ok_or(FontError::NoHorizontalGlyphMetrics)?;
-            glyph_widths.extend(
-                (number_of_long_horizontal_metrics..glyph_count)
-                .map(|_| last_glyph_width)
-            );
-
-            postscript_name = read_postscript_name(&bytes, table_directory)?;
-            cmap = Cmap::parse(bytes, table_directory)?;
+    #[inline]
+    fn parse_without_cow_bytes_field(bytes: &[u8]) -> Result<Self, FontError> {
+        let bytes: &[u8] = &*bytes;
+        let offset_table = Position::<OffsetSubtable>::initial();
+        let scaler_type = offset_table.scaler_type().read_from(bytes)?;
+        const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
+        if scaler_type != TRUETYPE && scaler_type != 0x_0001_0000 {
+            Err(FontError::UnsupportedFormat)?
         }
+        let table_directory = Slice::new(
+            offset_table.followed_by::<TableDirectoryEntry>(),
+            offset_table.table_count().read_from(bytes)?,
+        );
 
-        Ok(Arc::new(Font { bytes, postscript_name, metrics, cmap, glyph_widths }))
+        let maxp = table_directory.find_table::<MaximumProfile>(bytes)?;
+        let header = table_directory.find_table::<FontHeader>(bytes)?;
+        let glyph_count = maxp.num_glyphs().read_from(bytes)?;
+        let horizontal_header = table_directory.find_table::<HorizontalHeader>(bytes)?;
+        let number_of_long_horizontal_metrics =
+            horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?;
+        let horizontal_metrics = Slice::new(
+            table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
+            number_of_long_horizontal_metrics,
+        );
+        let mut glyph_widths = horizontal_metrics.into_iter().map(|record| {
+            record.advance_width().read_from(bytes)
+        }).collect::<Result<Vec<_>, _>>()?;
+        let last_glyph_width = *glyph_widths.last().ok_or(FontError::NoHorizontalGlyphMetrics)?;
+        glyph_widths.extend(
+            (number_of_long_horizontal_metrics..glyph_count)
+            .map(|_| last_glyph_width)
+        );
+
+        Ok(Font {
+            bytes: b""[..].into(),
+            postscript_name: read_postscript_name(&bytes, table_directory)?,
+            cmap: Cmap::parse(bytes, table_directory)?,
+            glyph_widths,
+            font_design_units_per_em: header.units_per_em().read_from(bytes)?,
+            ascender: horizontal_header.ascender().read_from(bytes)?,
+            descender: horizontal_header.descender().read_from(bytes)?,
+            min_x: header.min_x().read_from(bytes)?,
+            min_y: header.min_y().read_from(bytes)?,
+            max_x: header.max_x().read_from(bytes)?,
+            max_y: header.max_y().read_from(bytes)?,
+        })
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -240,29 +232,5 @@ impl Slice<TableDirectoryEntry> {
         let entry = search.ok_or(FontError::MissingTable)?;
         let offset = entry.table_offset().read_from(bytes)?;
         Ok(Position::<OffsetSubtable>::initial().offset(offset))
-    }
-}
-
-impl fmt::Debug for Font {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        struct DebugAsDisplay(&'static str);
-
-        impl fmt::Debug for DebugAsDisplay {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str(self.0)
-            }
-        }
-
-        let Font { bytes: _, ref postscript_name, ref cmap, ref metrics, glyph_widths: _ } = *self;
-        f.debug_struct("Font")
-            .field("bytes", &DebugAsDisplay("[…]"))
-            .field("postscript_name", postscript_name)
-            .field("cmap", &DebugAsDisplay(match *cmap {
-                Cmap::Format4(_) => "Format4(…)",
-                Cmap::Format12(_) => "Format12(…)",
-            }))
-            .field("glyph_widths", &DebugAsDisplay("[…]"))
-            .field("metrics", metrics)
-            .finish()
     }
 }
