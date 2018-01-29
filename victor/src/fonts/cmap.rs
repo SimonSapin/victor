@@ -3,7 +3,6 @@ use fonts::parsing::{Position, Slice, binary_search};
 use fonts::tables::*;
 use std::char;
 use std::cmp::Ordering;
-use std::mem;
 
 pub(in fonts) enum Cmap {
     Format4(Format4),
@@ -132,13 +131,14 @@ impl Format4 {
     fn glyph_id(&self, bytes: &[u8], segment_index: u32, start_code: u16, code_point: u16)
                 -> Result<Option<u16>, FontError> {
         let id_delta = self.id_deltas.offset(segment_index).read_from(bytes)?;
-        let id_range_offset = self.id_range_offsets.offset(segment_index).read_from(bytes)?;
+        let id_range_offset_position = self.id_range_offsets.offset(segment_index);
+        let id_range_offset = id_range_offset_position.read_from(bytes)?;
 
         let glyph_id = if id_range_offset != 0 {
-            let offset = u32::from(id_range_offset) + mem::size_of::<u16>() as u32 * (
-                segment_index + (code_point - start_code) as u32
-            );
-            let result: u16 = self.id_range_offsets.offset_bytes(offset).read_from(bytes)?;
+            let result: u16 = id_range_offset_position
+                .offset(code_point - start_code)
+                .offset_bytes(id_range_offset)
+                .read_from(bytes)?;
             if result != 0 {
                 result.wrapping_add(id_delta)
             } else {
