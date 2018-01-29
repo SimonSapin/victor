@@ -55,7 +55,7 @@ pub struct Font {
     cmap: Cmap,
     postscript_name: String,
     glyph_count: u16,
-    font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
+    font_design_units_per_em: euclid::TypedScale<f32, Em, FontDesignUnit>,
     horizontal_metrics: Slice<LongHorizontalMetricsRecord>,
 
     /// Distance from baseline of highest ascender
@@ -116,7 +116,7 @@ impl Font {
                 table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
                 horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?,
             ),
-            font_design_units_per_em: header.units_per_em().read_from(bytes)?,
+            font_design_units_per_em: header.units_per_em().read_from(bytes)?.cast().unwrap(),
             ascender: horizontal_header.ascender().read_from(bytes)?,
             descender: horizontal_header.descender().read_from(bytes)?,
             min_x: header.min_x().read_from(bytes)?,
@@ -167,7 +167,7 @@ impl Font {
                             -> euclid::Length<f32, Em>
         where T: ::num_traits::NumCast + Clone
     {
-        length.cast().unwrap() / self.font_design_units_per_em.cast().unwrap()
+        length.cast().unwrap() / self.font_design_units_per_em
     }
 
     pub(crate) fn ascender(&self) -> euclid::Length<f32, Em> { self.to_ems(self.ascender) }
