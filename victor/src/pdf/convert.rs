@@ -324,6 +324,16 @@ impl<'a> InProgressPage<'a> {
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
 
         // FIXME: revert to direct object
+        let mut glyph_widths = Vec::with_capacity(font.glyph_count as usize);
+        for i in 0..font.glyph_count {
+            let width = font.glyph_width(GlyphId(i))?;
+            let width: euclid::Length<i32, PdfGlyphSpace> = (
+                width.cast::<f32>().unwrap()
+                    / font_design_units_per_em
+                    * glyph_space_units_per_em()
+            ).cast().unwrap();
+            glyph_widths.push(Object::from(width.get()));
+        }
         let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Font",
             "Subtype" => "Type0",
@@ -345,15 +355,7 @@ impl<'a> InProgressPage<'a> {
                 "FontDescriptor" => font_descriptor_id,
                 "W" => array![
                     0,  // start CID
-                    &*(0..font.glyph_count).map(|i| {
-                        let width = font.glyph_width(GlyphId(i))?;
-                        let width: euclid::Length<i32, PdfGlyphSpace> = (
-                            width.cast::<f32>().unwrap()
-                                / font_design_units_per_em
-                                * glyph_space_units_per_em()
-                        ).cast().unwrap();
-                        Ok(width.get().into())
-                    }).collect::<Result<Vec<Object>, _>>()?,
+                    &*glyph_widths,
                 ],
             }],
         });
