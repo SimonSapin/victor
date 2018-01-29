@@ -41,8 +41,12 @@ impl<T> Position<T> {
         Position { byte_position: self.byte_position + by.into(), ty: PhantomData }
     }
 
+    pub(in fonts) fn offset<U, O: Into<u32>>(self, by: O) -> Position<U> {
+        self.offset_bytes(mem::size_of::<T>() as u32 * by.into())
+    }
+
     pub(in fonts) fn followed_by<U>(self) -> Position<U> {
-        self.offset_bytes(mem::size_of::<T>() as u32)
+        self.offset(1_u32)
     }
 
     pub(in fonts) fn read_from(self, bytes: &[u8]) -> Result<T, FontError> where T: ReadFromBytes {
@@ -138,13 +142,13 @@ impl<T> Slice<T> {
     }
 
     pub(in fonts) fn followed_by<U>(&self) -> Position<U> {
-        self.start.offset_bytes(mem::size_of::<T>() as u32 * self.count)
+        self.start.offset(self.count)
     }
 
     /// This is not an `unsafe fn` because invalid `Position`s are safe,
     /// they might just panic when reading or return nonsense values.
     pub(in fonts) fn get_unchecked(&self, index: u32) -> Position<T> {
-        self.start.offset_bytes(mem::size_of::<T>() as u32 * index)
+        self.start.offset(index)
     }
 
     #[inline]
