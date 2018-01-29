@@ -246,10 +246,8 @@ impl<'a> InProgressPage<'a> {
             },
             font_bytes.into()
         );
-        let font_design_units_per_em = font.font_design_units_per_em.cast::<f32>().unwrap();
         let convert = |x: euclid::Length<i16, FontDesignUnit>| -> euclid::Length<i32, PdfGlyphSpace> {
-            (x.cast::<f32>().unwrap() / font_design_units_per_em * glyph_space_units_per_em())
-                .cast().unwrap()
+            (font.to_ems(x) * glyph_space_units_per_em()).cast().unwrap()
         };
         let font_descriptor_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "FontDescriptor",
@@ -327,11 +325,8 @@ impl<'a> InProgressPage<'a> {
         let mut glyph_widths = Vec::with_capacity(font.glyph_count as usize);
         for i in 0..font.glyph_count {
             let width = font.glyph_width(GlyphId(i))?;
-            let width: euclid::Length<i32, PdfGlyphSpace> = (
-                width.cast::<f32>().unwrap()
-                    / font_design_units_per_em
-                    * glyph_space_units_per_em()
-            ).cast().unwrap();
+            let width: euclid::Length<i32, PdfGlyphSpace> =
+                (font.to_ems(width) * glyph_space_units_per_em()).cast().unwrap();
             glyph_widths.push(Object::from(width.get()));
         }
         let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {

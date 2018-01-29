@@ -53,12 +53,11 @@ pub enum FontError {
 pub struct Font {
     bytes: Cow<'static, [u8]>,
     cmap: Cmap,
-    pub(crate) postscript_name: String,
-
-    pub(crate) glyph_count: u16,
+    font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
     horizontal_metrics: Slice<LongHorizontalMetricsRecord>,
 
-    pub(crate) font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
+    pub(crate) postscript_name: String,
+    pub(crate) glyph_count: u16,
 
     /// Distance from baseline of highest ascender
     pub(crate) ascender: euclid::Length<i16, FontDesignUnit>,
@@ -162,6 +161,13 @@ impl Font {
             .ok_or(FontError::NoHorizontalGlyphMetrics)?;
         let index = cmp::min(glyph_id.0 as u32, last_index);
         self.horizontal_metrics.get_unchecked(index).advance_width().read_from(&self.bytes)
+    }
+
+    pub(crate) fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>)
+                            -> euclid::Length<f32, Em>
+        where T: ::num_traits::NumCast + Clone
+    {
+        length.cast().unwrap() / self.font_design_units_per_em.cast().unwrap()
     }
 }
 
