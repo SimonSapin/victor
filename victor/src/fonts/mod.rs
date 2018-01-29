@@ -53,11 +53,10 @@ pub enum FontError {
 pub struct Font {
     bytes: Cow<'static, [u8]>,
     cmap: Cmap,
+    postscript_name: String,
+    glyph_count: u16,
     font_design_units_per_em: euclid::TypedScale<u16, Em, FontDesignUnit>,
     horizontal_metrics: Slice<LongHorizontalMetricsRecord>,
-
-    pub(crate) postscript_name: String,
-    pub(crate) glyph_count: u16,
 
     /// Distance from baseline of highest ascender
     ascender: euclid::Length<i16, FontDesignUnit>,
@@ -127,9 +126,9 @@ impl Font {
         })
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
+    pub fn bytes(&self) -> &[u8] { &self.bytes }
+    pub(crate) fn postscript_name(&self) -> &str { &self.postscript_name }
+    pub(crate) fn glyph_count(&self) -> u16 { self.glyph_count }
 
     pub(crate) fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)

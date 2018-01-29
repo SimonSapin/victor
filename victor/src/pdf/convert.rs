@@ -233,7 +233,7 @@ impl<'a> InProgressPage<'a> {
         );
         let font_descriptor_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "FontDescriptor",
-            "FontName" => &*font.postscript_name,
+            "FontName" => font.postscript_name(),
             "FontBBox" => array![
                 font.min_x(),
                 font.min_y(),
@@ -304,14 +304,14 @@ impl<'a> InProgressPage<'a> {
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
 
         // FIXME: revert to direct object
-        let mut glyph_widths = Vec::with_capacity(font.glyph_count as usize);
-        for i in 0..font.glyph_count {
+        let mut glyph_widths = Vec::with_capacity(font.glyph_count() as usize);
+        for i in 0..font.glyph_count() {
             glyph_widths.push(Object::from(font.glyph_width(GlyphId(i))?));
         }
         let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Font",
             "Subtype" => "Type0",
-            "BaseFont" => &*font.postscript_name,
+            "BaseFont" => font.postscript_name(),
             "ToUnicode" => to_unicode_id,
 
             // 2-bytes big-endian char codes, horizontal writing mode:
@@ -320,7 +320,7 @@ impl<'a> InProgressPage<'a> {
             "DescendantFonts" => array![dictionary! {
                 "Type" => "Font",
                 "Subtype" => "CIDFontType2",
-                "BaseFont" => &*font.postscript_name,
+                "BaseFont" => font.postscript_name(),
                 "CIDSystemInfo" => dictionary! {
                     "Registry" => Object::LiteralString(b"Adobe"),
                     "Ordering" => Object::LiteralString(b"Identity"),
