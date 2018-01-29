@@ -1,5 +1,5 @@
 use fonts::{FontError, GlyphId};
-use fonts::parsing::{Position, Slice};
+use fonts::parsing::{Position, Slice, binary_search};
 use fonts::tables::*;
 use std::char;
 use std::cmp::Ordering;
@@ -95,7 +95,7 @@ impl Format4 {
         }
         let code_point = code_point as u16;
 
-        let binary_search_result = self.start_codes.binary_search_by(|segment_index| {
+        let binary_search_result = binary_search(self.start_codes.count(), |segment_index| {
             if code_point > self.end_codes.get_unchecked(segment_index).read_from(bytes)? {
                 Ok(Ordering::Less)
             } else if code_point < self.start_codes.get_unchecked(segment_index).read_from(bytes)? {
@@ -176,7 +176,7 @@ impl Format12 {
     }
 
     pub(in fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
-        let result = self.groups.binary_search_by(|index| {
+        let result = binary_search(self.groups.count(), |index| {
             let group = self.groups.get_unchecked(index);
             if code_point < group.start_char_code().read_from(bytes)? {
                 Ok(Ordering::Greater)

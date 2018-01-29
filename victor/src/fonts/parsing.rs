@@ -157,34 +157,33 @@ impl<T> Slice<T> {
         where F: FnMut(Position<T>) -> Result<V, FontError>,
               V: Ord
     {
-        self.binary_search_by(|index| Ok(f(self.get_unchecked(index))?.cmp(value)))
+        binary_search(self.count, |index| Ok(f(self.get_unchecked(index))?.cmp(value)))
             .map(|opt| opt.map(|index| self.get_unchecked(index)))
     }
+}
 
-    /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
-    pub(in fonts) fn binary_search_by<'a, F, E>(&self, mut f: F) -> Result<Option<u32>, E>
-        where F: FnMut(u32) -> Result<::std::cmp::Ordering, E>
-    {
-        use std::cmp::Ordering::*;
-        let mut size = self.count;
-        if size == 0 {
-            return Ok(None);
-        }
-        let mut base: u32 = 0;
-        while size > 1 {
-            let half = size / 2;
-            let mid = base + half;
-            // mid is always in [0, size), that means mid is >= 0 and < size.
-            // mid >= 0: by definition
-            // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-            let cmp = f(mid)?;
-            base = if cmp == Greater { base } else { mid };
-            size -= half;
-        }
-        // base is always in [0, size) because base <= mid.
-        let cmp = f(base)?;
-        if cmp == Equal { Ok(Some(base)) } else { Ok(None) }
+/// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
+pub(in fonts) fn binary_search<F, E>(mut size: u32, mut f: F) -> Result<Option<u32>, E>
+    where F: FnMut(u32) -> Result<::std::cmp::Ordering, E>
+{
+    use std::cmp::Ordering::*;
+    if size == 0 {
+        return Ok(None);
     }
+    let mut base: u32 = 0;
+    while size > 1 {
+        let half = size / 2;
+        let mid = base + half;
+        // mid is always in [0, size), that means mid is >= 0 and < size.
+        // mid >= 0: by definition
+        // mid < size: mid = size / 2 + size / 4 + size / 8 ...
+        let cmp = f(mid)?;
+        base = if cmp == Greater { base } else { mid };
+        size -= half;
+    }
+    // base is always in [0, size) because base <= mid.
+    let cmp = f(base)?;
+    if cmp == Equal { Ok(Some(base)) } else { Ok(None) }
 }
 
 // ~~~~ Boring trait impls ~~~~
