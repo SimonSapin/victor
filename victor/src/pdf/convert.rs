@@ -235,19 +235,19 @@ impl<'a> InProgressPage<'a> {
             "Type" => "FontDescriptor",
             "FontName" => &*font.postscript_name,
             "FontBBox" => array![
-                font.to_ems(font.min_x),
-                font.to_ems(font.min_y),
-                font.to_ems(font.max_x),
-                font.to_ems(font.max_y),
+                font.min_x(),
+                font.min_y(),
+                font.max_x(),
+                font.max_y(),
             ],
-            "Ascent" => font.to_ems(font.ascender),
-            "Descent" => font.to_ems(font.descender),
+            "Ascent" => font.ascender(),
+            "Descent" => font.descender(),
             "FontFile2" => truetype_id,
 
             // These seem somewhat arbitrary, they’re copied from cairo:
             "ItalicAngle" => 0,
             "Flags" => 4,
-            "CapHeight" => font.to_ems(font.max_y),
+            "CapHeight" => font.max_y(),
             "StemV" => 80,
             "StemH" => 80,
         });
@@ -306,7 +306,7 @@ impl<'a> InProgressPage<'a> {
         // FIXME: revert to direct object
         let mut glyph_widths = Vec::with_capacity(font.glyph_count as usize);
         for i in 0..font.glyph_count {
-            glyph_widths.push(Object::from(font.to_ems(font.glyph_width(GlyphId(i))?)));
+            glyph_widths.push(Object::from(font.glyph_width(GlyphId(i))?));
         }
         let font_dict_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Font",

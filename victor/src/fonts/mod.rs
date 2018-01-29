@@ -19,7 +19,7 @@ pub use fonts::static_::*;
 pub(crate) struct Em;
 
 /// The unit of FWord and UFWord
-pub(crate) struct FontDesignUnit;
+struct FontDesignUnit;
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -60,16 +60,16 @@ pub struct Font {
     pub(crate) glyph_count: u16,
 
     /// Distance from baseline of highest ascender
-    pub(crate) ascender: euclid::Length<i16, FontDesignUnit>,
+    ascender: euclid::Length<i16, FontDesignUnit>,
 
     /// Distance from baseline of lowest descender
-    pub(crate) descender: euclid::Length<i16, FontDesignUnit>,
+    descender: euclid::Length<i16, FontDesignUnit>,
 
     /// The bounding box of the union of all glyphs
-    pub(crate) min_x: euclid::Length<i16, FontDesignUnit>,
-    pub(crate) min_y: euclid::Length<i16, FontDesignUnit>,
-    pub(crate) max_x: euclid::Length<i16, FontDesignUnit>,
-    pub(crate) max_y: euclid::Length<i16, FontDesignUnit>,
+    min_x: euclid::Length<i16, FontDesignUnit>,
+    min_y: euclid::Length<i16, FontDesignUnit>,
+    max_x: euclid::Length<i16, FontDesignUnit>,
+    max_y: euclid::Length<i16, FontDesignUnit>,
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -156,19 +156,27 @@ impl Font {
     }
 
     pub(crate) fn glyph_width(&self, glyph_id: GlyphId)
-                              -> Result<euclid::Length<u16, FontDesignUnit>, FontError> {
+                              -> Result<euclid::Length<f32, Em>, FontError> {
         let last_index = self.horizontal_metrics.count().checked_sub(1)
             .ok_or(FontError::NoHorizontalGlyphMetrics)?;
         let index = cmp::min(glyph_id.0 as u32, last_index);
-        self.horizontal_metrics.get_unchecked(index).advance_width().read_from(&self.bytes)
+        let w = self.horizontal_metrics.get_unchecked(index).advance_width().read_from(&self.bytes)?;
+        Ok(self.to_ems(w))
     }
 
-    pub(crate) fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>)
+    fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>)
                             -> euclid::Length<f32, Em>
         where T: ::num_traits::NumCast + Clone
     {
         length.cast().unwrap() / self.font_design_units_per_em.cast().unwrap()
     }
+
+    pub(crate) fn ascender(&self) -> euclid::Length<f32, Em> { self.to_ems(self.ascender) }
+    pub(crate) fn descender(&self) -> euclid::Length<f32, Em> { self.to_ems(self.descender) }
+    pub(crate) fn min_x(&self) -> euclid::Length<f32, Em> { self.to_ems(self.min_x) }
+    pub(crate) fn min_y(&self) -> euclid::Length<f32, Em> { self.to_ems(self.min_y) }
+    pub(crate) fn max_x(&self) -> euclid::Length<f32, Em> { self.to_ems(self.max_x) }
+    pub(crate) fn max_y(&self) -> euclid::Length<f32, Em> { self.to_ems(self.max_y) }
 }
 
 fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
