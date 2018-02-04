@@ -4,6 +4,7 @@ pub mod fonts;
 pub mod pdf;
 pub mod primitives;
 pub mod text;
+pub mod text_plain;
 
 extern crate dtoa;
 extern crate itoa;
