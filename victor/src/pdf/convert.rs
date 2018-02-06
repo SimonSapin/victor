@@ -154,13 +154,13 @@ impl<'a> InProgressPage<'a> {
     }
 
     pub(crate) fn show_text(&mut self, text: &TextRun) -> Result<(), FontError> {
-        let TextRun { ref font, ref font_size, ref origin, ref glyph_ids } = *text;
-        let font_key = self.add_font(font)?;
+        let TextRun { ref segment, ref font_size, ref origin } = *text;
+        let font_key = self.add_font(&segment.font)?;
         // flip the Y axis in to compensate the same flip at the page level.
         let x_scale = font_size.0;
         let y_scale = -font_size.0;
-        let mut glyph_codes = Vec::with_capacity(glyph_ids.len() * 2);
-        for &GlyphId(id) in glyph_ids {
+        let mut glyph_codes = Vec::with_capacity(segment.glyphs.len() * 2);
+        for &GlyphId(id) in &segment.glyphs {
             // Big-endian
             glyph_codes.push((id >> 8) as u8);
             glyph_codes.push(id as u8);

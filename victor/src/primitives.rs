@@ -1,6 +1,5 @@
 use euclid;
-use fonts::{Font, GlyphId};
-use std::sync::Arc;
+use text;
 
 /// Origin at top-left corner, unit `1px`
 pub struct CssPx;
@@ -18,8 +17,7 @@ pub type Scale<Src, Dest> = euclid::TypedScale<f32, Src, Dest>;
 pub struct RGBA(pub f32, pub f32, pub f32, pub f32);
 
 pub struct TextRun {
-    pub font: Arc<Font>,
+    pub segment: text::ShapedSegment,
     pub font_size: Length<CssPx>,
     pub origin: Point<CssPx>,
-    pub glyph_ids: Vec<GlyphId>,
 }

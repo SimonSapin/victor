@@ -23,7 +23,7 @@ struct FontDesignUnit;
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct GlyphId(pub u16);
+pub(crate) struct GlyphId(pub(crate) u16);
 
 #[derive(Debug)]
 pub enum FontError {
@@ -136,22 +136,14 @@ impl Font {
         self.cmap.each_code_point(&self.bytes, f)
     }
 
-    pub fn to_glyph_ids(&self, text: &str) -> Result<Vec<GlyphId>, FontError> {
-        macro_rules! convert {
-            ($get: expr) => {
-                text.chars().map(|c| {
-                    $get(c as u32).map(|opt| {
-                        const NOTDEF_GLYPH: u16 = 0;
-                        GlyphId(opt.unwrap_or(NOTDEF_GLYPH))
-                    })
-                }).collect()
-            }
-        }
-        let bytes = self.bytes();
-        match self.cmap {
-            Cmap::Format4(ref table) => convert!(|c| table.get(bytes, c)),
-            Cmap::Format12(ref table) => convert!(|c| table.get(bytes, c)),
-        }
+    pub(crate) fn glyph_id(&self, ch: char) -> Result<GlyphId, FontError> {
+        let ch = ch as u32;
+        let result = match self.cmap {
+            Cmap::Format4(ref table) => table.get(&self.bytes, ch),
+            Cmap::Format12(ref table) => table.get(&self.bytes, ch),
+        };
+        const NOTDEF_GLYPH: u16 = 0;
+        Ok(GlyphId(result?.unwrap_or(NOTDEF_GLYPH)))
     }
 
     pub(crate) fn glyph_width(&self, glyph_id: GlyphId)

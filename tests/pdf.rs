@@ -2,9 +2,10 @@ use lester::{PdfDocument, RenderOptions, Backdrop};
 use std::env;
 use std::fs::File;
 use std::io::Write;
+use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
 use victor::pdf::Document;
 use victor::primitives::{Size, TextRun, Length, point, RGBA, rect};
-use victor::fonts::{BITSTREAM_VERA_SANS, LazyStaticFont, FontError};
+use victor::text::ShapedSegment;
 
 static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
 static NOTO: LazyStaticFont = include_font!("fonts/noto/NotoSansLinearB-Regular.ttf");
@@ -16,20 +17,17 @@ fn doc() -> Result<Vec<u8>, FontError> {
     let mut doc = Document::new();
     doc.add_page(Size::new(140., 50.))
         .show_text(&TextRun {
-            glyph_ids: vera.to_glyph_ids("Têst→iimm")?,
-            font: vera,
+            segment: ShapedSegment::naive_shape("Têst→iimm", vera)?,
             font_size: Length::new(15.),
             origin: point(10., 20.),
         })?
         .show_text(&TextRun {
-            glyph_ids: ahem.to_glyph_ids("pÉX")?,
-            font: ahem,
+            segment: ShapedSegment::naive_shape("pÉX", ahem)?,
             font_size: Length::new(15.),
             origin: point(10., 40.),
         })?
         .show_text(&TextRun {
-            glyph_ids: noto.to_glyph_ids("𐁉 𐁁𐀓𐀠𐀴𐀍")?,
-            font: noto,
+            segment: ShapedSegment::naive_shape("𐁉 𐁁𐀓𐀠𐀴𐀍", noto)?,
             font_size: Length::new(15.),
             origin: point(65., 40.),
         })?;
