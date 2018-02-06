@@ -7,7 +7,7 @@ repository = "https://github.com/SimonSapin/victor"
 license = "MIT OR Apache-2.0"
 
 [lib]
-path = "tests.rs"
+path = "lib.rs"
 doctest = false
 
 [dependencies]
