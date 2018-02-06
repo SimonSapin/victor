@@ -56,7 +56,8 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
     let mut segments = Rewind::new(LineBreakIterator::new(text).map(|(position, is_hard_break)| {
         let range = previous_break_position..position;
         previous_break_position = position;
-        let segment = ShapedSegment::naive_shape(&text[range], style.font.clone())?;
+        let text_segment = text[range].trim_right_matches('\n');
+        let segment = ShapedSegment::naive_shape(text_segment, style.font.clone())?;
         Ok((segment, is_hard_break))
     }));
 

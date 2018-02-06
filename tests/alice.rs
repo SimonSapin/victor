@@ -30,7 +30,7 @@ fn render() {
         page_margin: Length::new(20.),
         font: BITSTREAM_VERA_SANS.get().unwrap(),
         font_size: Length::new(16.),
-        line_height: 1.2,
+        line_height: 1.5,
     };
     let pdf_bytes = text_plain::layout(ALICE, &style).unwrap().write_to_pdf_bytes();
 
