@@ -1,7 +1,6 @@
 use fonts::{Font, FontError, GlyphId, Em};
 use primitives::Length;
 use std::sync::Arc;
-use xi_unicode::LineBreakIterator;
 
 pub struct ShapedSegment {
     pub(crate) font: Arc<Font>,
@@ -26,22 +25,4 @@ impl ShapedSegment {
         }
         Ok(ShapedSegment { font, glyphs, advance_width })
     }
-}
-
-pub fn split_at_breaks(s: &str) -> Vec<&str> {
-    let mut last_break = 0;
-    LineBreakIterator::new(s).map(|(position, _)| {
-        let range = last_break..position;
-        last_break = position;
-        &s[range]
-    }).collect()
-}
-
-pub fn split_at_hard_breaks(s: &str) -> Vec<&str> {
-    let mut last_break = 0;
-    LineBreakIterator::new(s).filter(|&(_, is_hard_break)| is_hard_break).map(|(position, _)| {
-        let range = last_break..position;
-        last_break = position;
-        &s[range]
-    }).collect()
 }
