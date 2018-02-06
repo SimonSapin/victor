@@ -1,6 +1,10 @@
+use std::env;
+use std::fs::File;
+use std::io::Write;
 use victor::text::*;
 use victor::text_plain;
 use victor::fonts::BITSTREAM_VERA_SANS;
+use victor::primitives::*;
 
 static ALICE: &'static str = include_str!("alice.txt");
 
@@ -21,6 +25,17 @@ fn hard_breaks() {
 
 #[test]
 fn render() {
-    let vera = BITSTREAM_VERA_SANS.get().unwrap();
-    let doc = text_plain::layout(ALICE, &vera).unwrap().write_to_pdf_bytes();
+    let style = text_plain::Style {
+        page_size: Size::new(210., 297.),
+        page_margin: Length::new(20.),
+        font: BITSTREAM_VERA_SANS.get().unwrap(),
+        font_size: Length::new(16.),
+        line_height: 1.2,
+    };
+    let pdf_bytes = text_plain::layout(ALICE, &style).unwrap().write_to_pdf_bytes();
+
+    if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
+        File::create("/tmp/alice.pdf").unwrap().write_all(&pdf_bytes).unwrap();
+    }
+    assert!(pdf_bytes == include_bytes!("alice.pdf").as_ref());
 }
