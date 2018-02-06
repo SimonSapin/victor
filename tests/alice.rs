@@ -15,6 +15,7 @@ fn render() {
         font: BITSTREAM_VERA_SANS.get().unwrap(),
         font_size: Length::new(16.),
         line_height: 1.5,
+        justify: true,
     };
     let pdf_bytes = text_plain::layout(ALICE, &style).unwrap().write_to_pdf_bytes();
 

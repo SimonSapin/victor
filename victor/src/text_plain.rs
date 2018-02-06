@@ -28,6 +28,7 @@ pub struct Style {
     pub font: Arc<Font>,
     pub font_size: Length<Px>,
     pub line_height: f32,
+    pub justify: bool,
 }
 
 pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
@@ -37,8 +38,8 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
     let content_area = page.inner_rect(page_margin);
     let min_x = content_area.min_x_typed();
     let min_y = content_area.min_y_typed();
-    let max_x = content_area.max_x_typed();
     let max_y = content_area.max_y_typed();
+    let available_width = content_area.size.width_typed();
 
     let one_em = Length::<Em>::new(1.);
     let line_height = one_em * style.line_height;
@@ -51,6 +52,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
     let baseline_y = baseline_y * px_per_em;
 
     let mut pdf_doc = Document::new();
+    let mut line_segments = Vec::new();
 
     let mut previous_break_position = 0;
     let mut segments = Rewind::new(LineBreakIterator::new(text).map(|(position, is_hard_break)| {
@@ -66,8 +68,8 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
         let mut y = min_y;
 
         'lines: loop {
-            let baseline = y + baseline_y;
-            let mut x = min_x;
+            let mut total_width = Length::new(0.);
+            let justify;
             loop {
                 let (segment, is_hard_break) = match segments.next() {
                     Some(result) => result?,
@@ -77,20 +79,36 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
                 };
 
                 let advance_width = segment.advance_width * px_per_em;
-                let next_x = x + advance_width;
-                if next_x > max_x && x > min_x {
+                let next_total_width = total_width + advance_width;
+                if next_total_width > available_width && total_width > Length::new(0.) {
                     // This segment doesn’t fit on this line, and isn’t the first on the line:
                     // go to the next line.
                     segments.rewind(Ok((segment, is_hard_break)));
+                    justify = style.justify;
                     break
                 }
-                let origin = Point::from_lengths(x, baseline);
-                pdf_page.show_text(&TextRun { segment, font_size, origin })?;
+                line_segments.push(segment);
+                total_width = next_total_width;
                 if is_hard_break {
+                    justify = false;
                     break
                 }
-                x = next_x;
             }
+
+            let extra = available_width - total_width;
+            let word_spacing = if justify && extra > Length::new(0.) {
+                extra / (line_segments.len() - 1) as f32
+            } else {
+                Length::new(0.)
+            };
+            let baseline = y + baseline_y;
+            let mut x = min_x;
+            for segment in line_segments.drain(..) {
+                let origin = Point::from_lengths(x, baseline);
+                x += segment.advance_width * px_per_em + word_spacing;
+                pdf_page.show_text(&TextRun { segment, font_size, origin })?;
+            }
+
             y += line_height;
             if y > max_y {
                 // We’ve reached the bottom of the page
