@@ -51,6 +51,14 @@ enum NodeData<'arena> {
     },
 }
 
+#[test]
+#[cfg(target_pointer_width = "64")]
+fn size_of() {
+    use std::mem::size_of;
+    assert_eq!(size_of::<Node>(), 120);
+    assert_eq!(size_of::<NodeData>(), 80);
+}
+
 impl<'arena> Node<'arena> {
     fn new(data: NodeData<'arena>) -> Self {
         Node {
