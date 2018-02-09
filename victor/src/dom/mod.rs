@@ -23,10 +23,10 @@ pub struct Node<'arena> {
     previous_sibling: Link<'arena>,
     first_child: Link<'arena>,
     last_child: Link<'arena>,
-    data: NodeData<'arena>,
+    data: NodeData,
 }
 
-enum NodeData<'arena> {
+enum NodeData {
     Document,
     Doctype {
         _name: StrTendril,
@@ -42,7 +42,6 @@ enum NodeData<'arena> {
     Element {
         name: QualName,
         attrs: RefCell<Vec<Attribute>>,
-        template_contents: Option<NodeRef<'arena>>,
         mathml_annotation_xml_integration_point: bool,
     },
     ProcessingInstruction {
@@ -55,12 +54,12 @@ enum NodeData<'arena> {
 #[cfg(target_pointer_width = "64")]
 fn size_of() {
     use std::mem::size_of;
-    assert_eq!(size_of::<Node>(), 120);
-    assert_eq!(size_of::<NodeData>(), 80);
+    assert_eq!(size_of::<Node>(), 112);
+    assert_eq!(size_of::<NodeData>(), 72);
 }
 
 impl<'arena> Node<'arena> {
-    fn new(data: NodeData<'arena>) -> Self {
+    fn new(data: NodeData) -> Self {
         Node {
             parent: Cell::new(None),
             previous_sibling: Cell::new(None),

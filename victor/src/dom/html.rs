@@ -26,7 +26,7 @@ struct Sink<'arena> {
 }
 
 impl<'arena> Sink<'arena> {
-    fn new_node(&self, data: NodeData<'arena>) -> NodeRef<'arena> {
+    fn new_node(&self, data: NodeData) -> NodeRef<'arena> {
         self.arena.allocate(Node::new(data))
     }
 
@@ -80,11 +80,7 @@ impl<'arena> TreeSink for Sink<'arena> {
     }
 
     fn get_template_contents(&mut self, target: &NodeRef<'arena>) -> NodeRef<'arena> {
-        if let NodeData::Element { template_contents: Some(ref contents), .. } = target.data {
-            contents
-        } else {
-            panic!("not a template element!")
-        }
+        target
     }
 
     fn is_mathml_annotation_xml_integration_point(&self, target: &NodeRef<'arena>) -> bool {
@@ -101,11 +97,6 @@ impl<'arena> TreeSink for Sink<'arena> {
         let element = self.new_node(NodeData::Element {
             name: name,
             attrs: RefCell::new(attrs),
-            template_contents: if flags.template {
-                Some(self.new_node(NodeData::Document))
-            } else {
-                None
-            },
             mathml_annotation_xml_integration_point: flags.mathml_annotation_xml_integration_point,
 
         });
