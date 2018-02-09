@@ -116,11 +116,11 @@ impl<'arena> TreeSink for Sink<'arena> {
     }
 
     fn create_comment(&mut self, text: StrTendril) -> NodeRef<'arena> {
-        self.new_node(NodeData::Comment { contents: text })
+        self.new_node(NodeData::Comment { _contents: text })
     }
 
     fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> NodeRef<'arena> {
-        self.new_node(NodeData::ProcessingInstruction { target: target, contents: data })
+        self.new_node(NodeData::ProcessingInstruction { _target: target, _contents: data })
     }
 
     fn append(&mut self, parent: &NodeRef<'arena>, child: NodeOrText<NodeRef<'arena>>) {
@@ -154,10 +154,10 @@ impl<'arena> TreeSink for Sink<'arena> {
                                   name: StrTendril,
                                   public_id: StrTendril,
                                   system_id: StrTendril) {
-        self.document.append(self.new_node(NodeData::Doctype {
-            name: name,
-            public_id: public_id,
-            system_id: system_id
+        self.document.document_node.append(self.new_node(NodeData::Doctype {
+            _name: name,
+            _public_id: public_id,
+            _system_id: system_id
         }))
     }
 

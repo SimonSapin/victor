@@ -26,18 +26,18 @@ pub struct Node<'arena> {
     data: NodeData<'arena>,
 }
 
-pub enum NodeData<'arena> {
+enum NodeData<'arena> {
     Document,
     Doctype {
-        name: StrTendril,
-        public_id: StrTendril,
-        system_id: StrTendril,
+        _name: StrTendril,
+        _public_id: StrTendril,
+        _system_id: StrTendril,
     },
     Text {
         contents: RefCell<StrTendril>,
     },
     Comment {
-        contents: StrTendril,
+        _contents: StrTendril,
     },
     Element {
         name: QualName,
@@ -46,8 +46,8 @@ pub enum NodeData<'arena> {
         mathml_annotation_xml_integration_point: bool,
     },
     ProcessingInstruction {
-        target: StrTendril,
-        contents: StrTendril,
+        _target: StrTendril,
+        _contents: StrTendril,
     },
 }
 
