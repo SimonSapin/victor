@@ -10,7 +10,7 @@ pub mod text;
 pub mod text_plain;
 
 extern crate dtoa;
-extern crate html5ever;
+#[macro_use] extern crate html5ever;
 extern crate itoa;
 extern crate num_traits;
 extern crate parking_lot_core;

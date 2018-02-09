@@ -12,6 +12,11 @@ type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 type NodeRef<'arena> = &'arena Node<'arena>;
 type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 
+pub struct Document<'arena> {
+    document_node: NodeRef<'arena>,
+    style_elements: Vec<NodeRef<'arena>>
+}
+
 pub struct Node<'arena> {
     parent: Link<'arena>,
     next_sibling: Link<'arena>,

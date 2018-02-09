@@ -5,11 +5,14 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use super::*;
 
-impl<'arena> Node<'arena> {
-    pub fn parse_html(utf8_bytes: &[u8], arena: ArenaRef<'arena>) -> NodeRef<'arena> {
+impl<'arena> Document<'arena> {
+    pub fn parse_html(utf8_bytes: &[u8], arena: ArenaRef<'arena>) -> Self {
         let sink = Sink {
             arena: arena,
-            document: arena.allocate(Node::new(NodeData::Document)),
+            document: Document {
+                document_node: arena.allocate(Node::new(NodeData::Document)),
+                style_elements: Vec::new(),
+            },
             quirks_mode: QuirksMode::NoQuirks,
         };
         parse_document(sink, Default::default()).from_utf8().one(utf8_bytes)
@@ -18,7 +21,7 @@ impl<'arena> Node<'arena> {
 
 struct Sink<'arena> {
     arena: ArenaRef<'arena>,
-    document: NodeRef<'arena>,
+    document: Document<'arena>,
     quirks_mode: QuirksMode,
 }
 
@@ -49,16 +52,16 @@ impl<'arena> Sink<'arena> {
 
 impl<'arena> TreeSink for Sink<'arena> {
     type Handle = NodeRef<'arena>;
-    type Output = NodeRef<'arena>;
+    type Output = Document<'arena>;
 
-    fn finish(self) -> NodeRef<'arena> {
+    fn finish(self) -> Document<'arena> {
         self.document
     }
 
     fn parse_error(&mut self, _: Cow<'static, str>) {}
 
     fn get_document(&mut self) -> NodeRef<'arena> {
-        self.document
+        self.document.document_node
     }
 
     fn set_quirks_mode(&mut self, mode: QuirksMode) {
@@ -94,7 +97,8 @@ impl<'arena> TreeSink for Sink<'arena> {
 
     fn create_element(&mut self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags)
                       -> NodeRef<'arena> {
-        self.new_node(NodeData::Element {
+        let is_style = name.expanded() == expanded_name!(html "style");
+        let element = self.new_node(NodeData::Element {
             name: name,
             attrs: RefCell::new(attrs),
             template_contents: if flags.template {
@@ -104,7 +108,11 @@ impl<'arena> TreeSink for Sink<'arena> {
             },
             mathml_annotation_xml_integration_point: flags.mathml_annotation_xml_integration_point,
 
-        })
+        });
+        if is_style {
+            self.document.style_elements.push(element)
+        }
+        element
     }
 
     fn create_comment(&mut self, text: StrTendril) -> NodeRef<'arena> {
