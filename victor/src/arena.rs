@@ -58,30 +58,29 @@ impl<T> Arena<T> {
     fn new_chunk(&self) {
         let start = self.current_chunk.start.get();
         let end = self.current_chunk.end.get();
-        let new_capacity;
-        // start and end are both NULL in empty arenas
-        if start != end {
-            // `Arena::new()` panics in `assert!` if this would divide by zero
-            let len = ((end as usize) - (start as usize)) / mem::size_of::<T>();
+        // `Arena::new()` panicked in `assert!` if this would divide by zero
+        let len = ((end as usize) - (start as usize)) / mem::size_of::<T>();
+        let new_capacity = (len * 2).max(INITIAL_CHUNK_LENGTH);
+
+        let mut vec = Vec::<T>::with_capacity(new_capacity);
+        let new_start = vec.as_mut_ptr();
+        mem::forget(vec);
+
+        let new_end = unsafe {
+            new_start.offset(new_capacity as isize)
+        };
+        self.current_chunk.start.set(new_start as *mut u8);
+        self.current_chunk.next.set(new_start as *mut u8);
+        self.current_chunk.end.set(new_end as *mut u8);
+
+        if len > 0 {
+            // Do this last so that if something panics we leak items
+            // rather than double-freeing them.
             let full_chunk = unsafe {
                 Box::from_raw(slice::from_raw_parts_mut(start as *mut T, len))
             };
             self.full_chunks.borrow_mut().push(full_chunk);
-            new_capacity = len * 2
-        } else {
-            new_capacity = INITIAL_CHUNK_LENGTH
         }
-
-        let mut vec = Vec::<T>::with_capacity(new_capacity);
-        let start = vec.as_mut_ptr();
-        mem::forget(vec);
-
-        let end = unsafe {
-            start.offset(new_capacity as isize)
-        };
-        self.current_chunk.start.set(start as *mut u8);
-        self.current_chunk.next.set(start as *mut u8);
-        self.current_chunk.end.set(end as *mut u8);
     }
 }
 
@@ -95,7 +94,7 @@ impl Drop for PartiallyFullChunk {
 }
 
 fn drop_partially_full_chunk<T>(start: *mut u8, length_bytes: usize, capacity_bytes: usize) {
-    // `Arena::new()` panics in `assert!` if this would divide by zero
+    // `Arena::new()` panicked in `assert!` if this would divide by zero
     let length = length_bytes / mem::size_of::<T>();
     let capacity = capacity_bytes / mem::size_of::<T>();
     unsafe {
