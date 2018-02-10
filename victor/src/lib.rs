@@ -1,15 +1,17 @@
 pub extern crate euclid;
 
-mod arena;
 pub mod dom;
 pub mod fonts;
 #[doc(hidden)] pub mod lazy_arc;  // Only public for `include_font!`
 pub mod pdf;
 pub mod primitives;
-mod style;
 pub mod text;
 pub mod text_plain;
 
+mod arena;
+mod style;
+
+extern crate cssparser;
 extern crate dtoa;
 #[macro_use] extern crate html5ever;
 extern crate itoa;
