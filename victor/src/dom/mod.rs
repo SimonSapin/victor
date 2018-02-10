@@ -7,6 +7,7 @@ use html5ever::{QualName, Attribute};
 use html5ever::tendril::StrTendril;
 use std::cell::{Cell, RefCell};
 use std::ptr;
+use style::StyleSet;
 
 type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 type NodeRef<'arena> = &'arena Node<'arena>;
@@ -15,6 +16,24 @@ type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 pub struct Document<'arena> {
     document_node: NodeRef<'arena>,
     style_elements: Vec<NodeRef<'arena>>
+}
+
+impl<'arena> Document<'arena> {
+    pub fn parse_stylesheets(&self, style_set: &mut StyleSet) {
+        'elements: for element in &self.style_elements {
+            // https://html.spec.whatwg.org/multipage/semantics.html#update-a-style-block
+            if let NodeData::Element { ref attrs, .. } = element.data {
+                for attr in &*attrs.borrow() {
+                    if attr.name.expanded() == expanded_name!("", "type") {
+                        if !attr.value.eq_ignore_ascii_case("text/css") {
+                            continue 'elements
+                        }
+                    }
+                }
+            }
+            style_set.add_stylesheet(&element.child_text_content())
+        }
+    }
 }
 
 pub struct Node<'arena> {
@@ -115,5 +134,22 @@ impl<'arena> Node<'arena> {
             parent.first_child.set(Some(new_sibling));
         }
         self.previous_sibling.set(Some(new_sibling));
+    }
+
+    /// <https://dom.spec.whatwg.org/#concept-child-text-content>
+    fn child_text_content(&self) -> StrTendril {
+        let mut link = self.first_child.get();
+        let mut text = None;
+        while let Some(child) = link {
+            if let NodeData::Text { ref contents } = child.data {
+                let contents = contents.borrow();
+                match text {
+                    None => text = Some(contents.clone()),
+                    Some(ref mut text) => text.push_tendril(&contents),
+                }
+            }
+            link = child.next_sibling.get();
+        }
+        text.unwrap_or_else(StrTendril::new)
     }
 }
