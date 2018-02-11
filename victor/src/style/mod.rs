@@ -1,5 +1,5 @@
-use cssparser::{ParserInput, Parser, ParseError, BasicParseErrorKind, CowRcStr};
-use cssparser::{RuleListParser, AtRuleParser, AtRuleType, QualifiedRuleParser};
+use cssparser::{ParserInput, Parser, ParseError};
+use cssparser::{RuleListParser, AtRuleParser, QualifiedRuleParser};
 use selectors::SelectorList;
 
 mod selectors;
@@ -31,12 +31,6 @@ impl<'i> AtRuleParser<'i> for VictorRulesParser {
     type PreludeBlock = Void;
     type AtRule = CssRule;
     type Error = selectors::ParseError<'i>;
-
-    fn parse_prelude<'t>(&mut self, name: CowRcStr<'i>, parser: &mut Parser<'i, 't>)
-        -> Result<AtRuleType<Self::PreludeNoBlock, Self::PreludeBlock>, ParseError<'i, Self::Error>>
-    {
-        Err(parser.new_error(BasicParseErrorKind::AtRuleInvalid(name)))
-    }
 }
 
 impl<'i> QualifiedRuleParser<'i> for VictorRulesParser {
