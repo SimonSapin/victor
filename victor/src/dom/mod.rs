@@ -8,7 +8,7 @@ use html5ever::tendril::StrTendril;
 use std::cell::{Cell, RefCell, Ref};
 use std::fmt;
 use std::ptr;
-use style::StyleSet;
+use style::StyleSetBuilder;
 
 pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
@@ -20,7 +20,7 @@ pub struct Document<'arena> {
 }
 
 impl<'arena> Document<'arena> {
-    pub fn parse_stylesheets(&self, style_set: &mut StyleSet) {
+    pub fn parse_stylesheets(&self, style_set: &mut StyleSetBuilder) {
         for element in &self.style_elements {
             // https://html.spec.whatwg.org/multipage/semantics.html#update-a-style-block
             if let Some(type_attr) = element.as_element().unwrap().get_attr(&local_name!("type")) {

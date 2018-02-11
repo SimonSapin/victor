@@ -1,4 +1,5 @@
 use cssparser::{Parser, ParseError, AtRuleParser, QualifiedRuleParser, DeclarationListParser};
+use std::rc::Rc;
 use style::errors::RuleParseErrorKind;
 use style::properties::{PropertyDeclaration, PropertyDeclarationParser};
 use style::selectors::{self, SelectorList};
@@ -6,7 +7,13 @@ use style::selectors::{self, SelectorList};
 pub enum CssRule {
     StyleRule {
         selectors: SelectorList,
-        declarations: Vec<PropertyDeclaration>,
+
+        // If this rules contains multiple (comma-separated) selectors,
+        // StyleSet will want to store this declaration list as many times
+        // (as positions based on the selector’s specificity)
+        //
+        // Use `Rc` to enable having multiple references to the `Vec` without cloning it.
+        declarations: Rc<Vec<PropertyDeclaration>>,
     }
 }
 
@@ -33,7 +40,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
 
         Ok(CssRule::StyleRule {
             selectors: prelude,
-            declarations: decls.collect(),
+            declarations: Rc::new(decls.collect()),
         })
     }
 }

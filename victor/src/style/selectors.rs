@@ -9,6 +9,7 @@ use std::fmt;
 use style::errors::RuleParseErrorKind;
 
 pub type SelectorList = selectors::SelectorList<Impl>;
+pub type Selector = selectors::parser::Selector<Impl>;
 
 #[derive(Clone)]
 pub struct Impl;
