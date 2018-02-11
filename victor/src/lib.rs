@@ -15,6 +15,7 @@ extern crate cssparser;
 extern crate dtoa;
 #[macro_use] extern crate html5ever;
 extern crate itoa;
+#[macro_use] extern crate matches;
 extern crate num_traits;
 extern crate parking_lot_core;
 extern crate selectors;

@@ -6,12 +6,13 @@ use arena::Arena;
 use html5ever::{QualName, ExpandedName, LocalName, Attribute};
 use html5ever::tendril::StrTendril;
 use std::cell::{Cell, RefCell, Ref};
+use std::fmt;
 use std::ptr;
 use style::StyleSet;
 
 pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
-type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
+pub(crate) type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 
 pub struct Document<'arena> {
     document_node: NodeRef<'arena>,
@@ -33,11 +34,11 @@ impl<'arena> Document<'arena> {
 }
 
 pub struct Node<'arena> {
-    parent: Link<'arena>,
-    next_sibling: Link<'arena>,
-    previous_sibling: Link<'arena>,
-    first_child: Link<'arena>,
-    last_child: Link<'arena>,
+    pub(crate) parent: Link<'arena>,
+    pub(crate) next_sibling: Link<'arena>,
+    pub(crate) previous_sibling: Link<'arena>,
+    pub(crate) first_child: Link<'arena>,
+    pub(crate) last_child: Link<'arena>,
     data: NodeData,
 }
 
@@ -87,9 +88,21 @@ fn size_of() {
 }
 
 impl<'arena> Node<'arena> {
+    pub(crate) fn in_html_document(&self) -> bool {
+        // FIXME: track something when we add XML parsing
+        true
+    }
+
     pub(crate) fn as_element(&self) -> Option<&ElementData> {
         match self.data {
             NodeData::Element(ref data) => Some(data),
+            _ => None
+        }
+    }
+
+    pub(crate) fn as_text(&self) -> Option<&RefCell<StrTendril>> {
+        match self.data {
+            NodeData::Text { ref contents } => Some(contents),
             _ => None
         }
     }
@@ -167,5 +180,12 @@ impl<'arena> Node<'arena> {
             link = child.next_sibling.get();
         }
         text.unwrap_or_else(StrTendril::new)
+    }
+}
+
+impl<'arena> fmt::Debug for Node<'arena> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ptr: *const Node = self;
+        f.debug_tuple("Node").field(&ptr).finish()
     }
 }
