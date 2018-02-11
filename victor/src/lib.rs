@@ -11,7 +11,7 @@ pub mod text_plain;
 mod arena;
 mod style;
 
-extern crate cssparser;
+#[macro_use] extern crate cssparser;
 extern crate dtoa;
 #[macro_use] extern crate html5ever;
 extern crate itoa;

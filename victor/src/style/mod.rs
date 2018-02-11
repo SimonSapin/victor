@@ -1,52 +1,24 @@
-use cssparser::{ParserInput, Parser, ParseError};
-use cssparser::{RuleListParser, AtRuleParser, QualifiedRuleParser};
-use selectors::SelectorList;
+use cssparser::{ParserInput, Parser, RuleListParser};
 
+mod errors;
+mod properties;
+mod rules;
 mod selectors;
+mod values;
 
 pub struct StyleSet {
-    rules: Vec<CssRule>,
+    rules: Vec<rules::CssRule>,
 }
 
 impl StyleSet {
     pub fn add_stylesheet(&mut self, css: &str) {
         let mut input = ParserInput::new(css);
         let mut parser = Parser::new(&mut input);
-        for result in RuleListParser::new_for_stylesheet(&mut parser, VictorRulesParser) {
+        for result in RuleListParser::new_for_stylesheet(&mut parser, rules::RulesParser) {
             // FIXME: error reporting
             if let Ok(rule) = result {
                 self.rules.push(rule)
             }
         }
-    }
-}
-
-enum Void {}
-
-struct VictorRulesParser;
-struct CssRule;
-
-impl<'i> AtRuleParser<'i> for VictorRulesParser {
-    type PreludeNoBlock = Void;
-    type PreludeBlock = Void;
-    type AtRule = CssRule;
-    type Error = selectors::ParseError<'i>;
-}
-
-impl<'i> QualifiedRuleParser<'i> for VictorRulesParser {
-    type Prelude = SelectorList<selectors::Impl>;
-    type QualifiedRule = CssRule;
-    type Error = selectors::ParseError<'i>;
-
-    fn parse_prelude<'t>(&mut self, parser: &mut Parser<'i, 't>)
-                         -> Result<Self::Prelude, ParseError<'i, Self::Error>>
-    {
-        SelectorList::parse(&selectors::Parser, parser)
-    }
-
-    fn parse_block<'t>(&mut self, _prelude: Self::Prelude, _parser: &mut Parser<'i, 't>)
-                       -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>>
-    {
-        unimplemented!()
     }
 }

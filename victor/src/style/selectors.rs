@@ -6,6 +6,9 @@ use selectors::attr::{NamespaceConstraint, CaseSensitivity, AttrSelectorOperatio
 use selectors::context::{MatchingContext, VisitedHandlingMode};
 use selectors::matching::ElementSelectorFlags;
 use std::fmt;
+use style::errors::RuleParseErrorKind;
+
+pub type SelectorList = selectors::SelectorList<Impl>;
 
 #[derive(Clone)]
 pub struct Impl;
@@ -17,8 +20,6 @@ pub enum PseudoElement {}
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum PseudoClass {}
-
-pub type ParseError<'i> = selectors::parser::SelectorParseErrorKind<'i>;
 
 impl selectors::parser::SelectorImpl for Impl {
     type ExtraMatchingData = ();
@@ -40,7 +41,7 @@ impl selectors::parser::SelectorImpl for Impl {
 
 impl<'i> selectors::parser::Parser<'i> for Parser {
     type Impl = Impl;
-    type Error = ParseError<'i>;
+    type Error = RuleParseErrorKind<'i>;
 }
 
 impl selectors::parser::PseudoElement for PseudoElement {
