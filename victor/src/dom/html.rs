@@ -73,10 +73,7 @@ impl<'arena> TreeSink for Sink<'arena> {
     }
 
     fn elem_name<'a>(&self, target: &'a NodeRef<'arena>) -> ExpandedName<'a> {
-        match target.data {
-            NodeData::Element { ref name, .. } => name.expanded(),
-            _ => panic!("not an element!"),
-        }
+        target.as_element().expect("not an element").name.expanded()
     }
 
     fn get_template_contents(&mut self, target: &NodeRef<'arena>) -> NodeRef<'arena> {
@@ -84,22 +81,18 @@ impl<'arena> TreeSink for Sink<'arena> {
     }
 
     fn is_mathml_annotation_xml_integration_point(&self, target: &NodeRef<'arena>) -> bool {
-        if let NodeData::Element { mathml_annotation_xml_integration_point, .. } = target.data {
-            mathml_annotation_xml_integration_point
-        } else {
-            panic!("not an element!")
-        }
+        target.as_element().expect("not an element").mathml_annotation_xml_integration_point
     }
 
     fn create_element(&mut self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags)
                       -> NodeRef<'arena> {
         let is_style = name.expanded() == expanded_name!(html "style");
-        let element = self.new_node(NodeData::Element {
+        let element = self.new_node(NodeData::Element(ElementData {
             name: name,
             attrs: RefCell::new(attrs),
             mathml_annotation_xml_integration_point: flags.mathml_annotation_xml_integration_point,
 
-        });
+        }));
         if is_style {
             self.document.style_elements.push(element)
         }
@@ -153,11 +146,7 @@ impl<'arena> TreeSink for Sink<'arena> {
     }
 
     fn add_attrs_if_missing(&mut self, target: &NodeRef<'arena>, attrs: Vec<Attribute>) {
-        let mut existing = if let NodeData::Element { ref attrs, .. } = target.data {
-            attrs.borrow_mut()
-        } else {
-            panic!("not an element")
-        };
+        let mut existing = target.as_element().expect("not an element").attrs.borrow_mut();
 
         let existing_names = existing.iter().map(|e| e.name.clone()).collect::<HashSet<_>>();
         existing.extend(attrs.into_iter().filter(|attr| {

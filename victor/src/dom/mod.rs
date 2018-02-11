@@ -3,14 +3,14 @@
 mod html;
 
 use arena::Arena;
-use html5ever::{QualName, Attribute};
+use html5ever::{QualName, ExpandedName, LocalName, Attribute};
 use html5ever::tendril::StrTendril;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, RefCell, Ref};
 use std::ptr;
 use style::StyleSet;
 
-type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
-type NodeRef<'arena> = &'arena Node<'arena>;
+pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
+pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
 type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 
 pub struct Document<'arena> {
@@ -20,15 +20,11 @@ pub struct Document<'arena> {
 
 impl<'arena> Document<'arena> {
     pub fn parse_stylesheets(&self, style_set: &mut StyleSet) {
-        'elements: for element in &self.style_elements {
+        for element in &self.style_elements {
             // https://html.spec.whatwg.org/multipage/semantics.html#update-a-style-block
-            if let NodeData::Element { ref attrs, .. } = element.data {
-                for attr in &*attrs.borrow() {
-                    if attr.name.expanded() == expanded_name!("", "type") {
-                        if !attr.value.eq_ignore_ascii_case("text/css") {
-                            continue 'elements
-                        }
-                    }
+            if let Some(type_attr) = element.as_element().unwrap().get_attr(&local_name!("type")) {
+                if !type_attr.eq_ignore_ascii_case("text/css") {
+                    continue
                 }
             }
             style_set.add_stylesheet(&element.child_text_content())
@@ -58,26 +54,46 @@ enum NodeData {
     Comment {
         _contents: StrTendril,
     },
-    Element {
-        name: QualName,
-        attrs: RefCell<Vec<Attribute>>,
-        mathml_annotation_xml_integration_point: bool,
-    },
+    Element(ElementData),
     ProcessingInstruction {
         _target: StrTendril,
         _contents: StrTendril,
     },
 }
 
+pub(crate) struct ElementData {
+    pub(crate) name: QualName,
+    pub(crate) attrs: RefCell<Vec<Attribute>>,
+    pub(crate) mathml_annotation_xml_integration_point: bool,
+}
+
+impl ElementData {
+    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<Ref<str>>{
+        let name = ExpandedName { ns: &ns!(), local: name };
+        let attrs = self.attrs.borrow();
+        attrs.iter().position(|attr| attr.name.expanded() == name).map(|i| {
+            Ref::map(attrs, |attrs| &*attrs[i].value)
+        })
+    }
+}
+
 #[test]
 #[cfg(target_pointer_width = "64")]
 fn size_of() {
     use std::mem::size_of;
-    assert_eq!(size_of::<Node>(), 112);
-    assert_eq!(size_of::<NodeData>(), 72);
+    assert_eq!(size_of::<Node>(), 120);
+    assert_eq!(size_of::<NodeData>(), 80);
+    assert_eq!(size_of::<ElementData>(), 72);
 }
 
 impl<'arena> Node<'arena> {
+    pub(crate) fn as_element(&self) -> Option<&ElementData> {
+        match self.data {
+            NodeData::Element(ref data) => Some(data),
+            _ => None
+        }
+    }
+
     fn new(data: NodeData) -> Self {
         Node {
             parent: Cell::new(None),
