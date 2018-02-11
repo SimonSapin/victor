@@ -17,6 +17,7 @@ extern crate dtoa;
 extern crate itoa;
 extern crate num_traits;
 extern crate parking_lot_core;
+extern crate selectors;
 #[macro_use] extern crate victor_internal_proc_macros;
 extern crate xi_unicode;
 
