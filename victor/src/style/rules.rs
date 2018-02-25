@@ -34,14 +34,21 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     fn parse_block<'t>(&mut self, prelude: Self::Prelude, parser: &mut Parser<'i, 't>)
                        -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>>
     {
-        let decls = DeclarationListParser::new(parser, PropertyDeclarationParser);
-
-        // FIXME error reporting
-        let decls = decls.filter_map(Result::ok);
+        let mut iter = DeclarationListParser::new(parser, PropertyDeclarationParser {
+            declarations: Vec::new()
+        });
+        for result in &mut iter {
+            match result {
+                Ok(()) => {}
+                Err(_) => {
+                    // FIXME error reporting
+                }
+            }
+        }
 
         Ok(CssRule::StyleRule {
             selectors: prelude,
-            declarations: Rc::new(decls.collect()),
+            declarations: Rc::new(iter.parser.declarations),
         })
     }
 }
@@ -53,17 +60,19 @@ impl<'i> AtRuleParser<'i> for RulesParser {
     type Error = RuleParseErrorKind<'i>;
 }
 
-pub struct PropertyDeclarationParser;
+pub struct PropertyDeclarationParser {
+    declarations: Vec<PropertyDeclaration>,
+}
 
 impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
-    type Declaration = PropertyDeclaration;
+    type Declaration = ();
     type Error = PropertyParseErrorKind<'i>;
 
     fn parse_value<'t>(&mut self, name: CowRcStr<'i>, parser: &mut Parser<'i, 't>)
                        -> Result<Self::Declaration, ParseError<'i, Self::Error>>
     {
         if let Some(parse) = declaration_parsing_function_by_name(&name) {
-            parse(parser)
+            parse(parser, &mut self.declarations)
         } else {
             Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
         }
@@ -73,6 +82,6 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
 impl<'i> AtRuleParser<'i> for PropertyDeclarationParser {
     type PreludeNoBlock = ();
     type PreludeBlock = ();
-    type AtRule = PropertyDeclaration;
+    type AtRule = ();
     type Error = PropertyParseErrorKind<'i>;
 }

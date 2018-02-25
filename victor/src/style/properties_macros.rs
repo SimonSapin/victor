@@ -5,13 +5,18 @@ macro_rules! properties {
             $inherited: ident struct $struct_name: ident {
                 $(
                     $ident: ident {
-                        name: $name: expr,
-                        specified: $ValueType: ty,
-                        initial: $initial_value: expr,
+                        $name: expr,
+                        $ValueType: ty,
+                        initial = $initial_value: expr
                     }
                 )+
             }
         )+
+        @shorthands {
+            $(
+                $shorthand_name: tt : $shorthand_parse: expr;
+            )+
+        }
     ) => {
         #[repr($DiscriminantType)]
         #[allow(non_camel_case_types)]
@@ -116,8 +121,8 @@ macro_rules! properties {
 
         type FnParseProperty =
             for<'i, 't>
-            fn(&mut ::cssparser::Parser<'i, 't>)
-            -> Result<PropertyDeclaration, ::style::errors::PropertyParseError<'i>>;
+            fn(&mut ::cssparser::Parser<'i, 't>, &mut Vec<PropertyDeclaration>)
+            -> Result<(), ::style::errors::PropertyParseError<'i>>;
 
         ascii_case_insensitive_phf_map! {
             declaration_parsing_function_by_name -> FnParseProperty = {
@@ -127,14 +132,41 @@ macro_rules! properties {
                         // that I did not bother filing because it is fixed
                         // by MIR-based borrow-checking, so it’ll go away soon enough.
                         // FIXME: remove the indirection when NLL ships.
-                        const PARSE: FnParseProperty = |parser| {
-                            <$ValueType as ::style::values::Parse>::parse(parser)
-                                .map(PropertyDeclaration::$ident)
+                        const PARSE: FnParseProperty = |parser, declarations| {
+                            let v = <$ValueType as ::style::values::Parse>::parse(parser)?;
+                            declarations.push(PropertyDeclaration::$ident(v));
+                            Ok(())
                         };
                         PARSE
                     },
                 )+)+
+                $(
+                    $shorthand_name => {
+                        const PARSE: FnParseProperty = |parser, declarations| {
+                            let previous_len = declarations.len();
+                            let result = $shorthand_parse(parser, declarations);
+                            if result.is_err() {
+                                debug_assert_eq!(declarations.len(), previous_len);
+                            }
+                            result
+                        };
+                        PARSE
+                    },
+                )+
             }
+        }
+    }
+}
+
+macro_rules! parse_four_sides {
+    ($Top: ident, $Left: ident, $Bottom: ident, $Right: ident) => {
+        |parser, declarations: &mut Vec<PropertyDeclaration>| {
+            let FourSides { top, left, bottom, right } = <FourSides<_> as Parse>::parse(parser)?;
+            declarations.push(PropertyDeclaration::$Top(top));
+            declarations.push(PropertyDeclaration::$Left(left));
+            declarations.push(PropertyDeclaration::$Bottom(bottom));
+            declarations.push(PropertyDeclaration::$Right(right));
+            Ok(())
         }
     }
 }
