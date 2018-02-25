@@ -128,10 +128,7 @@ macro_rules! properties {
             declaration_parsing_function_by_name -> FnParseProperty = {
                 $($(
                     $name => {
-                        // Using a constant works around a spurious borrow-checking error
-                        // that I did not bother filing because it is fixed
-                        // by MIR-based borrow-checking, so it’ll go away soon enough.
-                        // FIXME: remove the indirection when NLL ships.
+                        // FIXME: this works around https://github.com/rust-lang/rust/issues/48540
                         const PARSE: FnParseProperty = |parser, declarations| {
                             let v = <$ValueType as ::style::values::Parse>::parse(parser)?;
                             declarations.push(PropertyDeclaration::$ident(v));
@@ -142,6 +139,7 @@ macro_rules! properties {
                 )+)+
                 $(
                     $shorthand_name => {
+                        // FIXME: this works around https://github.com/rust-lang/rust/issues/48540
                         const PARSE: FnParseProperty = $shorthand_parse;
                         PARSE
                     },
