@@ -21,6 +21,7 @@ macro_rules! properties {
             )+)+
         }
 
+        #[derive(Clone)]
         pub struct ComputedValues {
             $(
                 pub $struct_name: ::std::rc::Rc<style_structs::$struct_name>,
@@ -31,7 +32,7 @@ macro_rules! properties {
             use super::*;
             $(
                 #[allow(non_camel_case_types)]
-                #[derive(Clone)]
+                #[derive(Clone)]  // FIXME: only for inherited structs?
                 pub struct $struct_name {
                     $(
                         pub $ident: <$ValueType as ::style::values::ToComputedValue>::Computed,
@@ -51,20 +52,32 @@ macro_rules! properties {
         }
 
         impl ComputedValues {
-            pub fn initial() -> Self {
-                ComputedValues {
-                    $(
-                        $struct_name: ::std::rc::Rc::new(style_structs::$struct_name::initial()),
-                    )+
+            pub fn new(parent_style: Option<&Self>) -> Self {
+                // XXX: if we even replace Rc with Arc for style structs,
+                // replace thread_local! with lazy_static! here.
+                thread_local! {
+                    static INITIAL_VALUES: ComputedValues = ComputedValues {
+                        $(
+                            $struct_name: ::std::rc::Rc::new(
+                                style_structs::$struct_name::initial()
+                            ),
+                        )+
+                    };
                 }
-            }
 
-            pub fn inheriting_from(parent_style: &Self) -> Self {
-                ComputedValues {
-                    $(
-                        $struct_name: inheriting_from!($inherited $struct_name parent_style),
-                    )+
-                }
+                INITIAL_VALUES.with(|initial| {
+                    if let Some(parent) = parent_style {
+                        ComputedValues {
+                            $(
+                                $struct_name: ::std::rc::Rc::clone(
+                                    &select_inherited!($inherited, parent, initial).$struct_name
+                                ),
+                            )+
+                        }
+                    } else {
+                        initial.clone()
+                    }
+                })
             }
         }
 
@@ -128,11 +141,7 @@ macro_rules! properties {
     }
 }
 
-macro_rules! inheriting_from {
-    (inherited $struct_name: ident $parent_style: expr) => {
-        $parent_style.$struct_name.clone()
-    };
-    (reset $struct_name: ident $parent_style: expr) => {
-        ::std::rc::Rc::new(style_structs::$struct_name::initial())
-    };
+macro_rules! select_inherited {
+    (inherited, $parent: expr, $initial: expr) => { $parent };
+    (reset,     $parent: expr, $initial: expr) => { $initial };
 }
