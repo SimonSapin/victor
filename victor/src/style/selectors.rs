@@ -3,13 +3,29 @@ use dom::{Node, NodeRef, Link};
 use html5ever::{LocalName, Namespace, Prefix};
 use selectors;
 use selectors::attr::{NamespaceConstraint, CaseSensitivity, AttrSelectorOperation};
-use selectors::context::{MatchingContext, VisitedHandlingMode};
-use selectors::matching::ElementSelectorFlags;
+use selectors::context::{MatchingContext, MatchingMode, VisitedHandlingMode, QuirksMode};
+use selectors::matching::{ElementSelectorFlags, matches_selector};
 use std::fmt;
 use style::errors::RuleParseErrorKind;
 
 pub type SelectorList = selectors::SelectorList<Impl>;
 pub type Selector = selectors::parser::Selector<Impl>;
+
+pub fn matches(selector: &Selector, element: NodeRef) -> bool {
+    matches_selector(
+        selector,
+        0,
+        None,
+        &element,
+        &mut MatchingContext::new(
+            MatchingMode::Normal,
+            None,
+            None,
+            QuirksMode::NoQuirks,
+        ),
+        &mut |_, _| {},
+    )
+}
 
 #[derive(Clone)]
 pub struct Impl;

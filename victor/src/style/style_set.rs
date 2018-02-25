@@ -1,8 +1,9 @@
 use cssparser::{ParserInput, Parser, RuleListParser};
+use dom::NodeRef;
 use std::rc::Rc;
-use style::properties::PropertyDeclaration;
+use style::properties::{PropertyDeclaration, ComputedValues};
 use style::rules::{CssRule, RulesParser};
-use style::selectors::Selector;
+use style::selectors::{self, Selector};
 
 pub struct StyleSetBuilder(StyleSet);
 
@@ -33,7 +34,22 @@ impl StyleSetBuilder {
     }
 
     pub fn finish(mut self) -> StyleSet {
+        // Sort stability preserves document order for rules of equal specificity
         self.0.rules.sort_by_key(|&(ref selector, _)| selector.specificity());
         self.0
+    }
+}
+
+impl StyleSet {
+    pub fn cascade(&self, node: NodeRef) -> ComputedValues {
+        let mut computed = ComputedValues::initial();
+        for &(ref selector, ref declarations) in &self.rules {
+            if selectors::matches(selector, node) {
+                for declaration in declarations.iter() {
+                    computed.computed_declaration(declaration)
+                }
+            }
+        }
+        computed
     }
 }

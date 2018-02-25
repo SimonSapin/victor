@@ -6,3 +6,4 @@ mod style_set;
 mod values;
 
 pub use self::style_set::{StyleSetBuilder, StyleSet};
+pub use self::properties::ComputedValues;
