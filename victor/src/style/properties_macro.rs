@@ -23,7 +23,7 @@ macro_rules! properties {
 
         pub struct ComputedValues {
             $(
-                pub $struct_name: style_structs::$struct_name,
+                pub $struct_name: ::std::rc::Rc<style_structs::$struct_name>,
             )+
         }
 
@@ -54,7 +54,7 @@ macro_rules! properties {
             pub fn initial() -> Self {
                 ComputedValues {
                     $(
-                        $struct_name: style_structs::$struct_name::initial(),
+                        $struct_name: ::std::rc::Rc::new(style_structs::$struct_name::initial()),
                     )+
                 }
             }
@@ -94,7 +94,7 @@ macro_rules! properties {
                             let declaration = unsafe {
                                 &*ptr
                             };
-                            computed.$struct_name.$ident =
+                            ::std::rc::Rc::make_mut(&mut computed.$struct_name).$ident =
                                 ::style::values::ToComputedValue::to_computed(&declaration.value)
                         },
                     )+)+
@@ -133,6 +133,6 @@ macro_rules! inheriting_from {
         $parent_style.$struct_name.clone()
     };
     (reset $struct_name: ident $parent_style: expr) => {
-        style_structs::$struct_name::initial()
+        ::std::rc::Rc::new(style_structs::$struct_name::initial())
     };
 }
