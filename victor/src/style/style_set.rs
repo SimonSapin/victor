@@ -46,7 +46,7 @@ impl StyleSet {
         for &(ref selector, ref declarations) in &self.rules {
             if selectors::matches(selector, node) {
                 for declaration in declarations.iter() {
-                    computed.computed_declaration(declaration)
+                    declaration.cascade_into(&mut computed)
                 }
             }
         }

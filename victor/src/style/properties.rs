@@ -19,6 +19,7 @@ macro_rules! properties {
             }
         )+
     ) => {
+        #[repr($DiscriminantType)]
         #[allow(non_camel_case_types)]
         pub enum PropertyDeclaration {
             $(
@@ -40,15 +41,39 @@ macro_rules! properties {
                     )+
                 }
             }
+        }
 
-            pub fn computed_declaration(&mut self, declaration: &PropertyDeclaration) {
-                match *declaration {
+        impl PropertyDeclaration {
+            fn id(&self) -> $DiscriminantType {
+                // #[repr(u8)] guarantees that an enum’s representation starts with a u8 tag:
+                // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
+                let ptr: *const PropertyDeclaration = self;
+                let ptr = ptr as *const $DiscriminantType;
+                unsafe {
+                    *ptr
+                }
+            }
+
+            pub fn cascade_into(&self, computed: &mut ComputedValues) {
+                static CASCADE_FNS: &'static [fn(&PropertyDeclaration, &mut ComputedValues)] = &[
                     $(
-                        PropertyDeclaration::$ident(ref value) => {
-                            self.$ident = value.to_computed()
+                        |declaration, computed| {
+                            // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
+                            #[repr(C)]
+                            struct Repr {
+                                tag: $DiscriminantType,
+                                value: $ValueType,
+                            }
+                            let ptr: *const PropertyDeclaration = declaration;
+                            let ptr = ptr as *const Repr;
+                            let declaration = unsafe {
+                                &*ptr
+                            };
+                            computed.$ident = declaration.value.to_computed()
                         }
                     )+
-                }
+                ];
+                CASCADE_FNS[self.id() as usize](self, computed)
             }
         }
 
