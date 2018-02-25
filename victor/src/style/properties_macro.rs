@@ -38,28 +38,22 @@ macro_rules! properties {
                         pub $ident: <$ValueType as ::style::values::ToComputedValue>::Computed,
                     )+
                 }
-
-                impl $struct_name {
-                    pub fn initial() -> Self {
-                        $struct_name {
-                            $(
-                                $ident: $initial_value,
-                            )+
-                        }
-                    }
-                }
             )+
         }
 
         impl ComputedValues {
             pub fn new(parent_style: Option<&Self>) -> Self {
-                // XXX: if we even replace Rc with Arc for style structs,
+                // XXX: if we ever replace Rc with Arc for style structs,
                 // replace thread_local! with lazy_static! here.
                 thread_local! {
                     static INITIAL_VALUES: ComputedValues = ComputedValues {
                         $(
                             $struct_name: ::std::rc::Rc::new(
-                                style_structs::$struct_name::initial()
+                                style_structs::$struct_name {
+                                    $(
+                                        $ident: $initial_value,
+                                    )+
+                                }
                             ),
                         )+
                     };
@@ -67,10 +61,14 @@ macro_rules! properties {
 
                 INITIAL_VALUES.with(|initial| {
                     if let Some(parent) = parent_style {
+                        macro_rules! select {
+                            (inherited, $parent: expr, $initial: expr) => { $parent };
+                            (reset,     $parent: expr, $initial: expr) => { $initial };
+                        }
                         ComputedValues {
                             $(
                                 $struct_name: ::std::rc::Rc::clone(
-                                    &select_inherited!($inherited, parent, initial).$struct_name
+                                    &select!($inherited, parent, initial).$struct_name
                                 ),
                             )+
                         }
@@ -139,9 +137,4 @@ macro_rules! properties {
             }
         }
     }
-}
-
-macro_rules! select_inherited {
-    (inherited, $parent: expr, $initial: expr) => { $parent };
-    (reset,     $parent: expr, $initial: expr) => { $initial };
 }
