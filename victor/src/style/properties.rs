@@ -1,6 +1,6 @@
 use cssparser::Parser;
 use style::errors::PropertyParseError;
-use style::values::Length;
+use style::values::{Parse, Length};
 
 pub enum PropertyDeclaration {
     FontSize(Length)
