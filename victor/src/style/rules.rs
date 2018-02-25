@@ -37,10 +37,12 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
         let mut iter = DeclarationListParser::new(parser, PropertyDeclarationParser {
             declarations: Vec::new()
         });
-        for result in &mut iter {
+        while let Some(result) = iter.next() {
+            let previous_len = iter.parser.declarations.len();
             match result {
                 Ok(()) => {}
                 Err(_) => {
+                    iter.parser.declarations.truncate(previous_len);
                     // FIXME error reporting
                 }
             }

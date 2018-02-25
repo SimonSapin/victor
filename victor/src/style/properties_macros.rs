@@ -142,14 +142,7 @@ macro_rules! properties {
                 )+)+
                 $(
                     $shorthand_name => {
-                        const PARSE: FnParseProperty = |parser, declarations| {
-                            let previous_len = declarations.len();
-                            let result = $shorthand_parse(parser, declarations);
-                            if result.is_err() {
-                                debug_assert_eq!(declarations.len(), previous_len);
-                            }
-                            result
-                        };
+                        const PARSE: FnParseProperty = $shorthand_parse;
                         PARSE
                     },
                 )+
