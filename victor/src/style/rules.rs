@@ -1,7 +1,8 @@
-use cssparser::{Parser, ParseError, AtRuleParser, QualifiedRuleParser, DeclarationListParser};
+use cssparser::{Parser, ParseError, AtRuleParser, QualifiedRuleParser};
+use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
-use style::errors::RuleParseErrorKind;
-use style::properties::{PropertyDeclaration, PropertyDeclarationParser};
+use style::errors::{RuleParseErrorKind, PropertyParseErrorKind};
+use style::properties::{PropertyDeclaration, declaration_parsing_function_by_name};
 use style::selectors::{self, SelectorList};
 
 pub enum CssRule {
@@ -50,4 +51,28 @@ impl<'i> AtRuleParser<'i> for RulesParser {
     type PreludeBlock = ();
     type AtRule = CssRule;
     type Error = RuleParseErrorKind<'i>;
+}
+
+pub struct PropertyDeclarationParser;
+
+impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
+    type Declaration = PropertyDeclaration;
+    type Error = PropertyParseErrorKind<'i>;
+
+    fn parse_value<'t>(&mut self, name: CowRcStr<'i>, parser: &mut Parser<'i, 't>)
+                       -> Result<Self::Declaration, ParseError<'i, Self::Error>>
+    {
+        if let Some(parse) = declaration_parsing_function_by_name(&name) {
+            parse(parser)
+        } else {
+            Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
+        }
+    }
+}
+
+impl<'i> AtRuleParser<'i> for PropertyDeclarationParser {
+    type PreludeNoBlock = ();
+    type PreludeBlock = ();
+    type AtRule = PropertyDeclaration;
+    type Error = PropertyParseErrorKind<'i>;
 }

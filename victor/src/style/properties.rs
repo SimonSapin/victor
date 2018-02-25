@@ -1,5 +1,5 @@
-use cssparser::{Parser, ParseError, CowRcStr, AtRuleParser, DeclarationParser};
-use style::errors::{PropertyParseError, PropertyParseErrorKind};
+use cssparser::Parser;
+use style::errors::PropertyParseError;
 use style::values::Length;
 
 pub enum PropertyDeclaration {
@@ -22,28 +22,4 @@ ascii_case_insensitive_phf_map! {
             PARSE
         },
     }
-}
-
-pub struct PropertyDeclarationParser;
-
-impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
-    type Declaration = PropertyDeclaration;
-    type Error = PropertyParseErrorKind<'i>;
-
-    fn parse_value<'t>(&mut self, name: CowRcStr<'i>, parser: &mut Parser<'i, 't>)
-                       -> Result<Self::Declaration, ParseError<'i, Self::Error>>
-    {
-        if let Some(parse) = declaration_parsing_function_by_name(&name) {
-            parse(parser)
-        } else {
-            Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
-        }
-    }
-}
-
-impl<'i> AtRuleParser<'i> for PropertyDeclarationParser {
-    type PreludeNoBlock = ();
-    type PreludeBlock = ();
-    type AtRule = PropertyDeclaration;
-    type Error = PropertyParseErrorKind<'i>;
 }
