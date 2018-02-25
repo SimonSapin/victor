@@ -13,4 +13,10 @@ properties! {
         specified: Length,
         initial: EuclidLength::new(16.),
     }
+
+    margin {
+        name: "margin",
+        specified: Length,  // FIXME: shorthand, 4 values
+        initial: EuclidLength::new(0.),
+    }
 }

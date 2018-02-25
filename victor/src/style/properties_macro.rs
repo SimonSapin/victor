@@ -61,7 +61,7 @@ macro_rules! properties {
                             };
                             computed.$ident =
                                 ::style::values::ToComputedValue::to_computed(&declaration.value)
-                        }
+                        },
                     )+
                 ];
                 CASCADE_FNS[self.id() as usize](self, computed)
