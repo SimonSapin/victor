@@ -41,8 +41,12 @@ impl StyleSetBuilder {
 }
 
 impl StyleSet {
-    pub fn cascade(&self, node: NodeRef) -> ComputedValues {
-        let mut computed = ComputedValues::initial();
+    pub fn cascade(&self, node: NodeRef, parent_style: Option<&ComputedValues>) -> ComputedValues {
+        let mut computed = if let Some(parent_style) = parent_style {
+            ComputedValues::inheriting_from(parent_style)
+        } else {
+            ComputedValues::initial()
+        };
         for &(ref selector, ref declarations) in &self.rules {
             if selectors::matches(selector, node) {
                 for declaration in declarations.iter() {

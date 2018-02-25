@@ -2,24 +2,51 @@ macro_rules! properties {
     (
         type Discriminant = $DiscriminantType: ident;
         $(
-            $ident: ident {
-                name: $name: expr,
-                specified: $ValueType: ty,
-                initial: $initial_value: expr,
+            $inherited: ident struct $struct_name: ident {
+                $(
+                    $ident: ident {
+                        name: $name: expr,
+                        specified: $ValueType: ty,
+                        initial: $initial_value: expr,
+                    }
+                )+
             }
         )+
     ) => {
         #[repr($DiscriminantType)]
         #[allow(non_camel_case_types)]
         pub enum PropertyDeclaration {
-            $(
+            $($(
                 $ident($ValueType),
-            )+
+            )+)+
         }
 
         pub struct ComputedValues {
             $(
-                $ident: <$ValueType as ::style::values::ToComputedValue>::Computed,
+                pub $struct_name: style_structs::$struct_name,
+            )+
+        }
+
+        pub mod style_structs {
+            use super::*;
+            $(
+                #[allow(non_camel_case_types)]
+                #[derive(Clone)]
+                pub struct $struct_name {
+                    $(
+                        pub $ident: <$ValueType as ::style::values::ToComputedValue>::Computed,
+                    )+
+                }
+
+                impl $struct_name {
+                    pub fn initial() -> Self {
+                        $struct_name {
+                            $(
+                                $ident: $initial_value,
+                            )+
+                        }
+                    }
+                }
             )+
         }
 
@@ -27,7 +54,15 @@ macro_rules! properties {
             pub fn initial() -> Self {
                 ComputedValues {
                     $(
-                        $ident: $initial_value,
+                        $struct_name: style_structs::$struct_name::initial(),
+                    )+
+                }
+            }
+
+            pub fn inheriting_from(parent_style: &Self) -> Self {
+                ComputedValues {
+                    $(
+                        $struct_name: inheriting_from!($inherited $struct_name parent_style),
                     )+
                 }
             }
@@ -46,7 +81,7 @@ macro_rules! properties {
 
             pub fn cascade_into(&self, computed: &mut ComputedValues) {
                 static CASCADE_FNS: &'static [fn(&PropertyDeclaration, &mut ComputedValues)] = &[
-                    $(
+                    $($(
                         |declaration, computed| {
                             // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
                             #[repr(C)]
@@ -59,10 +94,10 @@ macro_rules! properties {
                             let declaration = unsafe {
                                 &*ptr
                             };
-                            computed.$ident =
+                            computed.$struct_name.$ident =
                                 ::style::values::ToComputedValue::to_computed(&declaration.value)
                         },
-                    )+
+                    )+)+
                 ];
                 CASCADE_FNS[self.id() as usize](self, computed)
             }
@@ -75,7 +110,7 @@ macro_rules! properties {
 
         ascii_case_insensitive_phf_map! {
             declaration_parsing_function_by_name -> FnParseProperty = {
-                $(
+                $($(
                     $name => {
                         // Using a constant works around a spurious borrow-checking error
                         // that I did not bother filing because it is fixed
@@ -87,8 +122,17 @@ macro_rules! properties {
                         };
                         PARSE
                     },
-                )+
+                )+)+
             }
         }
     }
+}
+
+macro_rules! inheriting_from {
+    (inherited $struct_name: ident $parent_style: expr) => {
+        $parent_style.$struct_name.clone()
+    };
+    (reset $struct_name: ident $parent_style: expr) => {
+        style_structs::$struct_name::initial()
+    };
 }

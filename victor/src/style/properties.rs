@@ -8,15 +8,19 @@ mod properties_macro;
 properties! {
     type Discriminant = u8;
 
-    font_size {
-        name: "font-size",
-        specified: Length,
-        initial: EuclidLength::new(16.),
+    inherited struct font {
+        font_size {
+            name: "font-size",
+            specified: Length,
+            initial: EuclidLength::new(16.),
+        }
     }
 
-    margin {
-        name: "margin",
-        specified: Length,  // FIXME: shorthand, 4 values
-        initial: EuclidLength::new(0.),
+    reset struct margin {
+        margin {
+            name: "margin",
+            specified: Length,  // FIXME: shorthand, 4 values
+            initial: EuclidLength::new(0.),
+        }
     }
 }
