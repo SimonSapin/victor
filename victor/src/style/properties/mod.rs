@@ -1,9 +1,9 @@
 use primitives::{Length as EuclidLength};
-use style::values::{Parse, Length, FourSides};
+use style::values::length::Length;
+use style::values::generic::FourSides;
 
 #[macro_use]
-#[path = "properties_macros.rs"]
-mod properties_macros;
+mod macros;
 
 properties! {
     type Discriminant = u8;
