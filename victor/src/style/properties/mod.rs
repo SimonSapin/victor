@@ -1,5 +1,4 @@
-use primitives::{Length as EuclidLength};
-use style::values::length::Length;
+use style::values::length::{Length, PxLength};
 use style::values::generic::FourSides;
 
 #[macro_use]
@@ -12,15 +11,15 @@ properties! {
         font_size {
             "font-size",
             Length,
-            initial = EuclidLength::new(16.)
+            initial = PxLength::new(16.)
         }
     }
 
     reset struct margin {
-        margin_top { "margin-top", Length, initial = EuclidLength::new(0.) }
-        margin_left { "margin-left", Length, initial = EuclidLength::new(0.) }
-        margin_bottom { "margin-bottom", Length, initial = EuclidLength::new(0.) }
-        margin_right { "margin-right", Length, initial = EuclidLength::new(0.) }
+        margin_top { "margin-top", Length, initial = PxLength::new(0.) }
+        margin_left { "margin-left", Length, initial = PxLength::new(0.) }
+        margin_bottom { "margin-bottom", Length, initial = PxLength::new(0.) }
+        margin_right { "margin-right", Length, initial = PxLength::new(0.) }
     }
 
     @shorthands {
