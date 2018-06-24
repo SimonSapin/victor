@@ -6,7 +6,8 @@ use std::error::Error;
 #[test]
 fn zero_bytes_pdf() {
     match PdfDocument::from_bytes(b"") {
-        Err(ref err) if err.description() == "PDF document is damaged" => {}
+        Err(ref err) if err.description() == "PDF document is damaged" ||
+                        err.description() == "Failed to load document" => {}
         Err(err) => panic!("expected 'damaged document' error, got {:?}", err),
         Ok(_) => panic!("expected error")
     }
