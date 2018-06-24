@@ -48,13 +48,15 @@ impl LazyStaticFont {
         self.lazy_arc.get_or_create(|| Font::parse(self.bytes))
     }
 
-    /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
-    ///
-    /// Calling `.get()` again afterwards will parse a new `Font` object.
-    ///
-    /// The previous `Font` object may continue to live as long
-    /// as other `Arc` references to it exist.
-    pub fn drop(&self) {
-        self.lazy_arc.drop()
-    }
+// Oops, this turned out to be unsound. See victor/src/lazy_arc/mod.rs
+
+//    /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
+//    ///
+//    /// Calling `.get()` again afterwards will parse a new `Font` object.
+//    ///
+//    /// The previous `Font` object may continue to live as long
+//    /// as other `Arc` references to it exist.
+//    pub fn drop(&self) {
+//        self.lazy_arc.drop()
+//    }
 }
