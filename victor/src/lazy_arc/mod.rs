@@ -18,14 +18,13 @@
 //! let foo = FOO.get_or_create(|| Ok(Arc::new(include_str!("something").parse()?))?;
 //! ```
 
+use lock_api::RawMutex as RawMutexTrait;
+use parking_lot::RawMutex;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::ptr;
-use self::raw_mutex::RawMutex;
-
-mod raw_mutex;
 
 pub struct LazyArc<T: Send + Sync> {
     poltergeist: PhantomData<Arc<T>>,
