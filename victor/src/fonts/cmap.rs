@@ -1,6 +1,6 @@
-use crate::fonts::{FontError, GlyphId};
-use crate::fonts::parsing::{Position, Slice, binary_search};
+use crate::fonts::parsing::{binary_search, Position, Slice};
 use crate::fonts::tables::*;
+use crate::fonts::{FontError, GlyphId};
 use std::char;
 use std::cmp::Ordering;
 
@@ -10,8 +10,10 @@ pub(in crate::fonts) enum Cmap {
 }
 
 impl Cmap {
-    pub(in crate::fonts) fn parse(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
-                            -> Result<Self, FontError> {
+    pub(in crate::fonts) fn parse(
+        bytes: &[u8],
+        table_directory: Slice<TableDirectoryEntry>,
+    ) -> Result<Self, FontError> {
         let cmap_header = table_directory.find_table::<CmapHeader>(bytes)?;
         let cmap_records = Slice::new(
             cmap_header.followed_by::<CmapEncodingRecord>(),
@@ -38,15 +40,20 @@ impl Cmap {
                 (MICROSOFT, UNICODE_USC4, SEGMENTED_COVERAGE) => {
                     return Ok(Cmap::Format12(Format12::parse(bytes, subtable.cast())?))
                 }
-                _ => {},
+                _ => {}
             }
         }
 
         Err(FontError::NoSupportedCmap)
     }
 
-    pub(in crate::fonts) fn each_code_point<F>(&self, bytes: &[u8], mut f: F)-> Result<(), FontError>
-        where F: FnMut(char, GlyphId)
+    pub(in crate::fonts) fn each_code_point<F>(
+        &self,
+        bytes: &[u8],
+        mut f: F,
+    ) -> Result<(), FontError>
+    where
+        F: FnMut(char, GlyphId),
     {
         let f = move |code_point, glyph_id| {
             if glyph_id != 0 {
@@ -73,18 +80,31 @@ pub(in crate::fonts) struct Format4 {
 }
 
 impl Format4 {
-    fn parse(bytes: &[u8], encoding_header: Position<CmapFormat4Header>) -> Result<Self, FontError> {
+    fn parse(
+        bytes: &[u8],
+        encoding_header: Position<CmapFormat4Header>,
+    ) -> Result<Self, FontError> {
         let segment_count = u32::from(encoding_header.segment_count_x2().read_from(bytes)? / 2);
 
         let end_codes = encoding_header.followed_by();
-        let start_codes = end_codes.offset(segment_count + 1);  // + 1 for "reservedPad"
+        let start_codes = end_codes.offset(segment_count + 1); // + 1 for "reservedPad"
         let id_deltas = start_codes.offset(segment_count);
         let id_range_offsets = id_deltas.offset(segment_count);
 
-        Ok(Format4 { segment_count, end_codes, start_codes, id_deltas, id_range_offsets })
+        Ok(Format4 {
+            segment_count,
+            end_codes,
+            start_codes,
+            id_deltas,
+            id_range_offsets,
+        })
     }
 
-    pub(in crate::fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in crate::fonts) fn get(
+        &self,
+        bytes: &[u8],
+        code_point: u32,
+    ) -> Result<Option<u16>, FontError> {
         if code_point > 0xFFFF {
             return Ok(None)
         }
@@ -108,14 +128,17 @@ impl Format4 {
     }
 
     fn each_code_point<F>(&self, bytes: &[u8], mut f: F) -> Result<(), FontError>
-        where F: FnMut(u32, u16)
+    where
+        F: FnMut(u32, u16),
     {
         for segment_index in 0..self.segment_count {
             let start_code = self.start_codes.offset(segment_index).read_from(bytes)?;
             let end_code = self.end_codes.offset(segment_index).read_from(bytes)?;
             let mut code_point = start_code;
             loop {
-                if let Some(glyph_id) = self.glyph_id(bytes, segment_index, start_code, code_point)? {
+                if let Some(glyph_id) =
+                    self.glyph_id(bytes, segment_index, start_code, code_point)?
+                {
                     f(u32::from(code_point), glyph_id)
                 }
 
@@ -128,8 +151,13 @@ impl Format4 {
         Ok(())
     }
 
-    fn glyph_id(&self, bytes: &[u8], segment_index: u32, start_code: u16, code_point: u16)
-                -> Result<Option<u16>, FontError> {
+    fn glyph_id(
+        &self,
+        bytes: &[u8],
+        segment_index: u32,
+        start_code: u16,
+        code_point: u16,
+    ) -> Result<Option<u16>, FontError> {
         let id_delta = self.id_deltas.offset(segment_index).read_from(bytes)?;
         let id_range_offset_position = self.id_range_offsets.offset(segment_index);
         let id_range_offset = id_range_offset_position.read_from(bytes)?;
@@ -147,11 +175,7 @@ impl Format4 {
         } else {
             code_point.wrapping_add(id_delta)
         };
-        Ok(if glyph_id != 0 {
-            Some(glyph_id)
-        } else {
-            None
-        })
+        Ok(if glyph_id != 0 { Some(glyph_id) } else { None })
     }
 }
 
@@ -160,7 +184,10 @@ pub(in crate::fonts) struct Format12 {
 }
 
 impl Format12 {
-    fn parse(bytes: &[u8], encoding_header: Position<CmapFormat12Header>) -> Result<Self, FontError> {
+    fn parse(
+        bytes: &[u8],
+        encoding_header: Position<CmapFormat12Header>,
+    ) -> Result<Self, FontError> {
         Ok(Format12 {
             groups: Slice::new(
                 encoding_header.followed_by(),
@@ -169,7 +196,11 @@ impl Format12 {
         })
     }
 
-    pub(in crate::fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in crate::fonts) fn get(
+        &self,
+        bytes: &[u8],
+        code_point: u32,
+    ) -> Result<Option<u16>, FontError> {
         let result = binary_search(self.groups.count(), |index| {
             let group = self.groups.get_unchecked(index);
             if code_point < group.start_char_code().read_from(bytes)? {
@@ -183,9 +214,8 @@ impl Format12 {
 
         if let Some(index) = result? {
             let group = self.groups.get_unchecked(index);
-            let id32 = group.start_glyph_id().read_from(bytes)? + (
-                code_point - group.start_char_code().read_from(bytes)?
-            );
+            let id32 = group.start_glyph_id().read_from(bytes)?
+                + (code_point - group.start_char_code().read_from(bytes)?);
             // Glyph IDs are 16 bits in PDF.
             // For now, pretend that glyphs with larger IDs are missing.
             // FIXME: Maybe this will be unnecessary with PDF font subsetting?
@@ -198,7 +228,8 @@ impl Format12 {
     }
 
     fn each_code_point<F>(&self, bytes: &[u8], mut f: F) -> Result<(), FontError>
-        where F: FnMut(u32, u16)
+    where
+        F: FnMut(u32, u16),
     {
         for group in self.groups {
             let start_code = group.start_char_code().read_from(bytes)?;

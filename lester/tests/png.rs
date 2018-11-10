@@ -1,4 +1,3 @@
-
 use lester::ImageSurface;
 use std::error::Error;
 use std::io;
@@ -14,12 +13,13 @@ fn round_trip_png() {
         // ARGB32
         const RED: u32 = 0xFFFF_0000;
         const BLUE: u32 = 0xFF00_00FF;
-        assert_eq!(pixels.buffer, &[
-            RED,  BLUE, BLUE, BLUE,
-            BLUE, BLUE, BLUE, BLUE,
-            BLUE, BLUE, BLUE, BLUE,
-            BLUE, BLUE, BLUE, BLUE,
-        ]);
+        assert_eq!(
+            pixels.buffer,
+            &[
+                RED, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+                BLUE, BLUE,
+            ]
+        );
     }
 
     assert_expected_pixels(surface.pixels());
@@ -33,8 +33,10 @@ fn round_trip_png() {
 
 #[test]
 fn zero_bytes_png() {
-    expect_io_error_kind(ImageSurface::read_from_png("".as_bytes()),
-                         io::ErrorKind::UnexpectedEof)
+    expect_io_error_kind(
+        ImageSurface::read_from_png("".as_bytes()),
+        io::ErrorKind::UnexpectedEof,
+    )
 }
 
 #[test]
@@ -43,7 +45,7 @@ fn invalid_png() {
     match ImageSurface::read_from_png(bytes) {
         Err(lester::LesterError::Cairo(ref err)) if err.description() == "out of memory" => {}
         Err(err) => panic!("expected 'out of memory' error, got {:?}", err),
-        Ok(_) => panic!("expected error")
+        Ok(_) => panic!("expected error"),
     }
 }
 
@@ -57,8 +59,10 @@ fn forward_read_error() {
         }
     }
 
-    expect_io_error_kind(ImageSurface::read_from_png(InvalidDataRead),
-                         io::ErrorKind::InvalidData)
+    expect_io_error_kind(
+        ImageSurface::read_from_png(InvalidDataRead),
+        io::ErrorKind::InvalidData,
+    )
 }
 
 #[test]
@@ -75,15 +79,21 @@ fn forward_write_error() {
     }
 
     let surface = ImageSurface::new_rgb24(4, 4).unwrap();
-    expect_io_error_kind(surface.write_to_png(InvalidDataWrite),
-                         io::ErrorKind::InvalidData)
+    expect_io_error_kind(
+        surface.write_to_png(InvalidDataWrite),
+        io::ErrorKind::InvalidData,
+    )
 }
 
 fn expect_io_error_kind<T>(result: Result<T, lester::LesterError>, expected_kind: io::ErrorKind) {
     match result {
-        Err(lester::LesterError::Io(err)) => {
-            assert_eq!(err.kind(), expected_kind, "Expected {:?} error, got {:?}", expected_kind, err)
-        }
+        Err(lester::LesterError::Io(err)) => assert_eq!(
+            err.kind(),
+            expected_kind,
+            "Expected {:?} error, got {:?}",
+            expected_kind,
+            err
+        ),
         Err(err) => panic!("Expected an IO error, got {:?}", err),
         Ok(_) => panic!("Expected an error"),
     }
@@ -117,6 +127,6 @@ fn forward_write_panic() {
         }
     }
 
-   let surface = ImageSurface::new_rgb24(4, 4).unwrap();
-   unreachable!(surface.write_to_png(PanickingWrite).is_ok())
+    let surface = ImageSurface::new_rgb24(4, 4).unwrap();
+    unreachable!(surface.write_to_png(PanickingWrite).is_ok())
 }

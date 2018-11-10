@@ -1,9 +1,9 @@
-use cssparser::{Parser, ParseError, AtRuleParser, QualifiedRuleParser};
+use crate::style::errors::{PropertyParseErrorKind, RuleParseErrorKind};
+use crate::style::properties::{declaration_parsing_function_by_name, PropertyDeclaration};
+use crate::style::selectors::{self, SelectorList};
+use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
-use crate::style::errors::{RuleParseErrorKind, PropertyParseErrorKind};
-use crate::style::properties::{PropertyDeclaration, declaration_parsing_function_by_name};
-use crate::style::selectors::{self, SelectorList};
 
 pub enum CssRule {
     StyleRule {
@@ -15,7 +15,7 @@ pub enum CssRule {
         //
         // Use `Rc` to enable having multiple references to the `Vec` without cloning it.
         declarations: Rc<Vec<PropertyDeclaration>>,
-    }
+    },
 }
 
 pub struct RulesParser;
@@ -25,18 +25,24 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     type QualifiedRule = CssRule;
     type Error = RuleParseErrorKind<'i>;
 
-    fn parse_prelude<'t>(&mut self, parser: &mut Parser<'i, 't>)
-                         -> Result<Self::Prelude, ParseError<'i, Self::Error>>
-    {
+    fn parse_prelude<'t>(
+        &mut self,
+        parser: &mut Parser<'i, 't>,
+    ) -> Result<Self::Prelude, ParseError<'i, Self::Error>> {
         SelectorList::parse(&selectors::Parser, parser)
     }
 
-    fn parse_block<'t>(&mut self, prelude: Self::Prelude, parser: &mut Parser<'i, 't>)
-                       -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>>
-    {
-        let mut iter = DeclarationListParser::new(parser, PropertyDeclarationParser {
-            declarations: Vec::new()
-        });
+    fn parse_block<'t>(
+        &mut self,
+        prelude: Self::Prelude,
+        parser: &mut Parser<'i, 't>,
+    ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
+        let mut iter = DeclarationListParser::new(
+            parser,
+            PropertyDeclarationParser {
+                declarations: Vec::new(),
+            },
+        );
         while let Some(result) = iter.next() {
             let previous_len = iter.parser.declarations.len();
             match result {
@@ -70,9 +76,11 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
     type Declaration = ();
     type Error = PropertyParseErrorKind<'i>;
 
-    fn parse_value<'t>(&mut self, name: CowRcStr<'i>, parser: &mut Parser<'i, 't>)
-                       -> Result<Self::Declaration, ParseError<'i, Self::Error>>
-    {
+    fn parse_value<'t>(
+        &mut self,
+        name: CowRcStr<'i>,
+        parser: &mut Parser<'i, 't>,
+    ) -> Result<Self::Declaration, ParseError<'i, Self::Error>> {
         if let Some(parse) = declaration_parsing_function_by_name(&name) {
             parse(parser, &mut self.declarations)
         } else {

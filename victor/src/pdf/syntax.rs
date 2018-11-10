@@ -1,10 +1,10 @@
 //! File Structure
 //! https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1877172
 
+use super::object::Dictionary;
 use itoa::write as itoa;
 use std::borrow::Cow;
 use std::io::{self, Write};
-use super::object::Dictionary;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) struct IndirectObjectId(pub u32);
@@ -44,7 +44,7 @@ impl PdfFile {
         let mut obj = Vec::new();
         meta.write(&mut obj).unwrap();
         obj.extend_from_slice(b"\nstream\n");
-        obj.extend_from_slice(&contents);  // FIXME: avoid this copy?
+        obj.extend_from_slice(&contents); // FIXME: avoid this copy?
         obj.extend_from_slice(b"\nendstream");
         self.add_indirect_object(obj)
     }
@@ -64,8 +64,7 @@ impl PdfFile {
 
     pub fn write<W: Write>(&self, w: &mut W, basic_objects: &BasicObjects) -> io::Result<()> {
         let total_indirect_object_count =
-            (FIRST_AVAILABLE_ID.0 - FIRST_ID.0) as usize +
-            self.indirect_objects.len();
+            (FIRST_AVAILABLE_ID.0 - FIRST_ID.0) as usize + self.indirect_objects.len();
         let mut indirect_object_offsets = Vec::with_capacity(total_indirect_object_count);
         let startxref;
         {
@@ -88,7 +87,7 @@ impl PdfFile {
 
                 indirect_object_offsets.push(w.bytes_written as u32);
                 itoa(&mut w, object_id.0)?;
-                w.write_all(b" 0 obj\n")?;  // Generation number is always zero for us
+                w.write_all(b" 0 obj\n")?; // Generation number is always zero for us
                 dictionary.write(&mut w)?;
                 w.write_all(b"\nendobj\n")?;
             }
@@ -99,7 +98,7 @@ impl PdfFile {
 
                 indirect_object_offsets.push(w.bytes_written as u32);
                 itoa(&mut w, object_id.0)?;
-                w.write_all(b" 0 obj\n")?;  // Generation number is always zero for us
+                w.write_all(b" 0 obj\n")?; // Generation number is always zero for us
                 w.write_all(contents)?;
                 w.write_all(b"\nendobj\n")?;
             }
@@ -141,9 +140,7 @@ impl PdfFile {
 #[inline]
 fn slice_to_10(buffer: &mut [u8; 20]) -> &mut [u8; 10] {
     let ptr = buffer as *mut [u8; 20] as *mut [u8; 10];
-    unsafe {
-        &mut *ptr
-    }
+    unsafe { &mut *ptr }
 }
 
 fn itoa_zero_padded(mut value: u32, buffer: &mut [u8; 10]) {

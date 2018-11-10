@@ -1,9 +1,9 @@
-use cssparser::{ParserInput, Parser, RuleListParser};
 use crate::dom::NodeRef;
-use std::rc::Rc;
-use crate::style::properties::{PropertyDeclaration, ComputedValues};
+use crate::style::properties::{ComputedValues, PropertyDeclaration};
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
+use cssparser::{Parser, ParserInput, RuleListParser};
+use std::rc::Rc;
 
 pub struct StyleSetBuilder(StyleSet);
 
@@ -21,7 +21,10 @@ impl StyleSetBuilder {
         let mut parser = Parser::new(&mut input);
         for result in RuleListParser::new_for_stylesheet(&mut parser, RulesParser) {
             match result {
-                Ok(CssRule::StyleRule { selectors, declarations }) => {
+                Ok(CssRule::StyleRule {
+                    selectors,
+                    declarations,
+                }) => {
                     for selector in selectors.0 {
                         self.0.rules.push((selector, declarations.clone()));
                     }
@@ -35,7 +38,9 @@ impl StyleSetBuilder {
 
     pub fn finish(mut self) -> StyleSet {
         // Sort stability preserves document order for rules of equal specificity
-        self.0.rules.sort_by_key(|&(ref selector, _)| selector.specificity());
+        self.0
+            .rules
+            .sort_by_key(|&(ref selector, _)| selector.specificity());
         self.0
     }
 }

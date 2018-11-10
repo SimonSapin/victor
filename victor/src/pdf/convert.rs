@@ -1,9 +1,9 @@
-use crate::fonts::{Font, GlyphId, FontError};
-use crate::pdf::object::{Object, Dictionary};
-use crate::pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
+use crate::fonts::{Font, FontError, GlyphId};
+use crate::pdf::object::{Dictionary, Object};
+use crate::pdf::syntax::{BasicObjects, PdfFile, PAGE_TREE_ID};
 use crate::primitives::*;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::hash;
 use std::io::{self, Write};
 use std::ops::Deref;
@@ -13,7 +13,7 @@ const PT_PER_INCH: f32 = 72.;
 const PX_PER_INCH: f32 = 96.;
 const PT_PER_PX: f32 = PT_PER_INCH / PX_PER_INCH;
 const CSS_TO_PDF_SCALE_X: f32 = PT_PER_PX;
-const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX;  // Flip the Y axis direction, it defaults to upwards in PDF.
+const CSS_TO_PDF_SCALE_Y: f32 = -PT_PER_PX; // Flip the Y axis direction, it defaults to upwards in PDF.
 
 pub(crate) struct InProgressDoc {
     pdf: PdfFile,
@@ -60,20 +60,36 @@ impl InProgressDoc {
 
 struct ByAddress<T>(T);
 
-impl<T> hash::Hash for ByAddress<T> where T: Deref, T::Target: Sized {
-    fn hash<H>(&self, state: &mut H) where H: hash::Hasher {
+impl<T> hash::Hash for ByAddress<T>
+where
+    T: Deref,
+    T::Target: Sized,
+{
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher,
+    {
         (self.0.deref() as *const T::Target as usize).hash(state)
     }
 }
 
-impl<T> PartialEq for ByAddress<T> where T: Deref, T::Target: Sized {
+impl<T> PartialEq for ByAddress<T>
+where
+    T: Deref,
+    T::Target: Sized,
+{
     fn eq(&self, other: &Self) -> bool {
-        (self.0.deref() as *const T::Target as usize) ==
-        (other.0.deref() as *const T::Target as usize)
+        (self.0.deref() as *const T::Target as usize)
+            == (other.0.deref() as *const T::Target as usize)
     }
 }
 
-impl<T> Eq for ByAddress<T> where T: Deref, T::Target: Sized {}
+impl<T> Eq for ByAddress<T>
+where
+    T: Deref,
+    T::Target: Sized,
+{
+}
 
 pub(crate) struct InProgressPage<'a> {
     doc: &'a mut InProgressDoc,
@@ -84,10 +100,10 @@ pub(crate) struct InProgressPage<'a> {
 
 impl<'a> Drop for InProgressPage<'a> {
     fn drop(&mut self) {
-        let content_id = self.doc.pdf.add_stream(
-            dictionary! {},
-            self.operations.as_slice().into()
-        );
+        let content_id = self
+            .doc
+            .pdf
+            .add_stream(dictionary!{}, self.operations.as_slice().into());
         let page_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Page",
             "Parent" => PAGE_TREE_ID,
@@ -132,11 +148,20 @@ impl<'a> InProgressPage<'a> {
             operations: Vec::new(),
             // Initial state:
             graphics_state: GraphicsState {
-                non_stroking_color_rgb: (0., 0., 0.),  // Black
-                alpha: 1.,  // Fully opaque
+                non_stroking_color_rgb: (0., 0., 0.), // Black
+                alpha: 1.,                            // Fully opaque
             },
         };
-        op!(page, CURRENT_TRANSFORMATION_MATRIX, CSS_TO_PDF_SCALE_X, 0, 0, CSS_TO_PDF_SCALE_Y, 0, 0);
+        op!(
+            page,
+            CURRENT_TRANSFORMATION_MATRIX,
+            CSS_TO_PDF_SCALE_X,
+            0,
+            0,
+            CSS_TO_PDF_SCALE_Y,
+            0,
+            0
+        );
         page
     }
 
@@ -149,12 +174,23 @@ impl<'a> InProgressPage<'a> {
     }
 
     pub(crate) fn paint_rectangle(&mut self, rect: &Rect<CssPx>) {
-        op!(self, RECTANGLE, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+        op!(
+            self,
+            RECTANGLE,
+            rect.origin.x,
+            rect.origin.y,
+            rect.size.width,
+            rect.size.height
+        );
         op!(self, FILL);
     }
 
     pub(crate) fn show_text(&mut self, text: &TextRun) -> Result<(), FontError> {
-        let TextRun { ref segment, ref font_size, ref origin } = *text;
+        let TextRun {
+            ref segment,
+            ref font_size,
+            ref origin,
+        } = *text;
         let font_key = self.add_font(&segment.font)?;
         // flip the Y axis in to compensate the same flip at the page level.
         let x_scale = font_size.0;
@@ -167,7 +203,16 @@ impl<'a> InProgressPage<'a> {
         }
         op!(self, BEGIN_TEXT);
         op!(self, TEXT_FONT_AND_SIZE, &*font_key, 1);
-        op!(self, TEXT_MATRIX, x_scale, 0, 0, y_scale, origin.x, origin.y);
+        op!(
+            self,
+            TEXT_MATRIX,
+            x_scale,
+            0,
+            0,
+            y_scale,
+            origin.x,
+            origin.y
+        );
         op!(self, SHOW_TEXT, Object::HexString(&glyph_codes));
         op!(self, END_TEXT);
 
@@ -210,8 +255,10 @@ impl<'a> InProgressPage<'a> {
             let states = &mut self.doc.extended_graphics_states;
             let pdf_key = self.doc.alpha_states.entry(hash_key).or_insert_with(|| {
                 let pdf_key = format!("a{}", next_id);
-                states.push((pdf_key.clone().into_bytes(),
-                             Object::GraphicsStateDictionaryAlpha(alpha)));
+                states.push((
+                    pdf_key.clone().into_bytes(),
+                    Object::GraphicsStateDictionaryAlpha(alpha),
+                ));
                 pdf_key
             });
             op!(self, EXTENDED_GRAPHICS_STATE, &*pdf_key);
@@ -229,7 +276,7 @@ impl<'a> InProgressPage<'a> {
             dictionary! {
                 "Length1" => font_bytes.len(),
             },
-            font_bytes.into()
+            font_bytes.into(),
         );
         let font_descriptor_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "FontDescriptor",
@@ -263,7 +310,8 @@ impl<'a> InProgressPage<'a> {
             1 begincodespacerange\n\
             <0000> <ffff>\n\
             endcodespacerange\n\
-        ".to_vec();
+        "
+        .to_vec();
         {
             let mut write_bfchar = |chars: &[char], glyph_ids: &[u16]| {
                 write!(to_unicode_cmap, "{} beginbfchar\n", chars.len()).unwrap();
@@ -293,13 +341,19 @@ impl<'a> InProgressPage<'a> {
                 write_bfchar(&chars[..i], &glyph_ids[..i])
             }
         }
-        to_unicode_cmap.extend(b"\
+        to_unicode_cmap.extend(
+            b"\
             endcmap\n\
             CMapName currentdict /CMap defineresource pop\n\
             end\n\
             end\
-        ".as_ref());
-        let to_unicode_id = self.doc.pdf.add_stream(dictionary! {}, to_unicode_cmap.into());
+        "
+            .as_ref(),
+        );
+        let to_unicode_id = self
+            .doc
+            .pdf
+            .add_stream(dictionary!{}, to_unicode_cmap.into());
         // Type 0 Font Dictionaries
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
 
@@ -335,12 +389,13 @@ impl<'a> InProgressPage<'a> {
         });
 
         let pdf_key = format!("f{}", next_id);
-        self.doc.font_resources.push((pdf_key.clone().into_bytes(), font_dict_id.into()));
+        self.doc
+            .font_resources
+            .push((pdf_key.clone().into_bytes(), font_dict_id.into()));
         vacant_entry.insert(pdf_key.clone());
         Ok(pdf_key)
     }
 }
-
 
 macro_rules! operators {
     ($( $name: ident = $value: expr, )+) => {

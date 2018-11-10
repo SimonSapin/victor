@@ -28,7 +28,10 @@ struct PartiallyFullChunk {
 
 impl<T> Arena<T> {
     pub fn new() -> Self {
-        assert!(mem::size_of::<T>() != 0, "this arena cannot be used with zero-sized types");
+        assert!(
+            mem::size_of::<T>() != 0,
+            "this arena cannot be used with zero-sized types"
+        );
         Arena {
             full_chunks: RefCell::new(Vec::new()),
             current_chunk: PartiallyFullChunk {
@@ -37,7 +40,7 @@ impl<T> Arena<T> {
                 next: Cell::new(ptr::null_mut()),
                 end: Cell::new(ptr::null_mut()),
                 drop: drop_partially_full_chunk::<T>,
-            }
+            },
         }
     }
 
@@ -66,9 +69,7 @@ impl<T> Arena<T> {
         let new_start = vec.as_mut_ptr();
         mem::forget(vec);
 
-        let new_end = unsafe {
-            new_start.offset(new_capacity as isize)
-        };
+        let new_end = unsafe { new_start.offset(new_capacity as isize) };
         self.current_chunk.start.set(new_start as *mut u8);
         self.current_chunk.next.set(new_start as *mut u8);
         self.current_chunk.end.set(new_end as *mut u8);
@@ -76,9 +77,8 @@ impl<T> Arena<T> {
         if len > 0 {
             // Do this last so that if something panics we leak items
             // rather than double-freeing them.
-            let full_chunk = unsafe {
-                Box::from_raw(slice::from_raw_parts_mut(start as *mut T, len))
-            };
+            let full_chunk =
+                unsafe { Box::from_raw(slice::from_raw_parts_mut(start as *mut T, len)) };
             self.full_chunks.borrow_mut().push(full_chunk);
         }
     }
@@ -97,9 +97,7 @@ fn drop_partially_full_chunk<T>(start: *mut u8, length_bytes: usize, capacity_by
     // `Arena::new()` panicked in `assert!` if this would divide by zero
     let length = length_bytes / mem::size_of::<T>();
     let capacity = capacity_bytes / mem::size_of::<T>();
-    unsafe {
-        drop(Vec::<T>::from_raw_parts(start as *mut T, length, capacity))
-    }
+    unsafe { drop(Vec::<T>::from_raw_parts(start as *mut T, length, capacity)) }
 }
 
 #[test]
@@ -131,7 +129,13 @@ fn track_drop() {
 
     {
         let arena = Arena::new();
-        let new = |value, next| Node { next, drop: AssertDropOrder { value, drop_counter } };
+        let new = |value, next| Node {
+            next,
+            drop: AssertDropOrder {
+                value,
+                drop_counter,
+            },
+        };
 
         let mut node = arena.allocate(new(0, None));
         node = arena.allocate(new(1, Some(node)));
@@ -140,14 +144,37 @@ fn track_drop() {
         assert_eq!(arena.full_chunks.borrow().len(), 0);
 
         node = arena.allocate(new(4, Some(node)));
-        assert_eq!(arena.full_chunks.borrow().len(), 1);  // assumes INITIAL_CHUNK_LENGTH == 4
+        assert_eq!(arena.full_chunks.borrow().len(), 1); // assumes INITIAL_CHUNK_LENGTH == 4
 
         assert_eq!(node.drop.value, 4);
         assert_eq!(node.next.unwrap().drop.value, 3);
         assert_eq!(node.next.unwrap().next.unwrap().drop.value, 2);
         assert_eq!(node.next.unwrap().next.unwrap().next.unwrap().drop.value, 1);
-        assert_eq!(node.next.unwrap().next.unwrap().next.unwrap().next.unwrap().drop.value, 0);
-        assert_eq!(node.next.unwrap().next.unwrap().next.unwrap().next.unwrap().next, None);
+        assert_eq!(
+            node.next
+                .unwrap()
+                .next
+                .unwrap()
+                .next
+                .unwrap()
+                .next
+                .unwrap()
+                .drop
+                .value,
+            0
+        );
+        assert_eq!(
+            node.next
+                .unwrap()
+                .next
+                .unwrap()
+                .next
+                .unwrap()
+                .next
+                .unwrap()
+                .next,
+            None
+        );
 
         drop(node);
 
@@ -181,11 +208,11 @@ fn dropck() {
     struct Foo<'a>(&'a String);
 
     // Uncommenting this should fail to borrow/drop-check:
-//    impl<'a> Drop for Foo<'a> {
-//        fn drop(&mut self) {
-//            assert_eq!(self.0, "alive")
-//        }
-//    }
+    //    impl<'a> Drop for Foo<'a> {
+    //        fn drop(&mut self) {
+    //            assert_eq!(self.0, "alive")
+    //        }
+    //    }
 
     let (y, x);
     x = "alive".to_string();

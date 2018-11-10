@@ -2,7 +2,8 @@ pub use euclid;
 
 pub mod dom;
 pub mod fonts;
-#[doc(hidden)] pub mod lazy_arc;  // Only public for `include_font!`
+#[doc(hidden)]
+pub mod lazy_arc; // Only public for `include_font!`
 pub mod pdf;
 pub mod primitives;
 pub mod text;
@@ -11,17 +12,17 @@ pub mod text_plain;
 mod arena;
 mod style;
 
-#[macro_use] extern crate cssparser;
+#[macro_use]
+extern crate cssparser;
 
-#[macro_use] extern crate html5ever;
+#[macro_use]
+extern crate html5ever;
 
+#[macro_use]
+extern crate matches;
 
-#[macro_use] extern crate matches;
-
-
-
-#[macro_use] extern crate victor_internal_proc_macros;
-
+#[macro_use]
+extern crate victor_internal_proc_macros;
 
 /*
 

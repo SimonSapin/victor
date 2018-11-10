@@ -20,7 +20,6 @@ pub(crate) struct Em;
 /// The unit of FWord and UFWord
 struct FontDesignUnit;
 
-
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub(crate) struct GlyphId(pub(crate) u16);
 
@@ -92,7 +91,7 @@ impl Font {
         let bytes: &[u8] = &*bytes;
         let offset_table = Position::<OffsetSubtable>::initial();
         let scaler_type = offset_table.scaler_type().read_from(bytes)?;
-        const TRUETYPE: u32 = 0x74727565;  // "true" in big-endian
+        const TRUETYPE: u32 = 0x74727565; // "true" in big-endian
         if scaler_type != TRUETYPE && scaler_type != 0x_0001_0000 {
             Err(FontError::UnsupportedFormat)?
         }
@@ -113,7 +112,9 @@ impl Font {
             glyph_count,
             horizontal_metrics: Slice::new(
                 table_directory.find_table::<LongHorizontalMetricsRecord>(bytes)?,
-                horizontal_header.number_of_long_horizontal_metrics().read_from(bytes)?,
+                horizontal_header
+                    .number_of_long_horizontal_metrics()
+                    .read_from(bytes)?,
             ),
             font_design_units_per_em: header.units_per_em().read_from(bytes)?.cast().unwrap(),
             ascender: horizontal_header.ascender().read_from(bytes)?,
@@ -125,12 +126,19 @@ impl Font {
         })
     }
 
-    pub fn bytes(&self) -> &[u8] { &self.bytes }
-    pub(crate) fn postscript_name(&self) -> &str { &self.postscript_name }
-    pub(crate) fn glyph_count(&self) -> u16 { self.glyph_count }
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    pub(crate) fn postscript_name(&self) -> &str {
+        &self.postscript_name
+    }
+    pub(crate) fn glyph_count(&self) -> u16 {
+        self.glyph_count
+    }
 
-    pub(crate) fn each_code_point<F>(&self, f: F)-> Result<(), FontError>
-        where F: FnMut(char, GlyphId)
+    pub(crate) fn each_code_point<F>(&self, f: F) -> Result<(), FontError>
+    where
+        F: FnMut(char, GlyphId),
     {
         self.cmap.each_code_point(&self.bytes, f)
     }
@@ -145,32 +153,55 @@ impl Font {
         Ok(GlyphId(result?.unwrap_or(NOTDEF_GLYPH)))
     }
 
-    pub(crate) fn glyph_width(&self, glyph_id: GlyphId)
-                              -> Result<euclid::Length<f32, Em>, FontError> {
-        let last_index = self.horizontal_metrics.count().checked_sub(1)
+    pub(crate) fn glyph_width(
+        &self,
+        glyph_id: GlyphId,
+    ) -> Result<euclid::Length<f32, Em>, FontError> {
+        let last_index = self
+            .horizontal_metrics
+            .count()
+            .checked_sub(1)
             .ok_or(FontError::NoHorizontalGlyphMetrics)?;
         let index = cmp::min(glyph_id.0 as u32, last_index);
-        let w = self.horizontal_metrics.get_unchecked(index).advance_width().read_from(&self.bytes)?;
+        let w = self
+            .horizontal_metrics
+            .get_unchecked(index)
+            .advance_width()
+            .read_from(&self.bytes)?;
         Ok(self.to_ems(w))
     }
 
-    fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>)
-                            -> euclid::Length<f32, Em>
-        where T: ::num_traits::NumCast + Clone
+    fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>) -> euclid::Length<f32, Em>
+    where
+        T: ::num_traits::NumCast + Clone,
     {
         length.cast().unwrap() / self.font_design_units_per_em
     }
 
-    pub(crate) fn ascender(&self) -> euclid::Length<f32, Em> { self.to_ems(self.ascender) }
-    pub(crate) fn descender(&self) -> euclid::Length<f32, Em> { self.to_ems(self.descender) }
-    pub(crate) fn min_x(&self) -> euclid::Length<f32, Em> { self.to_ems(self.min_x) }
-    pub(crate) fn min_y(&self) -> euclid::Length<f32, Em> { self.to_ems(self.min_y) }
-    pub(crate) fn max_x(&self) -> euclid::Length<f32, Em> { self.to_ems(self.max_x) }
-    pub(crate) fn max_y(&self) -> euclid::Length<f32, Em> { self.to_ems(self.max_y) }
+    pub(crate) fn ascender(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.ascender)
+    }
+    pub(crate) fn descender(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.descender)
+    }
+    pub(crate) fn min_x(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.min_x)
+    }
+    pub(crate) fn min_y(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.min_y)
+    }
+    pub(crate) fn max_x(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.max_x)
+    }
+    pub(crate) fn max_y(&self) -> euclid::Length<f32, Em> {
+        self.to_ems(self.max_y)
+    }
 }
 
-fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
-                        -> Result<String, FontError> {
+fn read_postscript_name(
+    bytes: &[u8],
+    table_directory: Slice<TableDirectoryEntry>,
+) -> Result<String, FontError> {
     /// Macintosh encodings seem to be ASCII-compatible, and a PostScript name is within ASCII
     fn decode_macintosh(string_bytes: &[u8]) -> String {
         String::from_utf8_lossy(string_bytes).into_owned()
@@ -178,13 +209,16 @@ fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry
 
     /// Latin-1 range only
     fn decode_ucs2(string_bytes: &[u8]) -> String {
-        string_bytes.chunks(2).map(|chunk| {
-            if chunk.len() < 2 || chunk[0] != 0 {
-                '\u{FFFD}'
-            } else {
-                chunk[1] as char
-            }
-        }).collect::<String>()
+        string_bytes
+            .chunks(2)
+            .map(|chunk| {
+                if chunk.len() < 2 || chunk[0] != 0 {
+                    '\u{FFFD}'
+                } else {
+                    chunk[1] as char
+                }
+            })
+            .collect::<String>()
     };
 
     let naming_table_header = table_directory.find_table::<NamingTableHeader>(bytes)?;
@@ -192,14 +226,14 @@ fn read_postscript_name(bytes: &[u8], table_directory: Slice<TableDirectoryEntry
         naming_table_header.followed_by::<NameRecord>(),
         naming_table_header.count().read_from(bytes)?,
     );
-    let string_storage_start: Position<()> = naming_table_header.offset_bytes(
-        naming_table_header.string_offset().read_from(bytes)?
-    );
+    let string_storage_start: Position<()> =
+        naming_table_header.offset_bytes(naming_table_header.string_offset().read_from(bytes)?);
     let string_bytes = |record: Position<NameRecord>| {
         Slice::<u8>::new(
             string_storage_start.offset_bytes(record.string_offset().read_from(bytes)?),
-            record.length().read_from(bytes)?
-        ).read_from(bytes)
+            record.length().read_from(bytes)?,
+        )
+        .read_from(bytes)
     };
 
     for record in name_records {

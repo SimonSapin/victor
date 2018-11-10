@@ -1,7 +1,8 @@
 use crate::fonts::{Em, FontDesignUnit};
 use std::fmt::{self, Write};
 
-pub(in crate::fonts) type FontDesignUnitsPerEmFactorU16 = euclid::TypedScale<u16, Em, FontDesignUnit>;
+pub(in crate::fonts) type FontDesignUnitsPerEmFactorU16 =
+    euclid::TypedScale<u16, Em, FontDesignUnit>;
 
 pub(in crate::fonts) type FWord = euclid::Length<i16, FontDesignUnit>;
 pub(in crate::fonts) type UFWord = euclid::Length<u16, FontDesignUnit>;
@@ -16,7 +17,6 @@ pub(in crate::fonts) struct LongDateTime(pub i64);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ReadFromBytes)]
 pub(in crate::fonts) struct Tag(pub [u8; 4]);
-
 
 // ~~~~ Trait impls ~~~~
 

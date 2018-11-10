@@ -2,7 +2,8 @@
 
 extern crate proc_macro;
 extern crate proc_macro2;
-#[macro_use] extern crate quote;
+#[macro_use]
+extern crate quote;
 extern crate syn;
 
 use quote::ToTokens;
@@ -15,7 +16,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     let mut table_impl = quote!();
     for attr in &input.attrs {
         if let Some(syn::Meta::NameValue(ref meta)) = attr.interpret_meta() {
-             if meta.ident == "tag" {
+            if meta.ident == "tag" {
                 if let syn::Lit::Str(ref tag) = meta.lit {
                     let value = tag.value();
                     assert_eq!(value.len(), 4);
@@ -31,7 +32,6 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
             }
         }
     }
-
 
     let struct_ = if let syn::Data::Struct(ref struct_) = input.data {
         struct_
@@ -54,7 +54,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
             "u16" | "i16" | "FWord" | "UFWord" | "FontDesignUnitsPerEmFactorU16" => 2,
             "u32" | "FixedPoint" | "Tag" => 4,
             "LongDateTime" => 8,
-            _ => panic!("The size of {} is unknown", ty.clone().into_tokens())
+            _ => panic!("The size of {} is unknown", ty.clone().into_tokens()),
         };
         // The TrueType format seems to be designed so that this never happens:
         let expected_align = std::cmp::min(size, 4);

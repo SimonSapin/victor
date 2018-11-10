@@ -1,9 +1,9 @@
 use crate::cairo_ffi::{cairo_status_t, cairo_status_to_string, CAIRO_STATUS_SUCCESS};
+use crate::poppler_ffi::{g_error_free, GError};
 use std::error::Error;
 use std::ffi::CStr;
 use std::fmt;
 use std::io;
-use crate::poppler_ffi::{GError, g_error_free};
 
 macro_rules! c_error_impls {
     ($T: ty = |$self_: ident| $get_c_str_ptr: expr) => {
@@ -28,7 +28,7 @@ macro_rules! c_error_impls {
                 f.write_str(self.description())
             }
         }
-    }
+    };
 }
 
 /// An error returned by cairo
@@ -58,9 +58,7 @@ pub struct GlibError {
 
 impl Drop for GlibError {
     fn drop(&mut self) {
-        unsafe {
-            g_error_free(self.ptr)
-        }
+        unsafe { g_error_free(self.ptr) }
     }
 }
 

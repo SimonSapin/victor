@@ -1,5 +1,5 @@
-use crate::fonts::FontError;
 use crate::fonts::tables::OffsetSubtable;
+use crate::fonts::FontError;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -9,7 +9,7 @@ use std::mem;
 /// The type parameter indicates what data is expected to be found there.
 pub(in crate::fonts) struct Position<T> {
     byte_position: u32,
-    ty: PhantomData<T>
+    ty: PhantomData<T>,
 }
 
 /// The position and length of a consecutive sequence of homogeneous data in a font file
@@ -27,17 +27,26 @@ pub(in crate::fonts) struct SliceIter<T> {
 
 impl Position<OffsetSubtable> {
     pub(in crate::fonts) fn initial() -> Self {
-        Position { byte_position: 0, ty: PhantomData }
+        Position {
+            byte_position: 0,
+            ty: PhantomData,
+        }
     }
 }
 
 impl<T> Position<T> {
     pub(in crate::fonts) fn cast<U>(self) -> Position<U> {
-        Position { byte_position: self.byte_position, ty: PhantomData }
+        Position {
+            byte_position: self.byte_position,
+            ty: PhantomData,
+        }
     }
 
     pub(in crate::fonts) fn offset_bytes<U, O: Into<u32>>(self, by: O) -> Position<U> {
-        Position { byte_position: self.byte_position + by.into(), ty: PhantomData }
+        Position {
+            byte_position: self.byte_position + by.into(),
+            ty: PhantomData,
+        }
     }
 
     pub(in crate::fonts) fn offset<O: Into<u32>>(self, by: O) -> Position<T> {
@@ -48,8 +57,15 @@ impl<T> Position<T> {
         self.offset_bytes(mem::size_of::<T>() as u32)
     }
 
-    pub(in crate::fonts) fn read_from(self, bytes: &[u8]) -> Result<T, FontError> where T: ReadFromBytes {
-        T::read_from(bytes.get(self.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?)
+    pub(in crate::fonts) fn read_from(self, bytes: &[u8]) -> Result<T, FontError>
+    where
+        T: ReadFromBytes,
+    {
+        T::read_from(
+            bytes
+                .get(self.byte_position as usize..)
+                .ok_or(FontError::OffsetBeyondEof)?,
+        )
     }
 }
 
@@ -92,29 +108,41 @@ fn u32_from_bytes(bytes: [u8; 4]) -> u32 {
 
 impl ReadFromBytes for i16 {
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
-        Ok(i16::from_be(i16_from_bytes(ReadFromBytes::read_from(bytes)?)))
+        Ok(i16::from_be(i16_from_bytes(ReadFromBytes::read_from(
+            bytes,
+        )?)))
     }
 }
 
 impl ReadFromBytes for u16 {
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
-        Ok(u16::from_be(u16_from_bytes(ReadFromBytes::read_from(bytes)?)))
+        Ok(u16::from_be(u16_from_bytes(ReadFromBytes::read_from(
+            bytes,
+        )?)))
     }
 }
 
 impl ReadFromBytes for u32 {
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
-        Ok(u32::from_be(u32_from_bytes(ReadFromBytes::read_from(bytes)?)))
+        Ok(u32::from_be(u32_from_bytes(ReadFromBytes::read_from(
+            bytes,
+        )?)))
     }
 }
 
-impl<T, Src, Dst> ReadFromBytes for euclid::TypedScale<T, Src, Dst> where T: ReadFromBytes {
+impl<T, Src, Dst> ReadFromBytes for euclid::TypedScale<T, Src, Dst>
+where
+    T: ReadFromBytes,
+{
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
         ReadFromBytes::read_from(bytes).map(euclid::TypedScale::new)
     }
 }
 
-impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit> where T: ReadFromBytes {
+impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit>
+where
+    T: ReadFromBytes,
+{
     fn read_from(bytes: &[u8]) -> Result<Self, FontError> {
         ReadFromBytes::read_from(bytes).map(euclid::Length::new)
     }
@@ -122,14 +150,20 @@ impl<T, Unit> ReadFromBytes for euclid::Length<T, Unit> where T: ReadFromBytes {
 
 impl Slice<u8> {
     pub(in crate::fonts) fn read_from<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8], FontError> {
-        bytes.get(self.start.byte_position as usize..).ok_or(FontError::OffsetBeyondEof)?
-             .get(..self.count as usize).ok_or(FontError::OffsetPlusLengthBeyondEof)
+        bytes
+            .get(self.start.byte_position as usize..)
+            .ok_or(FontError::OffsetBeyondEof)?
+            .get(..self.count as usize)
+            .ok_or(FontError::OffsetPlusLengthBeyondEof)
     }
 }
 
 impl<T> Slice<T> {
     pub(in crate::fonts) fn new<C: Into<u32>>(start: Position<T>, count: C) -> Self {
-        Slice { start, count: count.into() }
+        Slice {
+            start,
+            count: count.into(),
+        }
     }
 
     pub(in crate::fonts) fn count(&self) -> u32 {
@@ -143,23 +177,30 @@ impl<T> Slice<T> {
     }
 
     #[inline]
-    pub(in crate::fonts) fn binary_search_by_key<V, F>(&self, value: &V, mut f: F)
-                                                 -> Result<Option<Position<T>>, FontError>
-        where F: FnMut(Position<T>) -> Result<V, FontError>,
-              V: Ord
+    pub(in crate::fonts) fn binary_search_by_key<V, F>(
+        &self,
+        value: &V,
+        mut f: F,
+    ) -> Result<Option<Position<T>>, FontError>
+    where
+        F: FnMut(Position<T>) -> Result<V, FontError>,
+        V: Ord,
     {
-        binary_search(self.count, |index| Ok(f(self.get_unchecked(index))?.cmp(value)))
-            .map(|opt| opt.map(|index| self.get_unchecked(index)))
+        binary_search(self.count, |index| {
+            Ok(f(self.get_unchecked(index))?.cmp(value))
+        })
+        .map(|opt| opt.map(|index| self.get_unchecked(index)))
     }
 }
 
 /// Adapted from https://github.com/rust-lang/rust/blob/1.23.0/src/libcore/slice/mod.rs#L391-L413
 pub(in crate::fonts) fn binary_search<F, E>(mut size: u32, mut f: F) -> Result<Option<u32>, E>
-    where F: FnMut(u32) -> Result<::std::cmp::Ordering, E>
+where
+    F: FnMut(u32) -> Result<::std::cmp::Ordering, E>,
 {
     use std::cmp::Ordering::*;
     if size == 0 {
-        return Ok(None);
+        return Ok(None)
     }
     let mut base: u32 = 0;
     while size > 1 {
@@ -174,7 +215,11 @@ pub(in crate::fonts) fn binary_search<F, E>(mut size: u32, mut f: F) -> Result<O
     }
     // base is always in [0, size) because base <= mid.
     let cmp = f(base)?;
-    if cmp == Equal { Ok(Some(base)) } else { Ok(None) }
+    if cmp == Equal {
+        Ok(Some(base))
+    } else {
+        Ok(None)
+    }
 }
 
 // ~~~~ Boring trait impls ~~~~
@@ -196,7 +241,9 @@ impl<T> PartialEq for Position<T> {
 impl<T> Copy for Slice<T> {}
 
 impl<T> Clone for Slice<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T> IntoIterator for Slice<T> {
@@ -230,7 +277,10 @@ impl<T> DoubleEndedIterator for SliceIter<T> {
         if self.start != self.end {
             let next = self.end;
             let byte_position = next.byte_position - mem::size_of::<T>() as u32;
-            self.end = Position { byte_position, ty: PhantomData };
+            self.end = Position {
+                byte_position,
+                ty: PhantomData,
+            };
             Some(next)
         } else {
             None

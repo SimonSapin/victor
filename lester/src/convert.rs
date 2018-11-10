@@ -36,7 +36,7 @@ macro_rules! try_into_unbounded {
                 Ok(self as $target)
             }
         }
-    }
+    };
 }
 
 // only negative bounds
@@ -54,7 +54,7 @@ macro_rules! try_into_lower_bounded {
                 }
             }
         }
-    }
+    };
 }
 
 // unsigned to signed (only positive bound)
@@ -72,7 +72,7 @@ macro_rules! try_into_upper_bounded {
                 }
             }
         }
-    }
+    };
 }
 
 // all other cases
@@ -92,7 +92,7 @@ macro_rules! try_into_both_bounded {
                 }
             }
         }
-    }
+    };
 }
 
 try_into_both_bounded!(f64, i32);

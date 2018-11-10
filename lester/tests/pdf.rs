@@ -1,4 +1,5 @@
-#[macro_use] extern crate lester;
+#[macro_use]
+extern crate lester;
 
 use lester::{PdfDocument, RenderOptions};
 use std::error::Error;
@@ -6,21 +7,20 @@ use std::error::Error;
 #[test]
 fn zero_bytes_pdf() {
     match PdfDocument::from_bytes(b"") {
-        Err(ref err) if err.description() == "PDF document is damaged" ||
-                        err.description() == "Failed to load document" => {}
+        Err(ref err)
+            if err.description() == "PDF document is damaged"
+                || err.description() == "Failed to load document" => {}
         Err(err) => panic!("expected 'damaged document' error, got {:?}", err),
-        Ok(_) => panic!("expected error")
+        Ok(_) => panic!("expected error"),
     }
 }
 
 macro_rules! assert_approx_eq {
-    ($a: expr, $b: expr) => {
-        {
-            let a = ($a * 1000.).round() / 1000.;
-            let b = ($b * 1000.).round() / 1000.;
-            assert_eq!(a, b)
-        }
-    }
+    ($a: expr, $b: expr) => {{
+        let a = ($a * 1000.).round() / 1000.;
+        let b = ($b * 1000.).round() / 1000.;
+        assert_eq!(a, b)
+    }};
 }
 
 #[test]
@@ -60,18 +60,21 @@ fn pattern_4x4_pdf() {
     let mut surface = page.render_with_options(options).unwrap();
     const RED: u32 = 0xFFFF_0000;
     const BLUE: u32 = 0xFF00_00FF;
-    assert_pixels_eq!(surface.pixels().buffer, &[
-        RED,  BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-        BLUE, BLUE, BLUE, BLUE,
-    ]);
+    assert_pixels_eq!(
+        surface.pixels().buffer,
+        &[
+            RED, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
+            BLUE, BLUE,
+        ]
+    );
 
-    let mut surface = page.render_with_options(RenderOptions {
-        dppx_x: 2.0,
-        dppx_y: 3.0,
-        ..RenderOptions::default()
-    }).unwrap();
+    let mut surface = page
+        .render_with_options(RenderOptions {
+            dppx_x: 2.0,
+            dppx_y: 3.0,
+            ..RenderOptions::default()
+        })
+        .unwrap();
     let pixels = surface.pixels();
     assert_eq!((pixels.width, pixels.height), (8, 12));
 }

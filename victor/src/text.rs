@@ -1,4 +1,4 @@
-use crate::fonts::{Font, FontError, GlyphId, Em};
+use crate::fonts::{Em, Font, FontError, GlyphId};
 use crate::primitives::Length;
 use std::sync::Arc;
 
@@ -23,6 +23,10 @@ impl ShapedSegment {
             advance_width += font.glyph_width(id)?;
             glyphs.push(id);
         }
-        Ok(ShapedSegment { font, glyphs, advance_width })
+        Ok(ShapedSegment {
+            font,
+            glyphs,
+            advance_width,
+        })
     }
 }

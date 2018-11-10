@@ -5,18 +5,25 @@ use std::os::raw::*;
 extern "C" {
     pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
     pub fn cairo_surface_status(surface: *mut cairo_surface_t) -> cairo_status_t;
-    pub fn cairo_image_surface_create(format: cairo_format_t,
-                                      width: c_int, height: c_int) -> *mut cairo_surface_t;
+    pub fn cairo_image_surface_create(
+        format: cairo_format_t,
+        width: c_int,
+        height: c_int,
+    ) -> *mut cairo_surface_t;
     pub fn cairo_image_surface_get_width(surface: *mut cairo_surface_t) -> c_int;
     pub fn cairo_image_surface_get_height(surface: *mut cairo_surface_t) -> c_int;
     pub fn cairo_image_surface_get_stride(surface: *mut cairo_surface_t) -> c_int;
     pub fn cairo_image_surface_get_data(surface: *mut cairo_surface_t) -> *mut c_uchar;
     pub fn cairo_image_surface_get_format(surface: *mut cairo_surface_t) -> cairo_format_t;
-    pub fn cairo_image_surface_create_from_png_stream(read_func: cairo_read_func_t,
-                                                      closure: *mut c_void) -> *mut cairo_surface_t;
-    pub fn cairo_surface_write_to_png_stream(surface: *mut cairo_surface_t,
-                                             write_func: cairo_write_func_t,
-                                             closure: *mut c_void) -> cairo_status_t;
+    pub fn cairo_image_surface_create_from_png_stream(
+        read_func: cairo_read_func_t,
+        closure: *mut c_void,
+    ) -> *mut cairo_surface_t;
+    pub fn cairo_surface_write_to_png_stream(
+        surface: *mut cairo_surface_t,
+        write_func: cairo_write_func_t,
+        closure: *mut c_void,
+    ) -> cairo_status_t;
     pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 
     pub fn cairo_create(target: *mut cairo_surface_t) -> *mut cairo_t;
@@ -49,14 +56,20 @@ pub const CAIRO_ANTIALIAS_BEST: cairo_antialias_t = 6;
 pub const CAIRO_FORMAT_ARGB32: cairo_format_t = 0;
 pub const CAIRO_FORMAT_RGB24: cairo_format_t = 1;
 
-pub type cairo_read_func_t = unsafe extern "C" fn(closure: *mut c_void, data: *mut c_uchar,
-                                                  length: c_uint) -> cairo_status_t;
+pub type cairo_read_func_t =
+    unsafe extern "C" fn(closure: *mut c_void, data: *mut c_uchar, length: c_uint)
+        -> cairo_status_t;
 
-pub type cairo_write_func_t = unsafe extern "C" fn(closure: *mut c_void, data: *const c_uchar,
-                                                   length: c_uint) -> cairo_status_t;
+pub type cairo_write_func_t =
+    unsafe extern "C" fn(closure: *mut c_void, data: *const c_uchar, length: c_uint)
+        -> cairo_status_t;
 
 #[repr(C)]
-pub struct cairo_surface_t { opaque: [u8; 0] }
+pub struct cairo_surface_t {
+    opaque: [u8; 0],
+}
 
 #[repr(C)]
-pub struct cairo_t { opaque: [u8; 0] }
+pub struct cairo_t {
+    opaque: [u8; 0],
+}

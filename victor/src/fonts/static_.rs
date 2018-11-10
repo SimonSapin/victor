@@ -1,6 +1,6 @@
+use super::{Font, FontError};
 use crate::lazy_arc::LazyArc;
 use std::sync::Arc;
-use super::{Font, FontError};
 
 /// Include a TrueType file with `include_bytes!()` and create a [`LazyStaticFont`] value.
 ///
@@ -18,7 +18,7 @@ macro_rules! include_font {
             bytes: include_bytes!($filename),
             lazy_arc: $crate::lazy_arc::LazyArc::INIT,
         }
-    }
+    };
 }
 
 /// The regular sans-serif face of the [Bitstream Vera](https://www.gnome.org/fonts/) font family.
@@ -32,7 +32,8 @@ pub struct LazyStaticFont {
     // This field needs to be public so that static initializers can construct it.
     // A `const fn` constructor would be better,
     // but these are not avaiable on stable as of this writing.
-    #[doc(hidden)] pub lazy_arc: LazyArc<Font>,
+    #[doc(hidden)]
+    pub lazy_arc: LazyArc<Font>,
 }
 
 impl LazyStaticFont {
@@ -48,15 +49,15 @@ impl LazyStaticFont {
         self.lazy_arc.get_or_create(|| Font::parse(self.bytes))
     }
 
-// Oops, this turned out to be unsound. See victor/src/lazy_arc/mod.rs
+    // Oops, this turned out to be unsound. See victor/src/lazy_arc/mod.rs
 
-//    /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
-//    ///
-//    /// Calling `.get()` again afterwards will parse a new `Font` object.
-//    ///
-//    /// The previous `Font` object may continue to live as long
-//    /// as other `Arc` references to it exist.
-//    pub fn drop(&self) {
-//        self.lazy_arc.drop()
-//    }
+    //    /// Deinitialize this font’s singleton, dropping the internal `Arc` reference.
+    //    ///
+    //    /// Calling `.get()` again afterwards will parse a new `Font` object.
+    //    ///
+    //    /// The previous `Font` object may continue to live as long
+    //    /// as other `Arc` references to it exist.
+    //    pub fn drop(&self) {
+    //        self.lazy_arc.drop()
+    //    }
 }

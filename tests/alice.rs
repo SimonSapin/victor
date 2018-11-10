@@ -1,9 +1,9 @@
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use victor::text_plain;
 use victor::fonts::BITSTREAM_VERA_SANS;
 use victor::primitives::*;
+use victor::text_plain;
 
 static ALICE: &'static str = include_str!("alice.txt");
 
@@ -17,10 +17,15 @@ fn render() {
         line_height: 1.5,
         justify: true,
     };
-    let pdf_bytes = text_plain::layout(ALICE, &style).unwrap().write_to_pdf_bytes();
+    let pdf_bytes = text_plain::layout(ALICE, &style)
+        .unwrap()
+        .write_to_pdf_bytes();
 
     if env::var("VICTOR_WRITE_TO_TMP").is_ok() {
-        File::create("/tmp/alice.pdf").unwrap().write_all(&pdf_bytes).unwrap();
+        File::create("/tmp/alice.pdf")
+            .unwrap()
+            .write_all(&pdf_bytes)
+            .unwrap();
     }
     assert!(pdf_bytes == include_bytes!("alice.pdf").as_ref());
 }

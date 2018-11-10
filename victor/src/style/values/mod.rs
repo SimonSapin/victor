@@ -1,5 +1,5 @@
-use cssparser::Parser;
 use crate::style::errors::PropertyParseError;
+use cssparser::Parser;
 
 pub mod generic;
 pub mod length;

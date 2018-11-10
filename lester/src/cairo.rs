@@ -91,12 +91,15 @@ impl ImageSurface {
         Self::new_c_int(
             format,
             width.try_into().unwrap(),
-            height.try_into().unwrap()
+            height.try_into().unwrap(),
         )
     }
 
-    pub(crate) fn new_c_int(format: cairo_format_t, width: c_int, height: c_int)
-                            -> Result<Self, CairoError> {
+    pub(crate) fn new_c_int(
+        format: cairo_format_t,
+        width: c_int,
+        height: c_int,
+    ) -> Result<Self, CairoError> {
         unsafe {
             let ptr = cairo_image_surface_create(format, width, height);
             let mut surface = ImageSurface { ptr };
@@ -111,7 +114,9 @@ impl ImageSurface {
 
     pub(crate) fn context(&mut self) -> Result<CairoContext, CairoError> {
         unsafe {
-            let mut context = CairoContext { ptr: cairo_create(self.ptr) };
+            let mut context = CairoContext {
+                ptr: cairo_create(self.ptr),
+            };
             context.check_status()?;
             Ok(context)
         }
@@ -126,18 +131,24 @@ impl ImageSurface {
             let height = cairo_image_surface_get_height(self.ptr);
             let stride = cairo_image_surface_get_stride(self.ptr);
             let format = cairo_image_surface_get_format(self.ptr);
-            assert!(format == CAIRO_FORMAT_RGB24 ||
-                    format == CAIRO_FORMAT_ARGB32, "Unsupported pixel format");
+            assert!(
+                format == CAIRO_FORMAT_RGB24 || format == CAIRO_FORMAT_ARGB32,
+                "Unsupported pixel format"
+            );
 
             // In theory we shouldn’t rely on this.
             // In practice cairo picks a stride that is `width * size_of_pixel`
             // rounded up to 32 bits.
             // ARGB32 and RGB24 both use 32 bit per pixel, so rounding is a no-op.
-            assert!(stride == width * (mem::size_of::<u32>() as i32),
-                    "Expected 32bit pixel to make width satisfy stride requirements");
+            assert!(
+                stride == width * (mem::size_of::<u32>() as i32),
+                "Expected 32bit pixel to make width satisfy stride requirements"
+            );
 
-            assert!((data as usize) % mem::align_of::<u32>() == 0,
-                    "Expected cairo to allocated data aligned to 32 bits");
+            assert!(
+                (data as usize) % mem::align_of::<u32>() == 0,
+                "Expected cairo to allocated data aligned to 32 bits"
+            );
 
             Argb32Pixels {
                 width: width.try_into().unwrap(),
@@ -145,7 +156,7 @@ impl ImageSurface {
                 buffer: slice::from_raw_parts_mut(
                     data as *mut u32,
                     (width * height).try_into().unwrap(),
-                )
+                ),
             }
         }
     }
@@ -172,15 +183,11 @@ impl CairoContext {
     }
 
     pub(crate) fn set_source_rgb(&mut self, r: f64, g: f64, b: f64) {
-        unsafe {
-            cairo_set_source_rgb(self.ptr, r, g, b)
-        }
+        unsafe { cairo_set_source_rgb(self.ptr, r, g, b) }
     }
 
     pub(crate) fn paint(&mut self) {
-        unsafe {
-            cairo_paint(self.ptr)
-        }
+        unsafe { cairo_paint(self.ptr) }
     }
 
     pub(crate) fn set_antialias(&mut self, mode: Antialias) {
@@ -266,7 +273,6 @@ macro_rules! with_c_callback {
         result
     }}
 }
-
 
 impl ImageSurface {
     /// Read and decode a PNG image from the given stream and create an image surface for it.

@@ -45,38 +45,42 @@
 //! # }
 //! ```
 
-mod errors;
 mod cairo;
+mod errors;
 mod poppler;
 
-pub use crate::errors::*;
 pub use crate::cairo::*;
+pub use crate::errors::*;
 pub use crate::poppler::*;
 
 // Not re-exported:
 mod cairo_ffi;
-mod poppler_ffi;
 mod convert;
+mod poppler_ffi;
 
 /// `assert_eq!` for `Argb32Pixels::buffer`.
 #[macro_export]
 macro_rules! assert_pixels_eq {
-    ($a: expr, $b: expr) => {
-        {
-            let a = $a;
-            let b = $b;
-            if a != b {
-                panic!("{} != {}\n[{}]\n[{}]",
-                       stringify!($a),
-                       stringify!($b),
-                       $crate::pixels_to_hex(a),
-                       $crate::pixels_to_hex(b))
-            }
+    ($a: expr, $b: expr) => {{
+        let a = $a;
+        let b = $b;
+        if a != b {
+            panic!(
+                "{} != {}\n[{}]\n[{}]",
+                stringify!($a),
+                stringify!($b),
+                $crate::pixels_to_hex(a),
+                $crate::pixels_to_hex(b)
+            )
         }
-    }
+    }};
 }
 
 #[doc(hidden)]
 pub fn pixels_to_hex(pixels: &[u32]) -> String {
-    pixels.iter().map(|p| format!("{:08X}", p)).collect::<Vec<_>>().join(", ")
+    pixels
+        .iter()
+        .map(|p| format!("{:08X}", p))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

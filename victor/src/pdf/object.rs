@@ -1,6 +1,6 @@
+use super::syntax::IndirectObjectId;
 use crate::fonts::Em;
 use std::io::{self, Write};
-use super::syntax::IndirectObjectId;
 
 #[derive(Debug)]
 pub(crate) enum Object<'a> {
@@ -15,7 +15,7 @@ pub(crate) enum Object<'a> {
     Reference(IndirectObjectId),
 
     GraphicsStateDictionaryAlpha(f32),
-    DictionaryWithOwnedKeys(&'a [(Vec<u8>, Object<'a>)])
+    DictionaryWithOwnedKeys(&'a [(Vec<u8>, Object<'a>)]),
 }
 
 fn _static_assert_size() {
@@ -70,7 +70,10 @@ macro_rules! linked_dictionary {
     }
 }
 
-impl<'a, T: Copy> From<&'a T> for Object<'a> where Object<'a>: From<T> {
+impl<'a, T: Copy> From<&'a T> for Object<'a>
+where
+    Object<'a>: From<T>,
+{
     fn from(value: &'a T) -> Self {
         Object::from(*value)
     }
@@ -241,8 +244,7 @@ fn write_name<W: Write>(name: &[u8], w: &mut W) -> io::Result<()> {
     for &byte in name {
         match KIND[byte as usize] {
             CharKind::Regular => w.write_all(&[byte])?,
-            CharKind::Whitespace |
-            CharKind::Delimiter => {
+            CharKind::Whitespace | CharKind::Delimiter => {
                 w.write_all(b"#")?;
                 write_hex(byte, w)?
             }
@@ -278,7 +280,7 @@ for line in range(32):
     print
 */
 static KIND: [CharKind; 256] = {
-    use self::CharKind::{Whitespace as W, Delimiter as D, Regular as r};
+    use self::CharKind::{Delimiter as D, Regular as r, Whitespace as W};
     [
         W, r, r, r, r, r, r, r, // \x00 …
         r, W, W, r, W, W, r, r, // \x08 \t \n \x0b \x0c \r \x0e \x0f

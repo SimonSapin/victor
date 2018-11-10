@@ -152,13 +152,17 @@ macro_rules! properties {
 macro_rules! parse_four_sides {
     ($Top: ident, $Left: ident, $Bottom: ident, $Right: ident) => {
         |parser, declarations: &mut Vec<PropertyDeclaration>| {
-            let FourSides { top, left, bottom, right } =
-                <FourSides<_> as crate::style::values::Parse>::parse(parser)?;
+            let FourSides {
+                top,
+                left,
+                bottom,
+                right,
+            } = <FourSides<_> as crate::style::values::Parse>::parse(parser)?;
             declarations.push(PropertyDeclaration::$Top(top));
             declarations.push(PropertyDeclaration::$Left(left));
             declarations.push(PropertyDeclaration::$Bottom(bottom));
             declarations.push(PropertyDeclaration::$Right(right));
             Ok(())
         }
-    }
+    };
 }

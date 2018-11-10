@@ -2,13 +2,13 @@ use crate::cairo::*;
 use crate::cairo_ffi::{CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_RGB24};
 use crate::convert::TryInto;
 use crate::errors::{CairoError, GlibError};
+use crate::poppler_ffi::*;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::os::raw::*;
 use std::ptr;
 use std::str::Utf8Error;
-use crate::poppler_ffi::*;
 
 /// A PDF document parsed by Poppler.
 pub struct PdfDocument<'data> {
@@ -33,13 +33,16 @@ impl<'data> PdfDocument<'data> {
                 bytes.as_ptr() as *const c_char as *mut c_char,
                 bytes.len().try_into().unwrap(),
                 ptr::null(),
-                &mut error
+                &mut error,
             )
         };
         if ptr.is_null() {
             Err(GlibError { ptr: error })
         } else {
-            Ok(PdfDocument { ptr, phantom: PhantomData })
+            Ok(PdfDocument {
+                ptr,
+                phantom: PhantomData,
+            })
         }
     }
 
@@ -48,36 +51,31 @@ impl<'data> PdfDocument<'data> {
     /// The page count can be obtained with `.pages().len()`,
     /// and an arbitrary page with `.pages().nth(index)`.
     pub fn pages<'doc>(&'doc self) -> PagesIter<'doc, 'data> {
-        let page_count = unsafe {
-            poppler_document_get_n_pages(self.ptr)
-        };
+        let page_count = unsafe { poppler_document_get_n_pages(self.ptr) };
         PagesIter {
             doc: self,
-            range: 0..page_count
+            range: 0..page_count,
         }
     }
 
     fn get_page(&self, index: c_int) -> Page<'data> {
-        let ptr = unsafe {
-            poppler_document_get_page(self.ptr, index)
-        };
+        let ptr = unsafe { poppler_document_get_page(self.ptr, index) };
         assert!(!ptr.is_null());
-        Page { ptr, phantom: PhantomData }
+        Page {
+            ptr,
+            phantom: PhantomData,
+        }
     }
 
     /// Return the `Producer` entry of the document’s *information dictionary*.
     pub fn producer(&self) -> Option<GlibString> {
-        unsafe {
-            GlibString::from_nullable_ptr(poppler_document_get_producer(self.ptr))
-        }
+        unsafe { GlibString::from_nullable_ptr(poppler_document_get_producer(self.ptr)) }
     }
 }
 
 impl<'data> Drop for PdfDocument<'data> {
     fn drop(&mut self) {
-        unsafe {
-            g_object_unref(self.ptr as *mut c_void)
-        }
+        unsafe { g_object_unref(self.ptr as *mut c_void) }
     }
 }
 
@@ -131,9 +129,7 @@ impl<'data> Page<'data> {
     pub fn size_in_ps_points(&self) -> (f64, f64) {
         let mut width = 0.;
         let mut height = 0.;
-        unsafe {
-            poppler_page_get_size(self.ptr, &mut width, &mut height)
-        }
+        unsafe { poppler_page_get_size(self.ptr, &mut width, &mut height) }
         (width, height)
     }
 
@@ -143,8 +139,7 @@ impl<'data> Page<'data> {
     /// (This mapping also makes CSS `in` and `mm` map to physical inches and millimeters.)
     pub fn size_in_css_px(&self) -> (f64, f64) {
         let (w, h) = self.size_in_ps_points();
-        (w * PX_PER_PT,
-         h * PX_PER_PT)
+        (w * PX_PER_PT, h * PX_PER_PT)
     }
 
     /// Render (rasterize) this page with the default options to a new image surface.
@@ -170,7 +165,13 @@ impl<'data> Page<'data> {
 
     /// Render (rasterize) this page with the given options to a new image surface.
     pub fn render_with_options(&self, options: RenderOptions) -> Result<ImageSurface, CairoError> {
-        let RenderOptions { dppx_x, dppx_y, antialias, backdrop, for_printing } = options;
+        let RenderOptions {
+            dppx_x,
+            dppx_y,
+            antialias,
+            backdrop,
+            for_printing,
+        } = options;
         let (width, height) = self.size_in_css_px();
         let mut surface = ImageSurface::new_c_int(
             match backdrop {
@@ -185,8 +186,7 @@ impl<'data> Page<'data> {
             context.set_source_rgb(1., 1., 1.);
             context.paint();
         }
-        context.scale(dppx_x * PX_PER_PT,
-                      dppx_y * PX_PER_PT);
+        context.scale(dppx_x * PX_PER_PT, dppx_y * PX_PER_PT);
         context.set_antialias(antialias);
         unsafe {
             if for_printing {
@@ -203,16 +203,14 @@ impl<'data> Page<'data> {
     pub fn text(&self) -> GlibString {
         unsafe {
             GlibString::from_nullable_ptr(poppler_page_get_text(self.ptr))
-            .expect("poppler_page_get_text returned a NULL pointer")
+                .expect("poppler_page_get_text returned a NULL pointer")
         }
     }
 }
 
 impl<'data> Drop for Page<'data> {
     fn drop(&mut self) {
-        unsafe {
-            g_object_unref(self.ptr as *mut c_void)
-        }
+        unsafe { g_object_unref(self.ptr as *mut c_void) }
     }
 }
 
@@ -293,9 +291,7 @@ impl GlibString {
     }
 
     pub fn to_str(&self) -> Result<&str, Utf8Error> {
-        let cstr = unsafe {
-            CStr::from_ptr(self.ptr)
-        };
+        let cstr = unsafe { CStr::from_ptr(self.ptr) };
         cstr.to_str()
     }
 }

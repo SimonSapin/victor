@@ -1,11 +1,12 @@
-use crate::fonts::FontError;
-use crate::primitives::{CssPx, Size, Rect, RGBA, TextRun};
 use self::convert::{InProgressDoc, InProgressPage};
+use crate::fonts::FontError;
+use crate::primitives::{CssPx, Rect, Size, TextRun, RGBA};
 use std::fs;
 use std::io::{self, Write};
 use std::path;
 
-#[macro_use] mod object;
+#[macro_use]
+mod object;
 mod convert;
 mod syntax;
 

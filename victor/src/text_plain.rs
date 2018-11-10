@@ -1,9 +1,9 @@
-use crate::primitives::{Rect, Point, Size, SideOffsets, Length, TextRun};
-use crate::fonts::{Font, FontError, Em};
-use crate::pdf::Document;
 use self::css_units::*;
-use std::sync::Arc;
+use crate::fonts::{Em, Font, FontError};
+use crate::pdf::Document;
+use crate::primitives::{Length, Point, Rect, SideOffsets, Size, TextRun};
 use crate::text::ShapedSegment;
+use std::sync::Arc;
 use xi_unicode::LineBreakIterator;
 
 pub mod css_units {
@@ -14,11 +14,17 @@ pub mod css_units {
     pub struct In;
 
     impl Mm {
-        pub fn per_in() -> Scale<In, Self> { Scale::new(25.4) }
+        pub fn per_in() -> Scale<In, Self> {
+            Scale::new(25.4)
+        }
     }
     impl Px {
-        pub fn per_in() -> Scale<In, Self> { Scale::new(96.) }
-        pub fn per_mm() -> Scale<Mm, Self> { Mm::per_in().inv() * Self::per_in() }
+        pub fn per_in() -> Scale<In, Self> {
+            Scale::new(96.)
+        }
+        pub fn per_mm() -> Scale<Mm, Self> {
+            Mm::per_in().inv() * Self::per_in()
+        }
     }
 }
 
@@ -55,13 +61,15 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
     let mut line_segments = Vec::new();
 
     let mut previous_break_position = 0;
-    let mut segments = Rewind::new(LineBreakIterator::new(text).map(|(position, is_hard_break)| {
-        let range = previous_break_position..position;
-        previous_break_position = position;
-        let text_segment = text[range].trim_right_matches('\n');
-        let segment = ShapedSegment::naive_shape(text_segment, style.font.clone())?;
-        Ok((segment, is_hard_break))
-    }));
+    let mut segments = Rewind::new(LineBreakIterator::new(text).map(
+        |(position, is_hard_break)| {
+            let range = previous_break_position..position;
+            previous_break_position = position;
+            let text_segment = text[range].trim_right_matches('\n');
+            let segment = ShapedSegment::naive_shape(text_segment, style.font.clone())?;
+            Ok((segment, is_hard_break))
+        },
+    ));
 
     'pages: loop {
         let mut pdf_page = pdf_doc.add_page(page_size);
@@ -75,7 +83,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
                     Some(result) => result?,
                     // End of document
                     // FIXME: use 'return' when lifetimes are non-lexical
-                    None => break 'pages
+                    None => break 'pages,
                 };
 
                 let advance_width = segment.advance_width * px_per_em;
@@ -106,7 +114,11 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
             for segment in line_segments.drain(..) {
                 let origin = Point::from_lengths(x, baseline);
                 x += segment.advance_width * px_per_em + word_spacing;
-                pdf_page.show_text(&TextRun { segment, font_size, origin })?;
+                pdf_page.show_text(&TextRun {
+                    segment,
+                    font_size,
+                    origin,
+                })?;
             }
 
             y += line_height;
@@ -119,14 +131,23 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
     Ok(pdf_doc)
 }
 
-struct Rewind<I> where I: Iterator {
+struct Rewind<I>
+where
+    I: Iterator,
+{
     inner: I,
-    buffer: Option<I::Item>
+    buffer: Option<I::Item>,
 }
 
-impl<I> Rewind<I> where I: Iterator {
+impl<I> Rewind<I>
+where
+    I: Iterator,
+{
     fn new(inner: I) -> Self {
-        Rewind { inner, buffer: None }
+        Rewind {
+            inner,
+            buffer: None,
+        }
     }
 
     fn rewind(&mut self, item: I::Item) {
@@ -135,7 +156,10 @@ impl<I> Rewind<I> where I: Iterator {
     }
 }
 
-impl<I> Iterator for Rewind<I> where I: Iterator {
+impl<I> Iterator for Rewind<I>
+where
+    I: Iterator,
+{
     type Item = I::Item;
 
     fn next(&mut self) -> Option<I::Item> {

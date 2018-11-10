@@ -20,11 +20,11 @@
 
 use lock_api::RawMutex as RawMutexTrait;
 use parking_lot::RawMutex;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::ptr;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Arc;
 
 pub struct LazyArc<T: Send + Sync> {
     poltergeist: PhantomData<Arc<T>>,
@@ -48,7 +48,8 @@ impl<T: Send + Sync> LazyArc<T> {
     ///
     /// Calling this reapeatedly will only initialize once (until `.drop()` is called).
     pub fn get_or_create<F, E>(&self, create: F) -> Result<Arc<T>, E>
-        where F: FnOnce() -> Result<Arc<T>, E>
+    where
+        F: FnOnce() -> Result<Arc<T>, E>,
     {
         macro_rules! try_load {
             () => {
@@ -63,7 +64,7 @@ impl<T: Send + Sync> LazyArc<T> {
                     let careful_dont_drop_it = ManuallyDrop::new(unsafe { Arc::from_raw(ptr) });
                     return Ok(Arc::clone(&*careful_dont_drop_it))
                 }
-            }
+            };
         }
 
         // First try to obtain an Arc from the atomic pointer without taking the mutex
@@ -92,24 +93,24 @@ impl<T: Send + Sync> LazyArc<T> {
         Ok(data)
     }
 
-// Oops, this turned out to be unsound:
-// If drop() is called while another thread is in them middle of get_or_create()
-// after self.ptr.load() but before Arc::clone(),
-// the refcount could drop to zero and the arc be deallocated,
-// causing a use-after-free in the other thread.
+    // Oops, this turned out to be unsound:
+    // If drop() is called while another thread is in them middle of get_or_create()
+    // after self.ptr.load() but before Arc::clone(),
+    // the refcount could drop to zero and the arc be deallocated,
+    // causing a use-after-free in the other thread.
 
-//    /// Deinitialize this singleton, dropping the internal `Arc` reference.
-//    ///
-//    /// Calling `.get()` again afterwards will create a new `T` object.
-//    ///
-//    /// The previous `T` object may continue to live as long
-//    /// as other `Arc` references to it exist.
-//    pub fn drop(&self) {
-//        let ptr = self.ptr.swap(ptr::null_mut(), Ordering::SeqCst);
-//        if !ptr.is_null() {
-//            unsafe {
-//                mem::drop(Arc::from_raw(ptr))
-//            }
-//        }
-//    }
+    //    /// Deinitialize this singleton, dropping the internal `Arc` reference.
+    //    ///
+    //    /// Calling `.get()` again afterwards will create a new `T` object.
+    //    ///
+    //    /// The previous `T` object may continue to live as long
+    //    /// as other `Arc` references to it exist.
+    //    pub fn drop(&self) {
+    //        let ptr = self.ptr.swap(ptr::null_mut(), Ordering::SeqCst);
+    //        if !ptr.is_null() {
+    //            unsafe {
+    //                mem::drop(Arc::from_raw(ptr))
+    //            }
+    //        }
+    //    }
 }

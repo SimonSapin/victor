@@ -4,13 +4,17 @@ use crate::cairo_ffi::cairo_t;
 use std::os::raw::*;
 
 extern "C" {
-    pub fn poppler_document_new_from_data(data: *mut c_char,
-                                          length: c_int,
-                                          password: *const c_char,
-                                          error: *mut *mut GError)
-                                          -> *mut PopplerDocument;
+    pub fn poppler_document_new_from_data(
+        data: *mut c_char,
+        length: c_int,
+        password: *const c_char,
+        error: *mut *mut GError,
+    ) -> *mut PopplerDocument;
     pub fn poppler_document_get_n_pages(document: *mut PopplerDocument) -> c_int;
-    pub fn poppler_document_get_page(document: *mut PopplerDocument, index: c_int) -> *mut PopplerPage;
+    pub fn poppler_document_get_page(
+        document: *mut PopplerDocument,
+        index: c_int,
+    ) -> *mut PopplerPage;
     pub fn poppler_document_get_producer(document: *mut PopplerDocument) -> *mut gchar;
 
     pub fn poppler_page_get_size(page: *mut PopplerPage, width: *mut f64, height: *mut f64);
@@ -30,10 +34,14 @@ pub type guint32 = c_uint;
 pub type GQuark = guint32;
 
 #[repr(C)]
-pub struct PopplerDocument { opaque: [u8; 0] }
+pub struct PopplerDocument {
+    opaque: [u8; 0],
+}
 
 #[repr(C)]
-pub struct PopplerPage { opaque: [u8; 0] }
+pub struct PopplerPage {
+    opaque: [u8; 0],
+}
 
 #[repr(C)]
 pub struct GError {

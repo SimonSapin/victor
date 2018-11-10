@@ -3,12 +3,12 @@
 mod html;
 
 use crate::arena::Arena;
-use html5ever::{QualName, ExpandedName, LocalName, Attribute};
+use crate::style::StyleSetBuilder;
 use html5ever::tendril::StrTendril;
-use std::cell::{Cell, RefCell, Ref};
+use html5ever::{Attribute, ExpandedName, LocalName, QualName};
+use std::cell::{Cell, Ref, RefCell};
 use std::fmt;
 use std::ptr;
-use crate::style::StyleSetBuilder;
 
 pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
@@ -16,7 +16,7 @@ pub(crate) type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 
 pub struct Document<'arena> {
     document_node: NodeRef<'arena>,
-    style_elements: Vec<NodeRef<'arena>>
+    style_elements: Vec<NodeRef<'arena>>,
 }
 
 impl<'arena> Document<'arena> {
@@ -69,12 +69,16 @@ pub(crate) struct ElementData {
 }
 
 impl ElementData {
-    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<Ref<str>>{
-        let name = ExpandedName { ns: &ns!(), local: name };
+    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<Ref<str>> {
+        let name = ExpandedName {
+            ns: &ns!(),
+            local: name,
+        };
         let attrs = self.attrs.borrow();
-        attrs.iter().position(|attr| attr.name.expanded() == name).map(|i| {
-            Ref::map(attrs, |attrs| &*attrs[i].value)
-        })
+        attrs
+            .iter()
+            .position(|attr| attr.name.expanded() == name)
+            .map(|i| Ref::map(attrs, |attrs| &*attrs[i].value))
     }
 }
 
@@ -96,14 +100,14 @@ impl<'arena> Node<'arena> {
     pub(crate) fn as_element(&self) -> Option<&ElementData> {
         match self.data {
             NodeData::Element(ref data) => Some(data),
-            _ => None
+            _ => None,
         }
     }
 
     pub(crate) fn as_text(&self) -> Option<&RefCell<StrTendril>> {
         match self.data {
             NodeData::Text { ref contents } => Some(contents),
-            _ => None
+            _ => None,
         }
     }
 
@@ -156,7 +160,10 @@ impl<'arena> Node<'arena> {
         new_sibling.next_sibling.set(Some(self));
         if let Some(previous_sibling) = self.previous_sibling.take() {
             new_sibling.previous_sibling.set(Some(previous_sibling));
-            debug_assert!(ptr::eq::<Node>(previous_sibling.next_sibling.get().unwrap(), self));
+            debug_assert!(ptr::eq::<Node>(
+                previous_sibling.next_sibling.get().unwrap(),
+                self
+            ));
             previous_sibling.next_sibling.set(Some(new_sibling));
         } else if let Some(parent) = self.parent.get() {
             debug_assert!(ptr::eq::<Node>(parent.first_child.get().unwrap(), self));

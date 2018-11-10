@@ -26,7 +26,7 @@ pub(in crate::fonts) struct MaximumProfile {
     _version: FixedPoint,
     num_glyphs: u16,
     // Depending of `version`, this table may have more fields that we don’t use.
-    _padding: u16
+    _padding: u16,
 }
 
 #[derive(SfntTable)]
@@ -87,7 +87,6 @@ pub(in crate::fonts) struct CmapFormat12Group {
     end_char_code: u32,
     start_glyph_id: u32,
 }
-
 
 #[derive(SfntTable)]
 #[tag = "head"]
