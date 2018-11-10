@@ -1,5 +1,3 @@
-extern crate pkg_config;
-
 fn main() {
     // We rely on poppler-glib’s dependency on cairo to link cairo.
     // If we make a second pkg-config call, rustc complains with

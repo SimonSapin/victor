@@ -1,6 +1,6 @@
-use cairo_ffi::*;
-use convert::TryInto;
-use errors::{CairoError, LesterError};
+use crate::cairo_ffi::*;
+use crate::convert::TryInto;
+use crate::errors::{CairoError, LesterError};
 use std::any::Any;
 use std::fs;
 use std::io::{self, Read, Write};

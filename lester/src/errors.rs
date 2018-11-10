@@ -1,9 +1,9 @@
-use cairo_ffi::{cairo_status_t, cairo_status_to_string, CAIRO_STATUS_SUCCESS};
+use crate::cairo_ffi::{cairo_status_t, cairo_status_to_string, CAIRO_STATUS_SUCCESS};
 use std::error::Error;
 use std::ffi::CStr;
 use std::fmt;
 use std::io;
-use poppler_ffi::{GError, g_error_free};
+use crate::poppler_ffi::{GError, g_error_free};
 
 macro_rules! c_error_impls {
     ($T: ty = |$self_: ident| $get_c_str_ptr: expr) => {

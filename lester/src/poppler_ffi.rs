@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types)]
 
-use cairo_ffi::cairo_t;
+use crate::cairo_ffi::cairo_t;
 use std::os::raw::*;
 
 extern "C" {

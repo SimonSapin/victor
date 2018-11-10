@@ -1,16 +1,16 @@
-use fonts::{FontError, GlyphId};
-use fonts::parsing::{Position, Slice, binary_search};
-use fonts::tables::*;
+use crate::fonts::{FontError, GlyphId};
+use crate::fonts::parsing::{Position, Slice, binary_search};
+use crate::fonts::tables::*;
 use std::char;
 use std::cmp::Ordering;
 
-pub(in fonts) enum Cmap {
+pub(in crate::fonts) enum Cmap {
     Format4(Format4),
     Format12(Format12),
 }
 
 impl Cmap {
-    pub(in fonts) fn parse(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
+    pub(in crate::fonts) fn parse(bytes: &[u8], table_directory: Slice<TableDirectoryEntry>)
                             -> Result<Self, FontError> {
         let cmap_header = table_directory.find_table::<CmapHeader>(bytes)?;
         let cmap_records = Slice::new(
@@ -45,7 +45,7 @@ impl Cmap {
         Err(FontError::NoSupportedCmap)
     }
 
-    pub(in fonts) fn each_code_point<F>(&self, bytes: &[u8], mut f: F)-> Result<(), FontError>
+    pub(in crate::fonts) fn each_code_point<F>(&self, bytes: &[u8], mut f: F)-> Result<(), FontError>
         where F: FnMut(char, GlyphId)
     {
         let f = move |code_point, glyph_id| {
@@ -63,7 +63,7 @@ impl Cmap {
     }
 }
 
-pub(in fonts) struct Format4 {
+pub(in crate::fonts) struct Format4 {
     segment_count: u32,
     end_codes: Position<u16>,
     start_codes: Position<u16>,
@@ -84,7 +84,7 @@ impl Format4 {
         Ok(Format4 { segment_count, end_codes, start_codes, id_deltas, id_range_offsets })
     }
 
-    pub(in fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in crate::fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
         if code_point > 0xFFFF {
             return Ok(None)
         }
@@ -155,7 +155,7 @@ impl Format4 {
     }
 }
 
-pub(in fonts) struct Format12 {
+pub(in crate::fonts) struct Format12 {
     groups: Slice<CmapFormat12Group>,
 }
 
@@ -169,7 +169,7 @@ impl Format12 {
         })
     }
 
-    pub(in fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
+    pub(in crate::fonts) fn get(&self, bytes: &[u8], code_point: u32) -> Result<Option<u16>, FontError> {
         let result = binary_search(self.groups.count(), |index| {
             let group = self.groups.get_unchecked(index);
             if code_point < group.start_char_code().read_from(bytes)? {

@@ -1,5 +1,5 @@
-use fonts::FontError;
-use primitives::{CssPx, Size, Rect, RGBA, TextRun};
+use crate::fonts::FontError;
+use crate::primitives::{CssPx, Size, Rect, RGBA, TextRun};
 use self::convert::{InProgressDoc, InProgressPage};
 use std::fs;
 use std::io::{self, Write};

@@ -1,15 +1,15 @@
-use primitives::{Rect, Point, Size, SideOffsets, Length, TextRun};
-use fonts::{Font, FontError, Em};
-use pdf::Document;
+use crate::primitives::{Rect, Point, Size, SideOffsets, Length, TextRun};
+use crate::fonts::{Font, FontError, Em};
+use crate::pdf::Document;
 use self::css_units::*;
 use std::sync::Arc;
-use text::ShapedSegment;
+use crate::text::ShapedSegment;
 use xi_unicode::LineBreakIterator;
 
 pub mod css_units {
-    use primitives::Scale;
+    use crate::primitives::Scale;
 
-    pub use primitives::CssPx as Px;
+    pub use crate::primitives::CssPx as Px;
     pub struct Mm;
     pub struct In;
 

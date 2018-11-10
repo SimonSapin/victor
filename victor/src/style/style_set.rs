@@ -1,9 +1,9 @@
 use cssparser::{ParserInput, Parser, RuleListParser};
-use dom::NodeRef;
+use crate::dom::NodeRef;
 use std::rc::Rc;
-use style::properties::{PropertyDeclaration, ComputedValues};
-use style::rules::{CssRule, RulesParser};
-use style::selectors::{self, Selector};
+use crate::style::properties::{PropertyDeclaration, ComputedValues};
+use crate::style::rules::{CssRule, RulesParser};
+use crate::style::selectors::{self, Selector};
 
 pub struct StyleSetBuilder(StyleSet);
 

@@ -1,5 +1,5 @@
-use fonts::{Font, FontError, GlyphId, Em};
-use primitives::Length;
+use crate::fonts::{Font, FontError, GlyphId, Em};
+use crate::primitives::Length;
 use std::sync::Arc;
 
 pub struct ShapedSegment {

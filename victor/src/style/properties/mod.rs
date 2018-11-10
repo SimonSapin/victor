@@ -1,5 +1,5 @@
-use style::values::length::{Length, PxLength};
-use style::values::generic::FourSides;
+use crate::style::values::length::{Length, PxLength};
+use crate::style::values::generic::FourSides;
 
 #[macro_use]
 mod macros;

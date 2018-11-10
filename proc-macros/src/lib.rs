@@ -22,7 +22,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
                     let tag = syn::LitByteStr::new(value.as_bytes(), tag.span);
                     table_impl = quote! {
                         #[warn(dead_code)]
-                        impl ::fonts::SfntTable for #name {
+                        impl crate::fonts::SfntTable for #name {
                             const TAG: Tag = Tag(*#tag);
                         }
                     };
@@ -60,7 +60,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         let expected_align = std::cmp::min(size, 4);
         assert_eq!(offset % expected_align, 0, "Field {} is misaligned", name);
         methods.append_all(quote! {
-            pub(in fonts) fn #name(self) -> ::fonts::parsing::Position<#ty> {
+            pub(in crate::fonts) fn #name(self) -> crate::fonts::parsing::Position<#ty> {
                 self.offset_bytes(#offset)
             }
         });
@@ -73,12 +73,12 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
         impl #name {
             fn _assert_size_of() {
-                let _ = ::std::mem::transmute::<Self, [u8; #size_of]>;
+                let _ = std::mem::transmute::<Self, [u8; #size_of]>;
             }
         }
 
         #[warn(dead_code)]
-        impl ::fonts::parsing::Position<#name> {
+        impl crate::fonts::parsing::Position<#name> {
             #methods
         }
     };
@@ -92,9 +92,9 @@ pub fn derive_read_from_bytes(input: proc_macro::TokenStream) -> proc_macro::Tok
     let name = &input.ident;
 
     let tokens = quote! {
-        impl ::fonts::parsing::ReadFromBytes for #name {
-            fn read_from(bytes: &[u8]) -> Result<Self, ::fonts::FontError> {
-                use fonts::parsing::ReadFromBytes;
+        impl crate::fonts::parsing::ReadFromBytes for #name {
+            fn read_from(bytes: &[u8]) -> Result<Self, crate::fonts::FontError> {
+                use crate::fonts::parsing::ReadFromBytes;
                 ReadFromBytes::read_from(bytes).map(#name)  // Assume single unnamed field
             }
         }

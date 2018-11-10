@@ -1,4 +1,4 @@
-pub extern crate euclid;
+pub use euclid;
 
 pub mod dom;
 pub mod fonts;
@@ -12,16 +12,16 @@ mod arena;
 mod style;
 
 #[macro_use] extern crate cssparser;
-extern crate dtoa;
+
 #[macro_use] extern crate html5ever;
-extern crate itoa;
-extern crate lock_api;
+
+
 #[macro_use] extern crate matches;
-extern crate num_traits;
-extern crate parking_lot;
-extern crate selectors;
+
+
+
 #[macro_use] extern crate victor_internal_proc_macros;
-extern crate xi_unicode;
+
 
 /*
 

@@ -1,5 +1,4 @@
-use euclid;
-use text;
+use crate::text;
 
 /// Origin at top-left corner, unit `1px`
 pub struct CssPx;

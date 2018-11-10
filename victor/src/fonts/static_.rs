@@ -1,4 +1,4 @@
-use lazy_arc::LazyArc;
+use crate::lazy_arc::LazyArc;
 use std::sync::Arc;
 use super::{Font, FontError};
 

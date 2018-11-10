@@ -5,6 +5,7 @@ authors = ["Simon Sapin <simon.sapin@exyr.org>"]
 license = "MIT OR Apache-2.0"
 description = "Victor makes vectors"
 repository = "https://github.com/SimonSapin/victor"
+edition = "2018"
 
 [lib]
 doctest = false

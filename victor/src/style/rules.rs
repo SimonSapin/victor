@@ -1,9 +1,9 @@
 use cssparser::{Parser, ParseError, AtRuleParser, QualifiedRuleParser};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
-use style::errors::{RuleParseErrorKind, PropertyParseErrorKind};
-use style::properties::{PropertyDeclaration, declaration_parsing_function_by_name};
-use style::selectors::{self, SelectorList};
+use crate::style::errors::{RuleParseErrorKind, PropertyParseErrorKind};
+use crate::style::properties::{PropertyDeclaration, declaration_parsing_function_by_name};
+use crate::style::selectors::{self, SelectorList};
 
 pub enum CssRule {
     StyleRule {

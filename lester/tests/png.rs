@@ -1,4 +1,3 @@
-extern crate lester;
 
 use lester::ImageSurface;
 use std::error::Error;

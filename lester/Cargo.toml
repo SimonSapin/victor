@@ -8,6 +8,7 @@ Lester, Victor’s cousin, makes raster graphics.
 It renders PDF files (such as produced by Victor) to in-memory pixel buffers or PNG,
 using poppler-glib and cairo."""
 repository = "https://github.com/SimonSapin/victor"
+edition = "2018"
 
 [lib]
 test = false

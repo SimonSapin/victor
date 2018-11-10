@@ -1,14 +1,14 @@
-use cairo::*;
-use cairo_ffi::{CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_RGB24};
-use convert::TryInto;
-use errors::{CairoError, GlibError};
+use crate::cairo::*;
+use crate::cairo_ffi::{CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_RGB24};
+use crate::convert::TryInto;
+use crate::errors::{CairoError, GlibError};
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::os::raw::*;
 use std::ptr;
 use std::str::Utf8Error;
-use poppler_ffi::*;
+use crate::poppler_ffi::*;
 
 /// A PDF document parsed by Poppler.
 pub struct PdfDocument<'data> {

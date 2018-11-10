@@ -1,5 +1,4 @@
-use euclid;
-use fonts::Em;
+use crate::fonts::Em;
 use std::io::{self, Write};
 use super::syntax::IndirectObjectId;
 
@@ -36,7 +35,7 @@ macro_rules! array {
         array![ $( $value ),* ]
     };
     ($( $value: expr ),*) => {
-        &[ $( ::pdf::object::Object::from($value) ),* ][..]
+        &[ $( crate::pdf::object::Object::from($value) ),* ][..]
     }
 }
 
@@ -47,7 +46,7 @@ macro_rules! key_value_pairs {
     ($( $key: expr => $value: expr ),*) => {
         &[
             $(
-                (AsRef::<[u8]>::as_ref($key), ::pdf::object::Object::from($value)),
+                (AsRef::<[u8]>::as_ref($key), crate::pdf::object::Object::from($value)),
             )*
         ]
     };

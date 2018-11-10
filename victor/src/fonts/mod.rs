@@ -4,16 +4,15 @@ mod static_;
 mod tables;
 mod types;
 
-use euclid;
-use fonts::cmap::Cmap;
-use fonts::parsing::*;
-use fonts::tables::*;
-use fonts::types::Tag;
+use crate::fonts::cmap::Cmap;
+use crate::fonts::parsing::*;
+use crate::fonts::tables::*;
+use crate::fonts::types::Tag;
 use std::borrow::Cow;
 use std::cmp;
 use std::sync::Arc;
 
-pub use fonts::static_::*;
+pub use crate::fonts::static_::*;
 
 /// The EM square unit
 pub(crate) struct Em;

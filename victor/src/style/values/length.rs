@@ -1,7 +1,7 @@
 use cssparser::{Parser, Token};
-use primitives::{CssPx, Length as EuclidLength};
-use style::errors::{PropertyParseError, PropertyParseErrorKind};
-use style::values::{Parse, ToComputedValue};
+use crate::primitives::{CssPx, Length as EuclidLength};
+use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
+use crate::style::values::{Parse, ToComputedValue};
 
 pub type PxLength = EuclidLength<CssPx>;
 

@@ -1,22 +1,21 @@
-use euclid;
-use fonts::{Em, FontDesignUnit};
+use crate::fonts::{Em, FontDesignUnit};
 use std::fmt::{self, Write};
 
-pub(in fonts) type FontDesignUnitsPerEmFactorU16 = euclid::TypedScale<u16, Em, FontDesignUnit>;
+pub(in crate::fonts) type FontDesignUnitsPerEmFactorU16 = euclid::TypedScale<u16, Em, FontDesignUnit>;
 
-pub(in fonts) type FWord = euclid::Length<i16, FontDesignUnit>;
-pub(in fonts) type UFWord = euclid::Length<u16, FontDesignUnit>;
+pub(in crate::fonts) type FWord = euclid::Length<i16, FontDesignUnit>;
+pub(in crate::fonts) type UFWord = euclid::Length<u16, FontDesignUnit>;
 
 /// 32-bit signed fixed-point number (16.16)
 #[derive(Debug, Copy, Clone)]
-pub(in fonts) struct FixedPoint(pub u32);
+pub(in crate::fonts) struct FixedPoint(pub u32);
 
 /// Instant in time as seconds since 1904-01-01 midnight UTC
 #[derive(Debug, Copy, Clone)]
-pub(in fonts) struct LongDateTime(pub i64);
+pub(in crate::fonts) struct LongDateTime(pub i64);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ReadFromBytes)]
-pub(in fonts) struct Tag(pub [u8; 4]);
+pub(in crate::fonts) struct Tag(pub [u8; 4]);
 
 
 // ~~~~ Trait impls ~~~~

@@ -1,7 +1,7 @@
-use fonts::{Font, GlyphId, FontError};
-use pdf::object::{Object, Dictionary};
-use pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
-use primitives::*;
+use crate::fonts::{Font, GlyphId, FontError};
+use crate::pdf::object::{Object, Dictionary};
+use crate::pdf::syntax::{PdfFile, PAGE_TREE_ID, BasicObjects};
+use crate::primitives::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::hash;

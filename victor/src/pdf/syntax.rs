@@ -153,7 +153,7 @@ fn itoa_zero_padded(mut value: u32, buffer: &mut [u8; 10]) {
     }
 }
 
-pub struct CountingWrite<'a, W: Write + 'a> {
+pub struct CountingWrite<'a, W: Write> {
     inner: &'a mut W,
     bytes_written: usize,
 }

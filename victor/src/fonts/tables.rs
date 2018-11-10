@@ -1,10 +1,10 @@
 // The structs’ fields are not actually used, they are only input to #[derive(SfntTable)]
 #![allow(dead_code)]
 
-use fonts::types::*;
+use crate::fonts::types::*;
 
 #[derive(SfntTable)]
-pub(in fonts) struct OffsetSubtable {
+pub(in crate::fonts) struct OffsetSubtable {
     scaler_type: u32,
     table_count: u16,
     _search_range: u16,
@@ -13,7 +13,7 @@ pub(in fonts) struct OffsetSubtable {
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct TableDirectoryEntry {
+pub(in crate::fonts) struct TableDirectoryEntry {
     tag: Tag,
     _checksum: u32,
     table_offset: u32,
@@ -22,7 +22,7 @@ pub(in fonts) struct TableDirectoryEntry {
 
 #[derive(SfntTable)]
 #[tag = "maxp"]
-pub(in fonts) struct MaximumProfile {
+pub(in crate::fonts) struct MaximumProfile {
     _version: FixedPoint,
     num_glyphs: u16,
     // Depending of `version`, this table may have more fields that we don’t use.
@@ -31,14 +31,14 @@ pub(in fonts) struct MaximumProfile {
 
 #[derive(SfntTable)]
 #[tag = "name"]
-pub(in fonts) struct NamingTableHeader {
+pub(in crate::fonts) struct NamingTableHeader {
     _format: u16,
     count: u16,
     string_offset: u16,
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct NameRecord {
+pub(in crate::fonts) struct NameRecord {
     platform_id: u16,
     encoding_id: u16,
     _language_id: u16,
@@ -49,20 +49,20 @@ pub(in fonts) struct NameRecord {
 
 #[derive(SfntTable)]
 #[tag = "cmap"]
-pub(in fonts) struct CmapHeader {
+pub(in crate::fonts) struct CmapHeader {
     _version: u16,
     num_tables: u16,
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct CmapEncodingRecord {
+pub(in crate::fonts) struct CmapEncodingRecord {
     platform_id: u16,
     encoding_id: u16,
     subtable_offset: u32,
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct CmapFormat4Header {
+pub(in crate::fonts) struct CmapFormat4Header {
     _format: u16,
     _length: u16,
     _language: u16,
@@ -73,7 +73,7 @@ pub(in fonts) struct CmapFormat4Header {
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct CmapFormat12Header {
+pub(in crate::fonts) struct CmapFormat12Header {
     _format: u16,
     __reserved: u16,
     _length: u32,
@@ -82,7 +82,7 @@ pub(in fonts) struct CmapFormat12Header {
 }
 
 #[derive(SfntTable)]
-pub(in fonts) struct CmapFormat12Group {
+pub(in crate::fonts) struct CmapFormat12Group {
     start_char_code: u32,
     end_char_code: u32,
     start_glyph_id: u32,
@@ -91,7 +91,7 @@ pub(in fonts) struct CmapFormat12Group {
 
 #[derive(SfntTable)]
 #[tag = "head"]
-pub(in fonts) struct FontHeader {
+pub(in crate::fonts) struct FontHeader {
     _version: FixedPoint,
     _font_revision: FixedPoint,
     _checksum_adjustment: u32,
@@ -114,7 +114,7 @@ pub(in fonts) struct FontHeader {
 
 #[derive(SfntTable)]
 #[tag = "hhea"]
-pub(in fonts) struct HorizontalHeader {
+pub(in crate::fonts) struct HorizontalHeader {
     _version: FixedPoint,
     ascender: FWord,
     descender: FWord,
@@ -136,7 +136,7 @@ pub(in fonts) struct HorizontalHeader {
 
 #[derive(SfntTable)]
 #[tag = "hmtx"]
-pub(in fonts) struct LongHorizontalMetricsRecord {
+pub(in crate::fonts) struct LongHorizontalMetricsRecord {
     advance_width: UFWord,
     _left_side_bearing: i16,
 }

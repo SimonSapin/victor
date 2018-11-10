@@ -1,12 +1,11 @@
 use cssparser::ToCss;
-use dom::{Node, NodeRef, Link};
+use crate::dom::{Node, NodeRef, Link};
 use html5ever::{LocalName, Namespace, Prefix};
-use selectors;
 use selectors::attr::{NamespaceConstraint, CaseSensitivity, AttrSelectorOperation};
 use selectors::context::{MatchingContext, MatchingMode, VisitedHandlingMode, QuirksMode};
 use selectors::matching::{ElementSelectorFlags, matches_selector};
 use std::fmt;
-use style::errors::RuleParseErrorKind;
+use crate::style::errors::RuleParseErrorKind;
 
 pub type SelectorList = selectors::SelectorList<Impl>;
 pub type Selector = selectors::parser::Selector<Impl>;

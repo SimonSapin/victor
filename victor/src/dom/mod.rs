@@ -2,13 +2,13 @@
 
 mod html;
 
-use arena::Arena;
+use crate::arena::Arena;
 use html5ever::{QualName, ExpandedName, LocalName, Attribute};
 use html5ever::tendril::StrTendril;
 use std::cell::{Cell, RefCell, Ref};
 use std::fmt;
 use std::ptr;
-use style::StyleSetBuilder;
+use crate::style::StyleSetBuilder;
 
 pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
 pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;

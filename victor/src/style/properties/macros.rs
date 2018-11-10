@@ -29,7 +29,7 @@ macro_rules! properties {
         #[derive(Clone)]
         pub struct ComputedValues {
             $(
-                pub $struct_name: ::std::rc::Rc<style_structs::$struct_name>,
+                pub $struct_name: std::rc::Rc<style_structs::$struct_name>,
             )+
         }
 
@@ -40,7 +40,7 @@ macro_rules! properties {
                 #[derive(Clone)]  // FIXME: only for inherited structs?
                 pub struct $struct_name {
                     $(
-                        pub $ident: <$ValueType as ::style::values::ToComputedValue>::Computed,
+                        pub $ident: <$ValueType as crate::style::values::ToComputedValue>::Computed,
                     )+
                 }
             )+
@@ -111,7 +111,7 @@ macro_rules! properties {
                                 &*ptr
                             };
                             ::std::rc::Rc::make_mut(&mut computed.$struct_name).$ident =
-                                ::style::values::ToComputedValue::to_computed(&declaration.value)
+                                crate::style::values::ToComputedValue::to_computed(&declaration.value)
                         },
                     )+)+
                 ];
@@ -122,7 +122,7 @@ macro_rules! properties {
         type FnParseProperty =
             for<'i, 't>
             fn(&mut ::cssparser::Parser<'i, 't>, &mut Vec<PropertyDeclaration>)
-            -> Result<(), ::style::errors::PropertyParseError<'i>>;
+            -> Result<(), crate::style::errors::PropertyParseError<'i>>;
 
         ascii_case_insensitive_phf_map! {
             declaration_parsing_function_by_name -> FnParseProperty = {
@@ -130,7 +130,7 @@ macro_rules! properties {
                     $name => {
                         // FIXME: this works around https://github.com/rust-lang/rust/issues/48540
                         const PARSE: FnParseProperty = |parser, declarations| {
-                            let v = <$ValueType as ::style::values::Parse>::parse(parser)?;
+                            let v = <$ValueType as crate::style::values::Parse>::parse(parser)?;
                             declarations.push(PropertyDeclaration::$ident(v));
                             Ok(())
                         };
@@ -153,7 +153,7 @@ macro_rules! parse_four_sides {
     ($Top: ident, $Left: ident, $Bottom: ident, $Right: ident) => {
         |parser, declarations: &mut Vec<PropertyDeclaration>| {
             let FourSides { top, left, bottom, right } =
-                <FourSides<_> as ::style::values::Parse>::parse(parser)?;
+                <FourSides<_> as crate::style::values::Parse>::parse(parser)?;
             declarations.push(PropertyDeclaration::$Top(top));
             declarations.push(PropertyDeclaration::$Left(left));
             declarations.push(PropertyDeclaration::$Bottom(bottom));

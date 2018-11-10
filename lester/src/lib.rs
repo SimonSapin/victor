@@ -49,9 +49,9 @@ mod errors;
 mod cairo;
 mod poppler;
 
-pub use errors::*;
-pub use cairo::*;
-pub use poppler::*;
+pub use crate::errors::*;
+pub use crate::cairo::*;
+pub use crate::poppler::*;
 
 // Not re-exported:
 mod cairo_ffi;

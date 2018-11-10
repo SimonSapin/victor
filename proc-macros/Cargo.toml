@@ -5,6 +5,7 @@ authors = ["Simon Sapin <simon.sapin@exyr.org>"]
 license = "MIT OR Apache-2.0"
 description = "Custom #[derive] for use inside Victor"
 repository = "https://github.com/SimonSapin/victor"
+edition = "2018"
 
 [lib]
 proc-macro = true
