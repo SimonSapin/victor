@@ -47,6 +47,7 @@ antialias! {
 }
 
 /// The pixels from an `ImageSurface`
+#[derive(PartialEq, Eq)]
 pub struct Argb32Pixels<'data> {
     pub width: usize,
     pub height: usize,

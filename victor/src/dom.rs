@@ -5,7 +5,7 @@ mod xml;
 
 use crate::style::StyleSetBuilder;
 use html5ever::tendril::StrTendril;
-use html5ever::{Attribute, ExpandedName, LocalName, QualName};
+use html5ever::{Attribute, LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
 
@@ -55,6 +55,22 @@ impl Document {
             }
             style_set.add_stylesheet(&self.child_text_content(id))
         }
+    }
+
+    /// (rel_attribute, href_attribute)
+    pub fn html_link_elements(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.nodes()
+            .filter_map(move |node| self[node].as_element())
+            .filter(|e| e.name.expanded() == expanded_name!(html "link"))
+            .filter_map(|e| {
+                match (
+                    e.get_attr(&local_name!("rel")),
+                    e.get_attr(&local_name!("href")),
+                ) {
+                    (Some(rel), Some(href)) => Some((&**rel, &**href)),
+                    _ => None,
+                }
+            })
     }
 
     fn push_node(&mut self, node: Node) -> NodeId {
@@ -165,6 +181,25 @@ impl Document {
     ) -> impl Iterator<Item = NodeId> + 'a {
         successors(Some(node), move |&node| self[node].next_sibling)
     }
+
+    pub(crate) fn node_and_ancestors<'a>(
+        &'a self,
+        node: NodeId,
+    ) -> impl Iterator<Item = NodeId> + 'a {
+        successors(Some(node), move |&node| self[node].parent)
+    }
+
+    pub(crate) fn next_in_tree_order(&self, node: NodeId) -> Option<NodeId> {
+        self[node].first_child.or_else(|| {
+            self.node_and_ancestors(node)
+                .find_map(|ancestor| self[ancestor].next_sibling)
+        })
+    }
+
+    pub(crate) fn nodes<'a>(&'a self) -> impl Iterator<Item = NodeId> + 'a {
+        let root = Self::document_node_id();
+        successors(Some(root), move |&node| self.next_in_tree_order(node))
+    }
 }
 
 impl std::ops::Index<NodeId> for Document {
@@ -211,17 +246,10 @@ pub(crate) struct ElementData {
 
 impl ElementData {
     pub(crate) fn get_attr(&self, name: &LocalName) -> Option<&StrTendril> {
-        let name = ExpandedName {
-            ns: &ns!(),
-            local: name,
-        };
-        self.attrs.iter().find_map(|attr| {
-            if attr.name.expanded() == name {
-                Some(&attr.value)
-            } else {
-                None
-            }
-        })
+        self.attrs
+            .iter()
+            .find(|attr| attr.name.ns == ns!() && attr.name.local == *name)
+            .map(|attr| &attr.value)
     }
 }
 

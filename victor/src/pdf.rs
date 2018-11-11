@@ -72,3 +72,12 @@ impl<'doc> Page<'doc> {
         Ok(self)
     }
 }
+
+impl crate::dom::Document {
+    // FIXME: actual rendering :)
+    pub fn to_pdf_bytes(&self) -> Vec<u8> {
+        let mut doc = Document::new();
+        doc.add_page(Size::new(100., 100.));
+        doc.write_to_pdf_bytes()
+    }
+}

@@ -14,3 +14,8 @@ doctest = false
 [dependencies]
 lester = {path = "../lester"}
 victor = {path = "../victor"}
+
+[[test]]
+name = "reftests"
+path = "reftests.rs"
+harness = false
