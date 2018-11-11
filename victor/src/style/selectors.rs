@@ -3,7 +3,7 @@ use crate::style::errors::RuleParseErrorKind;
 use cssparser::ToCss;
 use html5ever::{LocalName, Namespace, Prefix};
 use selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstraint};
-use selectors::context::{MatchingContext, MatchingMode, QuirksMode, VisitedHandlingMode};
+use selectors::context::{MatchingContext, MatchingMode, QuirksMode};
 use selectors::matching::{matches_selector, ElementSelectorFlags};
 use std::fmt;
 
@@ -21,7 +21,7 @@ pub fn matches(selector: &Selector, element: NodeRef) -> bool {
     )
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Impl;
 
 pub struct Parser;
@@ -31,6 +31,13 @@ pub enum PseudoElement {}
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum PseudoClass {}
+
+impl selectors::parser::NonTSPseudoClass for PseudoClass {
+    type Impl = Impl;
+    fn is_active_or_hover(&self) -> bool {
+        match *self {}
+    }
+}
 
 impl selectors::parser::SelectorImpl for Impl {
     type ExtraMatchingData = ();
@@ -44,10 +51,6 @@ impl selectors::parser::SelectorImpl for Impl {
     type BorrowedLocalName = LocalName;
     type NonTSPseudoClass = PseudoClass;
     type PseudoElement = PseudoElement;
-
-    fn is_active_or_hover(pseudo_class: &Self::NonTSPseudoClass) -> bool {
-        match *pseudo_class {}
-    }
 }
 
 impl<'i> selectors::parser::Parser<'i> for Parser {
@@ -103,14 +106,6 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
         Some(parent)
     }
 
-    fn first_child_element(&self) -> Option<Self> {
-        find_element(&self.first_child, |node| &node.next_sibling)
-    }
-
-    fn last_child_element(&self) -> Option<Self> {
-        find_element(&self.last_child, |node| &node.previous_sibling)
-    }
-
     fn next_sibling_element(&self) -> Option<Self> {
         find_element(&self.next_sibling, |node| &node.next_sibling)
     }
@@ -123,12 +118,24 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
         self.as_element().unwrap().name.ns == ns!(html) && self.in_html_document()
     }
 
-    fn get_local_name(&self) -> &LocalName {
+    fn local_name(&self) -> &LocalName {
         &self.as_element().unwrap().name.local
     }
 
-    fn get_namespace(&self) -> &Namespace {
+    fn namespace(&self) -> &Namespace {
         &self.as_element().unwrap().name.ns
+    }
+
+    fn is_html_slot_element(&self) -> bool {
+        false
+    }
+
+    fn parent_node_is_shadow_root(&self) -> bool {
+        false
+    }
+
+    fn containing_shadow_host(&self) -> Option<Self> {
+        None
     }
 
     fn attr_matches(
@@ -156,7 +163,6 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
         &self,
         pseudo_class: &PseudoClass,
         _context: &mut MatchingContext<Self::Impl>,
-        _visited_handling: VisitedHandlingMode,
         _flags_setter: &mut F,
     ) -> bool
     where

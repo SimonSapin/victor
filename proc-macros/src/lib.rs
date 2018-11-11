@@ -20,7 +20,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
                 if let syn::Lit::Str(ref tag) = meta.lit {
                     let value = tag.value();
                     assert_eq!(value.len(), 4);
-                    let tag = syn::LitByteStr::new(value.as_bytes(), tag.span);
+                    let tag = syn::LitByteStr::new(value.as_bytes(), tag.span());
                     table_impl = quote! {
                         #[warn(dead_code)]
                         impl crate::fonts::SfntTable for #name {
@@ -47,19 +47,22 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         let ty = if let syn::Type::Path(ref ty) = field.ty {
             ty
         } else {
-            panic!("Unsupported field type: {}", field.ty.clone().into_tokens())
+            panic!(
+                "Unsupported field type: {}",
+                field.ty.clone().into_token_stream()
+            )
         };
         assert!(ty.qself.is_none());
-        let size = match ty.path.segments.last().unwrap().value().ident.as_ref() {
+        let size = match &*ty.path.segments.last().unwrap().value().ident.to_string() {
             "u16" | "i16" | "FWord" | "UFWord" | "FontDesignUnitsPerEmFactorU16" => 2,
             "u32" | "FixedPoint" | "Tag" => 4,
             "LongDateTime" => 8,
-            _ => panic!("The size of {} is unknown", ty.clone().into_tokens()),
+            _ => panic!("The size of {} is unknown", ty.clone().into_token_stream()),
         };
         // The TrueType format seems to be designed so that this never happens:
         let expected_align = std::cmp::min(size, 4);
         assert_eq!(offset % expected_align, 0, "Field {} is misaligned", name);
-        methods.append_all(quote! {
+        methods.extend(quote! {
             pub(in crate::fonts) fn #name(self) -> crate::fonts::parsing::Position<#ty> {
                 self.offset_bytes(#offset)
             }

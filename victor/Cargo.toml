@@ -11,15 +11,15 @@ edition = "2018"
 doctest = false
 
 [dependencies]
-cssparser = "0.23"
+cssparser = "0.24"
 dtoa = "0.4"
-euclid = "0.17"
+euclid = "0.19"
 html5ever = "0.22"
-itoa = "0.3"
+itoa = "0.4"
 lock_api = "0.1"
 matches = "0.1"
-num-traits = "0.1"
+num-traits = "0.2"
 parking_lot = "0.6"
-selectors = "0.19"
+selectors = "0.20"
 victor-internal-proc-macros = {path = "../proc-macros"}
 xi-unicode = "0.1"

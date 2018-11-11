@@ -1,7 +1,7 @@
 use crate::style::errors::{PropertyParseErrorKind, RuleParseErrorKind};
 use crate::style::properties::{declaration_parsing_function_by_name, PropertyDeclaration};
 use crate::style::selectors::{self, SelectorList};
-use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser};
+use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
 
@@ -35,6 +35,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     fn parse_block<'t>(
         &mut self,
         prelude: Self::Prelude,
+        _location: SourceLocation,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         let mut iter = DeclarationListParser::new(

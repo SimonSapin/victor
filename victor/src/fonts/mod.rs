@@ -116,7 +116,7 @@ impl Font {
                     .number_of_long_horizontal_metrics()
                     .read_from(bytes)?,
             ),
-            font_design_units_per_em: header.units_per_em().read_from(bytes)?.cast().unwrap(),
+            font_design_units_per_em: header.units_per_em().read_from(bytes)?.cast(),
             ascender: horizontal_header.ascender().read_from(bytes)?,
             descender: horizontal_header.descender().read_from(bytes)?,
             min_x: header.min_x().read_from(bytes)?,
@@ -175,7 +175,7 @@ impl Font {
     where
         T: ::num_traits::NumCast + Clone,
     {
-        length.cast().unwrap() / self.font_design_units_per_em
+        length.cast() / self.font_design_units_per_em
     }
 
     pub(crate) fn ascender(&self) -> euclid::Length<f32, Em> {
