@@ -2,50 +2,145 @@
 
 mod html;
 
-use crate::arena::Arena;
 use crate::style::StyleSetBuilder;
 use html5ever::tendril::StrTendril;
 use html5ever::{Attribute, ExpandedName, LocalName, QualName};
-use std::cell::{Cell, Ref, RefCell};
+use std::borrow::Cow;
 use std::fmt;
-use std::ptr;
 
-pub type ArenaRef<'arena> = &'arena Arena<Node<'arena>>;
-pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
-pub(crate) type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
-
-pub struct Document<'arena> {
-    pub(crate) document_node: NodeRef<'arena>,
-    style_elements: Vec<NodeRef<'arena>>,
+pub struct Document {
+    nodes: Vec<Node>,
+    style_elements: Vec<NodeId>,
 }
 
-impl<'arena> Document<'arena> {
+pub struct Node {
+    pub(crate) parent: Option<NodeId>,
+    pub(crate) next_sibling: Option<NodeId>,
+    pub(crate) previous_sibling: Option<NodeId>,
+    pub(crate) first_child: Option<NodeId>,
+    pub(crate) last_child: Option<NodeId>,
+    pub(crate) data: NodeData,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NodeId(std::num::NonZeroUsize);
+
+impl Document {
+    fn new() -> Self {
+        // Dummy node at index 0 so that other indices fit in NonZero
+        let dummy = Node::new(NodeData::Document);
+
+        let document_node = Node::new(NodeData::Document);
+        Document {
+            nodes: vec![dummy, document_node],
+            style_elements: Vec::new(),
+        }
+    }
+
+    fn document_node_id() -> NodeId {
+        NodeId(std::num::NonZeroUsize::new(1).unwrap())
+    }
+
     pub fn parse_stylesheets(&self, style_set: &mut StyleSetBuilder) {
-        for element in &self.style_elements {
+        for &id in &self.style_elements {
+            let element = &self[id];
             // https://html.spec.whatwg.org/multipage/semantics.html#update-a-style-block
             if let Some(type_attr) = element.as_element().unwrap().get_attr(&local_name!("type")) {
                 if !type_attr.eq_ignore_ascii_case("text/css") {
                     continue
                 }
             }
-            style_set.add_stylesheet(&element.child_text_content())
+            style_set.add_stylesheet(&self.child_text_content(id))
         }
     }
 
-    pub(crate) fn root_element(&self) -> NodeRef<'arena> {
-        assert!(matches!(self.document_node.data, NodeData::Document));
-        assert!(self.document_node.parent.get().is_none());
-        assert!(self.document_node.next_sibling.get().is_none());
-        assert!(self.document_node.previous_sibling.get().is_none());
-        let mut root = None;
-        for child in self
-            .document_node
-            .first_child
-            .get()
-            .unwrap()
-            .self_and_next_siblings()
+    fn push_node(&mut self, node: Node) -> NodeId {
+        let next_index = self.nodes.len();
+        self.nodes.push(node);
+        NodeId(std::num::NonZeroUsize::new(next_index).unwrap())
+    }
+
+    fn detach(&mut self, node: NodeId) {
+        let (parent, previous_sibling, next_sibling) = {
+            let node = &mut self[node];
+            (
+                node.parent.take(),
+                node.previous_sibling.take(),
+                node.next_sibling.take(),
+            )
+        };
+
+        if let Some(next_sibling) = next_sibling {
+            self[next_sibling].previous_sibling = previous_sibling
+        } else if let Some(parent) = parent {
+            self[parent].last_child = previous_sibling;
+        }
+
+        if let Some(previous_sibling) = previous_sibling {
+            self[previous_sibling].next_sibling = next_sibling;
+        } else if let Some(parent) = parent {
+            self[parent].first_child = next_sibling;
+        }
+    }
+
+    fn append(&mut self, parent: NodeId, new_child: NodeId) {
+        self.detach(new_child);
+        self[new_child].parent = Some(parent);
+        if let Some(last_child) = self[parent].last_child.take() {
+            self[new_child].previous_sibling = Some(last_child);
+            debug_assert!(self[last_child].next_sibling.is_none());
+            self[last_child].next_sibling = Some(new_child);
+        } else {
+            debug_assert!(self[parent].first_child.is_none());
+            self[parent].first_child = Some(new_child);
+        }
+        self[parent].last_child = Some(new_child);
+    }
+
+    fn insert_before(&mut self, sibling: NodeId, new_sibling: NodeId) {
+        self.detach(new_sibling);
+        self[new_sibling].parent = self[sibling].parent;
+        self[new_sibling].next_sibling = Some(sibling);
+        if let Some(previous_sibling) = self[sibling].previous_sibling.take() {
+            self[new_sibling].previous_sibling = Some(previous_sibling);
+            debug_assert_eq!(self[previous_sibling].next_sibling, Some(sibling));
+            self[previous_sibling].next_sibling = Some(new_sibling);
+        } else if let Some(parent) = self[sibling].parent {
+            debug_assert_eq!(self[parent].first_child, Some(sibling));
+            self[parent].first_child = Some(new_sibling);
+        }
+        self[sibling].previous_sibling = Some(new_sibling);
+    }
+
+    /// <https://dom.spec.whatwg.org/#concept-child-text-content>
+    fn child_text_content(&self, node: NodeId) -> Cow<StrTendril> {
+        let mut link = self[node].first_child;
+        let mut text = None;
+        while let Some(child) = link {
+            if let NodeData::Text { contents } = &self[child].data {
+                match &mut text {
+                    None => text = Some(Cow::Borrowed(contents)),
+                    Some(text) => text.to_mut().push_tendril(&contents),
+                }
+            }
+            link = self[child].next_sibling;
+        }
+        text.unwrap_or_else(|| Cow::Owned(StrTendril::new()))
+    }
+
+    pub(crate) fn root_element(&self) -> NodeId {
+        let first_child;
         {
-            match child.data {
+            let document_node = &self[Document::document_node_id()];
+            assert!(matches!(document_node.data, NodeData::Document));
+            assert!(document_node.parent.is_none());
+            assert!(document_node.next_sibling.is_none());
+            assert!(document_node.previous_sibling.is_none());
+            first_child = document_node.first_child
+        }
+        let mut root = None;
+        for child in self.node_and_next_siblings(first_child.unwrap()) {
+            match &self[child].data {
                 NodeData::Doctype { .. }
                 | NodeData::Comment { .. }
                 | NodeData::ProcessingInstruction { .. } => {}
@@ -60,15 +155,29 @@ impl<'arena> Document<'arena> {
         }
         root.unwrap()
     }
+
+    pub(crate) fn node_and_next_siblings<'a>(
+        &'a self,
+        node: NodeId,
+    ) -> impl Iterator<Item = NodeId> + 'a {
+        successors(Some(node), move |&node| self[node].next_sibling)
+    }
 }
 
-pub struct Node<'arena> {
-    pub(crate) parent: Link<'arena>,
-    pub(crate) next_sibling: Link<'arena>,
-    pub(crate) previous_sibling: Link<'arena>,
-    pub(crate) first_child: Link<'arena>,
-    pub(crate) last_child: Link<'arena>,
-    pub(crate) data: NodeData,
+impl std::ops::Index<NodeId> for Document {
+    type Output = Node;
+
+    #[inline]
+    fn index(&self, id: NodeId) -> &Node {
+        &self.nodes[id.0.get()]
+    }
+}
+
+impl std::ops::IndexMut<NodeId> for Document {
+    #[inline]
+    fn index_mut(&mut self, id: NodeId) -> &mut Node {
+        &mut self.nodes[id.0.get()]
+    }
 }
 
 pub(crate) enum NodeData {
@@ -79,7 +188,7 @@ pub(crate) enum NodeData {
         _system_id: StrTendril,
     },
     Text {
-        contents: RefCell<StrTendril>,
+        contents: StrTendril,
     },
     Comment {
         _contents: StrTendril,
@@ -93,21 +202,23 @@ pub(crate) enum NodeData {
 
 pub(crate) struct ElementData {
     pub(crate) name: QualName,
-    pub(crate) attrs: RefCell<Vec<Attribute>>,
+    pub(crate) attrs: Vec<Attribute>,
     pub(crate) mathml_annotation_xml_integration_point: bool,
 }
 
 impl ElementData {
-    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<Ref<str>> {
+    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<&StrTendril> {
         let name = ExpandedName {
             ns: &ns!(),
             local: name,
         };
-        let attrs = self.attrs.borrow();
-        attrs
-            .iter()
-            .position(|attr| attr.name.expanded() == name)
-            .map(|i| Ref::map(attrs, |attrs| &*attrs[i].value))
+        self.attrs.iter().find_map(|attr| {
+            if attr.name.expanded() == name {
+                Some(&attr.value)
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -115,12 +226,12 @@ impl ElementData {
 #[cfg(target_pointer_width = "64")]
 fn size_of() {
     use std::mem::size_of;
-    assert_eq!(size_of::<Node>(), 120);
-    assert_eq!(size_of::<NodeData>(), 80);
-    assert_eq!(size_of::<ElementData>(), 72);
+    assert_eq!(size_of::<Node>(), 112);
+    assert_eq!(size_of::<NodeData>(), 72);
+    assert_eq!(size_of::<ElementData>(), 64);
 }
 
-impl<'arena> Node<'arena> {
+impl Node {
     pub(crate) fn in_html_document(&self) -> bool {
         // FIXME: track something when we add XML parsing
         true
@@ -133,97 +244,26 @@ impl<'arena> Node<'arena> {
         }
     }
 
-    pub(crate) fn as_text(&self) -> Option<&RefCell<StrTendril>> {
+    pub(crate) fn as_text(&self) -> Option<&StrTendril> {
         match self.data {
             NodeData::Text { ref contents } => Some(contents),
             _ => None,
         }
     }
 
-    pub(crate) fn self_and_next_siblings(&'arena self) -> impl Iterator<Item = NodeRef<'arena>> {
-        successors(Some(self), |node| node.next_sibling.get())
-    }
-
     fn new(data: NodeData) -> Self {
         Node {
-            parent: Cell::new(None),
-            previous_sibling: Cell::new(None),
-            next_sibling: Cell::new(None),
-            first_child: Cell::new(None),
-            last_child: Cell::new(None),
+            parent: None,
+            previous_sibling: None,
+            next_sibling: None,
+            first_child: None,
+            last_child: None,
             data: data,
         }
     }
-
-    fn detach(&self) {
-        let parent = self.parent.take();
-        let previous_sibling = self.previous_sibling.take();
-        let next_sibling = self.next_sibling.take();
-
-        if let Some(next_sibling) = next_sibling {
-            next_sibling.previous_sibling.set(previous_sibling);
-        } else if let Some(parent) = parent {
-            parent.last_child.set(previous_sibling);
-        }
-
-        if let Some(previous_sibling) = previous_sibling {
-            previous_sibling.next_sibling.set(next_sibling);
-        } else if let Some(parent) = parent {
-            parent.first_child.set(next_sibling);
-        }
-    }
-
-    fn append(&'arena self, new_child: &'arena Self) {
-        new_child.detach();
-        new_child.parent.set(Some(self));
-        if let Some(last_child) = self.last_child.take() {
-            new_child.previous_sibling.set(Some(last_child));
-            debug_assert!(last_child.next_sibling.get().is_none());
-            last_child.next_sibling.set(Some(new_child));
-        } else {
-            debug_assert!(self.first_child.get().is_none());
-            self.first_child.set(Some(new_child));
-        }
-        self.last_child.set(Some(new_child));
-    }
-
-    fn insert_before(&'arena self, new_sibling: &'arena Self) {
-        new_sibling.detach();
-        new_sibling.parent.set(self.parent.get());
-        new_sibling.next_sibling.set(Some(self));
-        if let Some(previous_sibling) = self.previous_sibling.take() {
-            new_sibling.previous_sibling.set(Some(previous_sibling));
-            debug_assert!(ptr::eq::<Node>(
-                previous_sibling.next_sibling.get().unwrap(),
-                self
-            ));
-            previous_sibling.next_sibling.set(Some(new_sibling));
-        } else if let Some(parent) = self.parent.get() {
-            debug_assert!(ptr::eq::<Node>(parent.first_child.get().unwrap(), self));
-            parent.first_child.set(Some(new_sibling));
-        }
-        self.previous_sibling.set(Some(new_sibling));
-    }
-
-    /// <https://dom.spec.whatwg.org/#concept-child-text-content>
-    fn child_text_content(&self) -> StrTendril {
-        let mut link = self.first_child.get();
-        let mut text = None;
-        while let Some(child) = link {
-            if let NodeData::Text { ref contents } = child.data {
-                let contents = contents.borrow();
-                match text {
-                    None => text = Some(contents.clone()),
-                    Some(ref mut text) => text.push_tendril(&contents),
-                }
-            }
-            link = child.next_sibling.get();
-        }
-        text.unwrap_or_else(StrTendril::new)
-    }
 }
 
-impl<'arena> fmt::Debug for Node<'arena> {
+impl fmt::Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ptr: *const Node = self;
         f.debug_tuple("Node").field(&ptr).finish()

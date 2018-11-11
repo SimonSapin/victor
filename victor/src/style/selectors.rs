@@ -1,4 +1,4 @@
-use crate::dom::{Link, Node, NodeRef};
+use crate::dom::{Document, Node, NodeId};
 use crate::style::errors::RuleParseErrorKind;
 use cssparser::ToCss;
 use html5ever::{LocalName, Namespace, Prefix};
@@ -10,12 +10,15 @@ use std::fmt;
 pub type SelectorList = selectors::SelectorList<Impl>;
 pub type Selector = selectors::parser::Selector<Impl>;
 
-pub fn matches(selector: &Selector, element: NodeRef) -> bool {
+pub(crate) fn matches(selector: &Selector, document: &Document, element: NodeId) -> bool {
     matches_selector(
         selector,
         0,
         None,
-        &element,
+        &NodeRef {
+            document,
+            node: element,
+        },
         &mut MatchingContext::new(MatchingMode::Normal, None, None, QuirksMode::NoQuirks),
         &mut |_, _| {},
     )
@@ -80,50 +83,79 @@ impl ToCss for PseudoClass {
     }
 }
 
-fn find_element<'arena, F>(first: &'arena Link<'arena>, next: F) -> Option<NodeRef<'arena>>
-where
-    F: Fn(NodeRef<'arena>) -> &'arena Link<'arena>,
-{
-    let mut node = first.get()?;
-    loop {
-        if node.as_element().is_some() {
-            return Some(node)
-        }
-        node = next(node).get()?
+#[derive(Copy, Clone)]
+struct NodeRef<'a> {
+    document: &'a Document,
+    node: NodeId,
+}
+
+impl<'a> std::fmt::Debug for NodeRef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.node.fmt(f)
     }
 }
 
-impl<'arena> selectors::Element for NodeRef<'arena> {
+impl<'a> NodeRef<'a> {
+    fn node(self) -> &'a Node {
+        &self.document[self.node]
+    }
+}
+
+fn find_element<'a, F>(
+    document: &'a Document,
+    first: Option<NodeId>,
+    next: F,
+) -> Option<NodeRef<'a>>
+where
+    F: Fn(&Node) -> Option<NodeId>,
+{
+    let mut node = first?;
+    loop {
+        if document[node].as_element().is_some() {
+            return Some(NodeRef { document, node })
+        }
+        node = next(&document[node])?
+    }
+}
+
+impl<'a> selectors::Element for NodeRef<'a> {
     type Impl = Impl;
 
     fn opaque(&self) -> selectors::OpaqueElement {
-        selectors::OpaqueElement::new::<Node>(*self)
+        selectors::OpaqueElement::new::<Node>(self.node())
     }
 
     fn parent_element(&self) -> Option<Self> {
-        let parent = self.parent.get()?;
-        parent.as_element()?;
-        Some(parent)
+        let parent = self.node().parent?;
+        self.document[parent].as_element()?;
+        Some(NodeRef {
+            document: self.document,
+            node: parent,
+        })
     }
 
     fn next_sibling_element(&self) -> Option<Self> {
-        find_element(&self.next_sibling, |node| &node.next_sibling)
+        find_element(self.document, self.node().next_sibling, |node| {
+            node.next_sibling
+        })
     }
 
     fn prev_sibling_element(&self) -> Option<Self> {
-        find_element(&self.previous_sibling, |node| &node.previous_sibling)
+        find_element(self.document, self.node().previous_sibling, |node| {
+            node.previous_sibling
+        })
     }
 
     fn is_html_element_in_html_document(&self) -> bool {
-        self.as_element().unwrap().name.ns == ns!(html) && self.in_html_document()
+        self.node().as_element().unwrap().name.ns == ns!(html) && self.node().in_html_document()
     }
 
     fn local_name(&self) -> &LocalName {
-        &self.as_element().unwrap().name.local
+        &self.node().as_element().unwrap().name.local
     }
 
     fn namespace(&self) -> &Namespace {
-        &self.as_element().unwrap().name.ns
+        &self.node().as_element().unwrap().name.ns
     }
 
     fn is_html_slot_element(&self) -> bool {
@@ -144,19 +176,14 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
         local_name: &LocalName,
         operation: &AttrSelectorOperation<&String>,
     ) -> bool {
-        self.as_element()
-            .unwrap()
-            .attrs
-            .borrow()
-            .iter()
-            .any(|attr| {
-                attr.name.local == *local_name
-                    && match *ns {
-                        NamespaceConstraint::Any => true,
-                        NamespaceConstraint::Specific(ns) => attr.name.ns == *ns,
-                    }
-                    && operation.eval_str(&attr.value)
-            })
+        self.node().as_element().unwrap().attrs.iter().any(|attr| {
+            attr.name.local == *local_name
+                && match *ns {
+                    NamespaceConstraint::Any => true,
+                    NamespaceConstraint::Specific(ns) => attr.name.ns == *ns,
+                }
+                && operation.eval_str(&attr.value)
+        })
     }
 
     fn match_non_ts_pseudo_class<F>(
@@ -180,7 +207,7 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
     }
 
     fn is_link(&self) -> bool {
-        let element = self.as_element().unwrap();
+        let element = self.node().as_element().unwrap();
         element.name.ns == ns!(html)
             && matches!(
                 element.name.local,
@@ -190,7 +217,8 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
     }
 
     fn has_id(&self, id: &String, case_sensitivity: CaseSensitivity) -> bool {
-        self.as_element()
+        self.node()
+            .as_element()
             .unwrap()
             .get_attr(&local_name!("id"))
             .map_or(false, |attr| {
@@ -199,7 +227,8 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
     }
 
     fn has_class(&self, class: &String, case_sensitivity: CaseSensitivity) -> bool {
-        self.as_element()
+        self.node()
+            .as_element()
             .unwrap()
             .get_attr(&local_name!("class"))
             .map_or(false, |attr| {
@@ -208,18 +237,18 @@ impl<'arena> selectors::Element for NodeRef<'arena> {
     }
 
     fn is_empty(&self) -> bool {
-        match self.first_child.get() {
+        match self.node().first_child {
             None => true,
             Some(mut node) => loop {
-                if node.as_element().is_some() {
+                if self.document[node].as_element().is_some() {
                     return false
                 }
-                if let Some(text) = node.as_text() {
-                    if !text.borrow().is_empty() {
+                if let Some(text) = self.document[node].as_text() {
+                    if !text.is_empty() {
                         return false
                     }
                 }
-                match node.next_sibling.get() {
+                match self.document[node].next_sibling {
                     None => return true,
                     Some(n) => node = n,
                 }

@@ -9,7 +9,6 @@ pub mod primitives;
 pub mod text;
 pub mod text_plain;
 
-mod arena;
 mod layout;
 mod style;
 

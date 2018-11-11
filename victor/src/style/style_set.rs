@@ -1,4 +1,4 @@
-use crate::dom::NodeRef;
+use crate::dom;
 use crate::style::properties::{ComputedValues, PropertyDeclaration};
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
@@ -56,9 +56,14 @@ impl StyleSetBuilder {
 }
 
 impl StyleSet {
-    fn cascade_into(&self, node: NodeRef, computed: &mut ComputedValues) {
+    fn cascade_into(
+        &self,
+        document: &dom::Document,
+        node: dom::NodeId,
+        computed: &mut ComputedValues,
+    ) {
         for &(ref selector, ref declarations) in &self.rules {
-            if selectors::matches(selector, node) {
+            if selectors::matches(selector, document, node) {
                 for declaration in declarations.iter() {
                     declaration.cascade_into(computed)
                 }
@@ -67,14 +72,15 @@ impl StyleSet {
     }
 }
 
-pub fn cascade(
+pub(crate) fn cascade(
     author: &StyleSet,
-    node: NodeRef,
+    document: &dom::Document,
+    node: dom::NodeId,
     parent_style: Option<&ComputedValues>,
 ) -> Rc<ComputedValues> {
-    assert!(node.as_element().is_some());
+    assert!(document[node].as_element().is_some());
     let mut computed = ComputedValues::new_inheriting_from(parent_style);
-    USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(node, &mut computed));
-    author.cascade_into(node, &mut computed);
+    USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, &mut computed));
+    author.cascade_into(document, node, &mut computed);
     Rc::new(computed)
 }

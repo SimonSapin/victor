@@ -5,14 +5,10 @@ use html5ever::{parse_document, ExpandedName};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-impl<'arena> Document<'arena> {
-    pub fn parse_html(utf8_bytes: &[u8], arena: ArenaRef<'arena>) -> Self {
+impl Document {
+    pub fn parse_html(utf8_bytes: &[u8]) -> Self {
         let sink = Sink {
-            arena: arena,
-            document: Document {
-                document_node: arena.allocate(Node::new(NodeData::Document)),
-                style_elements: Vec::new(),
-            },
+            document: Document::new(),
             quirks_mode: QuirksMode::NoQuirks,
         };
         parse_document(sink, Default::default())
@@ -21,76 +17,79 @@ impl<'arena> Document<'arena> {
     }
 }
 
-struct Sink<'arena> {
-    arena: ArenaRef<'arena>,
-    document: Document<'arena>,
+struct Sink {
+    document: Document,
     quirks_mode: QuirksMode,
 }
 
-impl<'arena> Sink<'arena> {
-    fn new_node(&self, data: NodeData) -> NodeRef<'arena> {
-        self.arena.allocate(Node::new(data))
+impl Sink {
+    fn new_node(&mut self, data: NodeData) -> NodeId {
+        self.document.push_node(Node::new(data))
     }
 
-    fn append_common<P, A>(&self, child: NodeOrText<NodeRef<'arena>>, previous: P, append: A)
+    fn append_common<P, A>(&mut self, child: NodeOrText<NodeId>, previous: P, append: A)
     where
-        P: FnOnce() -> Option<NodeRef<'arena>>,
-        A: FnOnce(NodeRef<'arena>),
+        P: FnOnce(&mut Document) -> Option<NodeId>,
+        A: FnOnce(&mut Document, NodeId),
     {
         let new_node = match child {
             NodeOrText::AppendText(text) => {
                 // Append to an existing Text node if we have one.
-                if let Some(&Node {
-                    data: NodeData::Text { ref contents },
-                    ..
-                }) = previous()
-                {
-                    contents.borrow_mut().push_tendril(&text);
-                    return
+                if let Some(id) = previous(&mut self.document) {
+                    if let Node {
+                        data: NodeData::Text { contents },
+                        ..
+                    } = &mut self.document[id]
+                    {
+                        contents.push_tendril(&text);
+                        return
+                    }
                 }
-                self.new_node(NodeData::Text {
-                    contents: RefCell::new(text),
-                })
+                self.new_node(NodeData::Text { contents: text })
             }
             NodeOrText::AppendNode(node) => node,
         };
 
-        append(new_node)
+        append(&mut self.document, new_node)
     }
 }
 
-impl<'arena> TreeSink for Sink<'arena> {
-    type Handle = NodeRef<'arena>;
-    type Output = Document<'arena>;
+impl TreeSink for Sink {
+    type Handle = NodeId;
+    type Output = Document;
 
-    fn finish(self) -> Document<'arena> {
+    fn finish(self) -> Document {
         self.document
     }
 
     fn parse_error(&mut self, _: Cow<'static, str>) {}
 
-    fn get_document(&mut self) -> NodeRef<'arena> {
-        self.document.document_node
+    fn get_document(&mut self) -> NodeId {
+        Document::document_node_id()
     }
 
     fn set_quirks_mode(&mut self, mode: QuirksMode) {
         self.quirks_mode = mode;
     }
 
-    fn same_node(&self, x: &NodeRef<'arena>, y: &NodeRef<'arena>) -> bool {
-        ptr::eq::<Node>(*x, *y)
+    fn same_node(&self, x: &NodeId, y: &NodeId) -> bool {
+        x == y
     }
 
-    fn elem_name<'a>(&self, target: &'a NodeRef<'arena>) -> ExpandedName<'a> {
-        target.as_element().expect("not an element").name.expanded()
+    fn elem_name<'a>(&'a self, &target: &'a NodeId) -> ExpandedName<'a> {
+        self.document[target]
+            .as_element()
+            .expect("not an element")
+            .name
+            .expanded()
     }
 
-    fn get_template_contents(&mut self, target: &NodeRef<'arena>) -> NodeRef<'arena> {
+    fn get_template_contents(&mut self, &target: &NodeId) -> NodeId {
         target
     }
 
-    fn is_mathml_annotation_xml_integration_point(&self, target: &NodeRef<'arena>) -> bool {
-        target
+    fn is_mathml_annotation_xml_integration_point(&self, &target: &NodeId) -> bool {
+        self.document[target]
             .as_element()
             .expect("not an element")
             .mathml_annotation_xml_integration_point
@@ -100,13 +99,16 @@ impl<'arena> TreeSink for Sink<'arena> {
         &mut self,
         name: QualName,
         attrs: Vec<Attribute>,
-        flags: ElementFlags,
-    ) -> NodeRef<'arena> {
+        ElementFlags {
+            mathml_annotation_xml_integration_point,
+            ..
+        }: ElementFlags,
+    ) -> NodeId {
         let is_style = name.expanded() == expanded_name!(html "style");
         let element = self.new_node(NodeData::Element(ElementData {
-            name: name,
-            attrs: RefCell::new(attrs),
-            mathml_annotation_xml_integration_point: flags.mathml_annotation_xml_integration_point,
+            name,
+            attrs,
+            mathml_annotation_xml_integration_point,
         }));
         if is_style {
             self.document.style_elements.push(element)
@@ -114,44 +116,40 @@ impl<'arena> TreeSink for Sink<'arena> {
         element
     }
 
-    fn create_comment(&mut self, text: StrTendril) -> NodeRef<'arena> {
+    fn create_comment(&mut self, text: StrTendril) -> NodeId {
         self.new_node(NodeData::Comment { _contents: text })
     }
 
-    fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> NodeRef<'arena> {
+    fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> NodeId {
         self.new_node(NodeData::ProcessingInstruction {
             _target: target,
             _contents: data,
         })
     }
 
-    fn append(&mut self, parent: &NodeRef<'arena>, child: NodeOrText<NodeRef<'arena>>) {
+    fn append(&mut self, &parent: &NodeId, child: NodeOrText<NodeId>) {
         self.append_common(
             child,
-            || parent.last_child.get(),
-            |new_node| parent.append(new_node),
+            |document| document[parent].last_child,
+            |document, new_node| document.append(parent, new_node),
         )
     }
 
-    fn append_before_sibling(
-        &mut self,
-        sibling: &NodeRef<'arena>,
-        child: NodeOrText<NodeRef<'arena>>,
-    ) {
+    fn append_before_sibling(&mut self, &sibling: &NodeId, child: NodeOrText<NodeId>) {
         self.append_common(
             child,
-            || sibling.previous_sibling.get(),
-            |new_node| sibling.insert_before(new_node),
+            |document| document[sibling].previous_sibling,
+            |document, new_node| document.insert_before(sibling, new_node),
         )
     }
 
     fn append_based_on_parent_node(
         &mut self,
-        element: &NodeRef<'arena>,
-        prev_element: &NodeRef<'arena>,
-        child: NodeOrText<NodeRef<'arena>>,
+        element: &NodeId,
+        prev_element: &NodeId,
+        child: NodeOrText<NodeId>,
     ) {
-        if element.parent.get().is_some() {
+        if self.document[*element].parent.is_some() {
             self.append_before_sibling(element, child)
         } else {
             self.append(prev_element, child)
@@ -164,43 +162,42 @@ impl<'arena> TreeSink for Sink<'arena> {
         public_id: StrTendril,
         system_id: StrTendril,
     ) {
-        self.document
-            .document_node
-            .append(self.new_node(NodeData::Doctype {
-                _name: name,
-                _public_id: public_id,
-                _system_id: system_id,
-            }))
+        let node = self.new_node(NodeData::Doctype {
+            _name: name,
+            _public_id: public_id,
+            _system_id: system_id,
+        });
+        self.document.append(Document::document_node_id(), node)
     }
 
-    fn add_attrs_if_missing(&mut self, target: &NodeRef<'arena>, attrs: Vec<Attribute>) {
-        let mut existing = target
-            .as_element()
-            .expect("not an element")
+    fn add_attrs_if_missing(&mut self, &target: &NodeId, attrs: Vec<Attribute>) {
+        let element = if let NodeData::Element(element) = &mut self.document[target].data {
+            element
+        } else {
+            panic!("not an element")
+        };
+        let existing_names = element
             .attrs
-            .borrow_mut();
-
-        let existing_names = existing
             .iter()
             .map(|e| e.name.clone())
             .collect::<HashSet<_>>();
-        existing.extend(
+        element.attrs.extend(
             attrs
                 .into_iter()
                 .filter(|attr| !existing_names.contains(&attr.name)),
         );
     }
 
-    fn remove_from_parent(&mut self, target: &NodeRef<'arena>) {
-        target.detach()
+    fn remove_from_parent(&mut self, &target: &NodeId) {
+        self.document.detach(target)
     }
 
-    fn reparent_children(&mut self, node: &NodeRef<'arena>, new_parent: &NodeRef<'arena>) {
-        let mut next_child = node.first_child.get();
+    fn reparent_children(&mut self, &node: &NodeId, &new_parent: &NodeId) {
+        let mut next_child = self.document[node].first_child;
         while let Some(child) = next_child {
-            debug_assert!(ptr::eq::<Node>(child.parent.get().unwrap(), *node));
-            next_child = child.next_sibling.get();
-            new_parent.append(child)
+            debug_assert_eq!(self.document[child].parent, Some(node));
+            self.document.append(new_parent, child);
+            next_child = self.document[child].next_sibling
         }
     }
 }

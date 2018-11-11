@@ -3,7 +3,7 @@ mod properties;
 mod rules;
 mod selectors;
 mod style_set;
-pub mod values;
+pub(crate) mod values;
 
-pub use self::properties::{style_structs, ComputedValues};
-pub use self::style_set::{cascade, StyleSet, StyleSetBuilder};
+pub(crate) use self::properties::ComputedValues;
+pub(crate) use self::style_set::{cascade, StyleSet, StyleSetBuilder};

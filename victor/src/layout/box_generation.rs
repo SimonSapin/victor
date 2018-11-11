@@ -3,7 +3,7 @@ use crate::dom;
 use crate::style::values::*;
 use crate::style::*;
 
-impl<'arena> dom::Document<'arena> {
+impl dom::Document {
     pub fn render(&self) {
         let _ = self.box_tree();
     }
@@ -12,17 +12,26 @@ impl<'arena> dom::Document<'arena> {
         let mut builder = StyleSetBuilder::new();
         self.parse_stylesheets(&mut builder);
         let author_styles = builder.finish();
+        let context = Context {
+            document: self,
+            author_styles: &author_styles,
+        };
 
         let root_element = self.root_element();
-        let root_element_style = cascade(&author_styles, root_element, None);
+        let root_element_style = cascade(&author_styles, self, root_element, None);
         // If any, anonymous blocks wrapping inlines at the root level get initial styles,
         // they don’t have a parent element to inherit from.
         let initial_values = Rc::new(ComputedValues::new_inheriting_from(None));
         let mut builder = Builder::<BlockContainerBuilderExtra>::new(initial_values);
-        builder.push_element(&author_styles, root_element, root_element_style);
+        builder.push_element(&context, root_element, root_element_style);
         let (_, block) = builder.build();
         BlockFormattingContext(block)
     }
+}
+
+struct Context<'a> {
+    document: &'a dom::Document,
+    author_styles: &'a StyleSet,
 }
 
 struct Builder<Extra> {
@@ -39,18 +48,24 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
             extra: Extra::default(),
         }
     }
-    fn push_child_elements(&mut self, author_styles: &StyleSet, parent_element: dom::NodeRef) {
-        if let Some(first_child) = parent_element.first_child.get() {
-            for child in first_child.self_and_next_siblings() {
-                match &child.data {
+
+    fn push_child_elements(&mut self, context: &Context, parent_element: dom::NodeId) {
+        if let Some(first_child) = context.document[parent_element].first_child {
+            for child in context.document.node_and_next_siblings(first_child) {
+                match &context.document[child].data {
                     dom::NodeData::Document
                     | dom::NodeData::Doctype { .. }
                     | dom::NodeData::Comment { .. }
                     | dom::NodeData::ProcessingInstruction { .. } => {}
-                    dom::NodeData::Text { contents } => self.push_text(&contents.borrow()),
+                    dom::NodeData::Text { contents } => self.push_text(contents),
                     dom::NodeData::Element(_) => {
-                        let style = cascade(author_styles, child, Some(&self.style));
-                        self.push_element(author_styles, child, style)
+                        let style = cascade(
+                            context.author_styles,
+                            context.document,
+                            child,
+                            Some(&self.style),
+                        );
+                        self.push_element(context, child, style)
                     }
                 }
             }
@@ -66,12 +81,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
         }
     }
 
-    fn push_element(
-        &mut self,
-        author_styles: &StyleSet,
-        element: dom::NodeRef,
-        style: Rc<ComputedValues>,
-    ) {
+    fn push_element(&mut self, context: &Context, element: dom::NodeId, style: Rc<ComputedValues>) {
         match style.display.display {
             Display::None => {}
             Display::Other {
@@ -79,7 +89,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                 inside: DisplayInside::Flow,
             } => {
                 let mut builder = Builder::<InlineBuilderExtra>::new(style);
-                builder.push_child_elements(author_styles, element);
+                builder.push_child_elements(context, element);
                 for (previous_grand_children, block) in
                     builder.extra.self_fragments_split_by_block_levels
                 {
@@ -104,7 +114,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                 inside: DisplayInside::Flow,
             } => {
                 let mut builder = Builder::<BlockContainerBuilderExtra>::new(style);
-                builder.push_child_elements(author_styles, element);
+                builder.push_child_elements(context, element);
                 let (style, contents) = builder.build();
                 Extra::push_block(
                     self,
