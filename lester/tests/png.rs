@@ -13,11 +13,14 @@ fn round_trip_png() {
         // ARGB32
         const RED: u32 = 0xFFFF_0000;
         const BLUE: u32 = 0xFF00_00FF;
+        #[rustfmt::skip]
         assert_eq!(
             pixels.buffer,
             &[
-                RED, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE,
-                BLUE, BLUE,
+                RED,  BLUE, BLUE, BLUE,
+                BLUE, BLUE, BLUE, BLUE,
+                BLUE, BLUE, BLUE, BLUE,
+                BLUE, BLUE, BLUE, BLUE,
             ]
         );
     }
