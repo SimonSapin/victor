@@ -6,7 +6,7 @@ use cssparser::{Parser, Token};
 pub type PxLength = EuclidLength<CssPx>;
 
 /// <https://drafts.csswg.org/css-values/#lengths>
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum Length {
     Px(PxLength),
 }

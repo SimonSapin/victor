@@ -12,3 +12,10 @@ pub trait ToComputedValue {
     type Computed;
     fn to_computed(&self) -> Self::Computed;
 }
+
+#[derive(Copy, Clone, ComputedAsSpecified, ParseSingleKeyword)]
+pub enum Display {
+    None,
+    Inline,
+    Block,
+}

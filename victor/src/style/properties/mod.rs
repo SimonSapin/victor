@@ -1,5 +1,6 @@
 use crate::style::values::generic::FourSides;
 use crate::style::values::length::{Length, PxLength};
+use crate::style::values::Display;
 
 #[macro_use]
 mod macros;
@@ -20,6 +21,14 @@ properties! {
         margin_left { "margin-left", Length, initial = PxLength::new(0.) }
         margin_bottom { "margin-bottom", Length, initial = PxLength::new(0.) }
         margin_right { "margin-right", Length, initial = PxLength::new(0.) }
+    }
+
+    reset struct display {
+        display {
+            "display",
+            Display,
+            initial = Display::Inline
+        }
     }
 
     @shorthands {
