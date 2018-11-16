@@ -11,6 +11,16 @@ pub struct StyleSet {
     rules: Vec<(Selector, Rc<Vec<PropertyDeclaration>>)>,
 }
 
+// XXX: if we ever replace Rc with Arc for style structs,
+// replace thread_local! with lazy_static! here.
+thread_local! {
+    static USER_AGENT_STYLESHEET: StyleSet = {
+        let mut builder = StyleSetBuilder::new();
+        builder.add_stylesheet(include_str!("user_agent.css"));
+        builder.finish()
+    };
+}
+
 impl StyleSetBuilder {
     pub fn new() -> Self {
         StyleSetBuilder(StyleSet { rules: Vec::new() })
@@ -46,15 +56,24 @@ impl StyleSetBuilder {
 }
 
 impl StyleSet {
-    pub fn cascade(&self, node: NodeRef, parent_style: Option<&ComputedValues>) -> ComputedValues {
-        let mut computed = ComputedValues::new(parent_style);
+    fn cascade_into(&self, node: NodeRef, computed: &mut ComputedValues) {
         for &(ref selector, ref declarations) in &self.rules {
             if selectors::matches(selector, node) {
                 for declaration in declarations.iter() {
-                    declaration.cascade_into(&mut computed)
+                    declaration.cascade_into(computed)
                 }
             }
         }
-        computed
     }
+}
+
+pub fn cascade(
+    node: NodeRef,
+    author: &StyleSet,
+    parent_style: Option<&ComputedValues>,
+) -> ComputedValues {
+    let mut computed = ComputedValues::new(parent_style);
+    USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(node, &mut computed));
+    author.cascade_into(node, &mut computed);
+    computed
 }
