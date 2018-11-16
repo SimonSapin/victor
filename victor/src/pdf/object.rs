@@ -19,7 +19,7 @@ pub(crate) enum Object<'a> {
 }
 
 fn _static_assert_size() {
-    let _ = ::std::mem::transmute::<Object<'static>, [u8; 32]>;
+    let _ = std::mem::transmute::<Object<'static>, [u8; 32]>;
 }
 
 pub(crate) type KeyValuePairs<'a> = &'a [(&'a [u8], Object<'a>)];
@@ -151,9 +151,9 @@ impl<'a> Object<'a> {
     pub fn write<W: Write>(&self, w: &mut W) -> io::Result<()> {
         match *self {
             // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G6.1965566
-            Object::I32(value) => ::itoa::write(w, value).map(|_| ()),
-            Object::Usize(value) => ::itoa::write(w, value).map(|_| ()),
-            Object::Float(value) => ::dtoa::write(w, value).map(|_| ()),
+            Object::I32(value) => itoa::write(w, value).map(|_| ()),
+            Object::Usize(value) => itoa::write(w, value).map(|_| ()),
+            Object::Float(value) => dtoa::write(w, value).map(|_| ()),
             Object::Name(value) => write_name(value, w),
             Object::Dictionary(ref value) => value.write(w),
             Object::LiteralString(value) => {
@@ -186,7 +186,7 @@ impl<'a> Object<'a> {
                 w.write_all(b"]")
             }
             Object::Reference(IndirectObjectId(id)) => {
-                ::itoa::write(&mut *w, id)?;
+                itoa::write(&mut *w, id)?;
                 w.write_all(b" 0 R")
             }
             Object::GraphicsStateDictionaryAlpha(value) => {

@@ -53,7 +53,7 @@ macro_rules! properties {
                 thread_local! {
                     static INITIAL_VALUES: ComputedValues = ComputedValues {
                         $(
-                            $struct_name: ::std::rc::Rc::new(
+                            $struct_name: std::rc::Rc::new(
                                 style_structs::$struct_name {
                                     $(
                                         $ident: $initial_value,
@@ -72,7 +72,7 @@ macro_rules! properties {
                         }
                         ComputedValues {
                             $(
-                                $struct_name: ::std::rc::Rc::clone(
+                                $struct_name: std::rc::Rc::clone(
                                     &select!($inherited, parent, initial).$struct_name
                                 ),
                             )+
@@ -110,7 +110,7 @@ macro_rules! properties {
                             let declaration = unsafe {
                                 &*ptr
                             };
-                            ::std::rc::Rc::make_mut(&mut computed.$struct_name).$ident =
+                            std::rc::Rc::make_mut(&mut computed.$struct_name).$ident =
                                 crate::style::values::ToComputedValue::to_computed(&declaration.value)
                         },
                     )+)+
@@ -121,7 +121,7 @@ macro_rules! properties {
 
         type FnParseProperty =
             for<'i, 't>
-            fn(&mut ::cssparser::Parser<'i, 't>, &mut Vec<PropertyDeclaration>)
+            fn(&mut cssparser::Parser<'i, 't>, &mut Vec<PropertyDeclaration>)
             -> Result<(), crate::style::errors::PropertyParseError<'i>>;
 
         ascii_case_insensitive_phf_map! {

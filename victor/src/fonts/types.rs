@@ -30,7 +30,7 @@ impl fmt::Debug for Tag {
     }
 }
 
-impl From<LongDateTime> for ::std::time::SystemTime {
+impl From<LongDateTime> for std::time::SystemTime {
     fn from(instant: LongDateTime) -> Self {
         use std::time::{Duration, UNIX_EPOCH};
 

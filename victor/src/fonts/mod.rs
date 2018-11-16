@@ -71,8 +71,8 @@ pub struct Font {
 
 #[cfg(target_pointer_width = "64")]
 fn _assert_size_of() {
-    let _ = ::std::mem::transmute::<Cmap, [u8; 24]>;
-    let _ = ::std::mem::transmute::<Font, [u8; 112]>;
+    let _ = std::mem::transmute::<Cmap, [u8; 24]>;
+    let _ = std::mem::transmute::<Font, [u8; 112]>;
 }
 
 impl Font {
@@ -173,7 +173,7 @@ impl Font {
 
     fn to_ems<T>(&self, length: euclid::Length<T, FontDesignUnit>) -> euclid::Length<f32, Em>
     where
-        T: ::num_traits::NumCast + Clone,
+        T: num_traits::NumCast + Clone,
     {
         length.cast() / self.font_design_units_per_em
     }
