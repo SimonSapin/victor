@@ -15,7 +15,7 @@ pub(crate) type NodeRef<'arena> = &'arena Node<'arena>;
 pub(crate) type Link<'arena> = Cell<Option<NodeRef<'arena>>>;
 
 pub struct Document<'arena> {
-    document_node: NodeRef<'arena>,
+    pub(crate) document_node: NodeRef<'arena>,
     style_elements: Vec<NodeRef<'arena>>,
 }
 
@@ -31,6 +31,35 @@ impl<'arena> Document<'arena> {
             style_set.add_stylesheet(&element.child_text_content())
         }
     }
+
+    pub(crate) fn root_element(&self) -> NodeRef<'arena> {
+        assert!(matches!(self.document_node.data, NodeData::Document));
+        assert!(self.document_node.parent.get().is_none());
+        assert!(self.document_node.next_sibling.get().is_none());
+        assert!(self.document_node.previous_sibling.get().is_none());
+        let mut root = None;
+        for child in self
+            .document_node
+            .first_child
+            .get()
+            .unwrap()
+            .self_and_next_siblings()
+        {
+            match child.data {
+                NodeData::Doctype { .. }
+                | NodeData::Comment { .. }
+                | NodeData::ProcessingInstruction { .. } => {}
+                NodeData::Document | NodeData::Text { .. } => {
+                    panic!("Unexpected node type under document node")
+                }
+                NodeData::Element(_) => {
+                    assert!(root.is_none(), "Found two root elements");
+                    root = Some(child)
+                }
+            }
+        }
+        root.unwrap()
+    }
 }
 
 pub struct Node<'arena> {
@@ -39,10 +68,10 @@ pub struct Node<'arena> {
     pub(crate) previous_sibling: Link<'arena>,
     pub(crate) first_child: Link<'arena>,
     pub(crate) last_child: Link<'arena>,
-    data: NodeData,
+    pub(crate) data: NodeData,
 }
 
-enum NodeData {
+pub(crate) enum NodeData {
     Document,
     Doctype {
         _name: StrTendril,
@@ -109,6 +138,10 @@ impl<'arena> Node<'arena> {
             NodeData::Text { ref contents } => Some(contents),
             _ => None,
         }
+    }
+
+    pub(crate) fn self_and_next_siblings(&'arena self) -> impl Iterator<Item = NodeRef<'arena>> {
+        successors(Some(self), |node| node.next_sibling.get())
     }
 
     fn new(data: NodeData) -> Self {
@@ -194,5 +227,43 @@ impl<'arena> fmt::Debug for Node<'arena> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ptr: *const Node = self;
         f.debug_tuple("Node").field(&ptr).finish()
+    }
+}
+
+fn successors<T, F>(first: Option<T>, mut succ: F) -> impl Iterator<Item = T>
+where
+    F: FnMut(&T) -> Option<T>,
+{
+    unfold(first, move |next| {
+        next.take().map(|item| {
+            *next = succ(&item);
+            item
+        })
+    })
+}
+
+fn unfold<T, St, F>(initial_state: St, f: F) -> Unfold<St, F>
+where
+    F: FnMut(&mut St) -> Option<T>,
+{
+    Unfold {
+        state: initial_state,
+        f,
+    }
+}
+
+struct Unfold<St, F> {
+    state: St,
+    f: F,
+}
+
+impl<T, St, F> Iterator for Unfold<St, F>
+where
+    F: FnMut(&mut St) -> Option<T>,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.f)(&mut self.state)
     }
 }

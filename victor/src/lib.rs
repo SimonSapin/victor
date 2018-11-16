@@ -10,6 +10,7 @@ pub mod text;
 pub mod text_plain;
 
 mod arena;
+mod layout;
 mod style;
 
 #[macro_use]
