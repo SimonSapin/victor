@@ -17,7 +17,7 @@ struct BlockFormattingContext(BlockContainer);
 
 enum BlockContainer {
     Blocks(Vec<BlockLevel>),
-    InlineFormattingContext { children: Vec<InlineLevel> },
+    InlineFormattingContext(Vec<InlineLevel>),
 }
 
 enum BlockLevel {
@@ -59,7 +59,7 @@ fn blockify(
             inside: DisplayInside::Flow,
             ..
         } => FormattingContext::Flow(BlockFormattingContext(BlockContainer::new(
-            element.first_child.get(),
+            element,
             author_styles,
             style,
         ))),
@@ -67,16 +67,31 @@ fn blockify(
 }
 
 impl BlockContainer {
-    fn new(
-        first_child: Option<dom::NodeRef>,
+    fn new(element: dom::NodeRef, author_styles: &StyleSet, element_syle: &ComputedValues) -> Self {
+        BlockContainerBuilder::from_child_elements(element, author_styles, element_syle).build()
+    }
+}
+
+trait Builder {
+    fn push_text(&mut self, text: &StrTendril);
+
+    fn push_inline(&mut self, inline: InlineLevel);
+
+    fn push_block(&mut self, block: BlockLevel);
+
+    fn from_child_elements(
+        element: dom::NodeRef,
         author_styles: &StyleSet,
-        parent_style: &ComputedValues,
-    ) -> Self {
-        let mut builder = BlockContainerBuilder::default();
-        let first_child = if let Some(first) = first_child {
+        element_style: &ComputedValues,
+    ) -> Self
+    where
+        Self: Default,
+    {
+        let mut builder = Self::default();
+        let first_child = if let Some(first) = element.first_child.get() {
             first
         } else {
-            return BlockContainer::Blocks(Vec::new())
+            return builder
         };
         for child in first_child.self_and_next_siblings() {
             match &child.data {
@@ -90,7 +105,7 @@ impl BlockContainer {
                 }
                 dom::NodeData::Element(_) => {}
             }
-            let style = cascade(child, author_styles, Some(parent_style));
+            let style = cascade(child, author_styles, Some(element_style));
             match style.display.display {
                 Display::None => {}
                 Display::Other {
@@ -103,7 +118,7 @@ impl BlockContainer {
                 } => builder.push_block(BlockLevel::new(child, author_styles, &style, inside)),
             }
         }
-        builder.build()
+        builder
     }
 }
 
@@ -113,14 +128,9 @@ struct BlockContainerBuilder {
     consecutive_inlines: Vec<InlineLevel>,
 }
 
-impl BlockContainerBuilder {
+impl Builder for BlockContainerBuilder {
     fn push_text(&mut self, text: &StrTendril) {
-        if let Some(InlineLevel::Text(last_text)) = self.consecutive_inlines.last_mut() {
-            last_text.push_tendril(text)
-        } else {
-            self.consecutive_inlines
-                .push(InlineLevel::Text(text.clone()))
-        }
+        self.consecutive_inlines.push_text(text)
     }
 
     fn push_inline(&mut self, inline: InlineLevel) {
@@ -133,21 +143,21 @@ impl BlockContainerBuilder {
         }
         self.blocks.push(block)
     }
-
+}
+impl BlockContainerBuilder {
     fn wrap_inlines_in_anonymous_block(&mut self) {
         self.blocks.push(BlockLevel::SameFormattingContextBlock(
-            BlockContainer::InlineFormattingContext {
-                children: std::mem::replace(&mut self.consecutive_inlines, Vec::new()),
-            },
+            BlockContainer::InlineFormattingContext(std::mem::replace(
+                &mut self.consecutive_inlines,
+                Vec::new(),
+            )),
         ));
     }
 
     fn build(mut self) -> BlockContainer {
         if !self.consecutive_inlines.is_empty() {
             if self.blocks.is_empty() {
-                return BlockContainer::InlineFormattingContext {
-                    children: self.consecutive_inlines,
-                }
+                return BlockContainer::InlineFormattingContext(self.consecutive_inlines)
             }
             self.wrap_inlines_in_anonymous_block()
         }
@@ -164,7 +174,7 @@ impl BlockLevel {
     ) -> Self {
         match inside {
             DisplayInside::Flow => BlockLevel::SameFormattingContextBlock(BlockContainer::new(
-                element.first_child.get(),
+                element,
                 author_styles,
                 style,
             )),
@@ -174,16 +184,33 @@ impl BlockLevel {
 
 impl InlineLevel {
     fn new(
-        _element: dom::NodeRef,
-        _author_styles: &StyleSet,
-        _style: &ComputedValues,
+        element: dom::NodeRef,
+        author_styles: &StyleSet,
+        style: &ComputedValues,
         inside: DisplayInside,
     ) -> Self {
         match inside {
             DisplayInside::Flow => {
-                InlineLevel::Inline(Vec::new());
-                unimplemented!()
+                InlineLevel::Inline(Vec::from_child_elements(element, author_styles, style))
             }
         }
+    }
+}
+
+impl Builder for Vec<InlineLevel> {
+    fn push_text(&mut self, text: &StrTendril) {
+        if let Some(InlineLevel::Text(last_text)) = self.last_mut() {
+            last_text.push_tendril(text)
+        } else {
+            self.push(InlineLevel::Text(text.clone()))
+        }
+    }
+
+    fn push_inline(&mut self, inline: InlineLevel) {
+        self.push(inline)
+    }
+
+    fn push_block(&mut self, _block: BlockLevel) {
+        unimplemented!()
     }
 }
