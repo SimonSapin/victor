@@ -130,7 +130,7 @@ struct BlockContainerBuilder {
 
 impl Builder for BlockContainerBuilder {
     fn push_text(&mut self, text: &StrTendril) {
-        self.consecutive_inlines.push_text(text)
+        inline_level_push_text(&mut self.consecutive_inlines, text)
     }
 
     fn push_inline(&mut self, inline: InlineLevel) {
@@ -190,27 +190,36 @@ impl InlineLevel {
         inside: DisplayInside,
     ) -> Self {
         match inside {
-            DisplayInside::Flow => {
-                InlineLevel::Inline(Vec::from_child_elements(author_styles, element, style))
-            }
+            DisplayInside::Flow => InlineLevel::Inline(
+                InlineBuilder::from_child_elements(author_styles, element, style).children,
+            ),
         }
     }
 }
 
-impl Builder for Vec<InlineLevel> {
+#[derive(Default)]
+struct InlineBuilder {
+    children: Vec<InlineLevel>,
+}
+
+impl Builder for InlineBuilder {
     fn push_text(&mut self, text: &StrTendril) {
-        if let Some(InlineLevel::Text(last_text)) = self.last_mut() {
-            last_text.push_tendril(text)
-        } else {
-            self.push(InlineLevel::Text(text.clone()))
-        }
+        inline_level_push_text(&mut self.children, text)
     }
 
     fn push_inline(&mut self, inline: InlineLevel) {
-        self.push(inline)
+        self.children.push(inline)
     }
 
     fn push_block(&mut self, _block: BlockLevel) {
         unimplemented!()
+    }
+}
+
+fn inline_level_push_text(inlines: &mut Vec<InlineLevel>, text: &StrTendril) {
+    if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
+        last_text.push_tendril(text)
+    } else {
+        inlines.push(InlineLevel::Text(text.clone()))
     }
 }
