@@ -68,8 +68,8 @@ impl StyleSet {
 }
 
 pub fn cascade(
-    node: NodeRef,
     author: &StyleSet,
+    node: NodeRef,
     parent_style: Option<&ComputedValues>,
 ) -> ComputedValues {
     assert!(node.as_element().is_some());

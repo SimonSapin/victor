@@ -38,17 +38,17 @@ impl<'arena> dom::Document<'arena> {
         let author_styles = builder.finish();
 
         let root_element = self.root_element();
-        let root_element_style = cascade(root_element, &author_styles, None);
+        let root_element_style = cascade(&author_styles, root_element, None);
         // https://drafts.csswg.org/css-display-3/#transformations
         // The root element’s display type is always blockified.
         let _box_tree_root: BoxTreeRoot =
-            blockify(root_element, &author_styles, &root_element_style);
+            blockify(&author_styles, root_element, &root_element_style);
     }
 }
 
 fn blockify(
-    element: dom::NodeRef,
     author_styles: &StyleSet,
+    element: dom::NodeRef,
     style: &ComputedValues,
 ) -> FormattingContext {
     match style.display.display {
@@ -59,16 +59,16 @@ fn blockify(
             inside: DisplayInside::Flow,
             ..
         } => FormattingContext::Flow(BlockFormattingContext(BlockContainer::new(
-            element,
             author_styles,
+            element,
             style,
         ))),
     }
 }
 
 impl BlockContainer {
-    fn new(element: dom::NodeRef, author_styles: &StyleSet, element_syle: &ComputedValues) -> Self {
-        BlockContainerBuilder::from_child_elements(element, author_styles, element_syle).build()
+    fn new(author_styles: &StyleSet, element: dom::NodeRef, element_syle: &ComputedValues) -> Self {
+        BlockContainerBuilder::from_child_elements(author_styles, element, element_syle).build()
     }
 }
 
@@ -80,8 +80,8 @@ trait Builder {
     fn push_block(&mut self, block: BlockLevel);
 
     fn from_child_elements(
-        element: dom::NodeRef,
         author_styles: &StyleSet,
+        element: dom::NodeRef,
         element_style: &ComputedValues,
     ) -> Self
     where
@@ -105,17 +105,17 @@ trait Builder {
                 }
                 dom::NodeData::Element(_) => {}
             }
-            let style = cascade(child, author_styles, Some(element_style));
+            let style = cascade(author_styles, child, Some(element_style));
             match style.display.display {
                 Display::None => {}
                 Display::Other {
                     outside: DisplayOutside::Inline,
                     inside,
-                } => builder.push_inline(InlineLevel::new(child, author_styles, &style, inside)),
+                } => builder.push_inline(InlineLevel::new(author_styles, child, &style, inside)),
                 Display::Other {
                     outside: DisplayOutside::Block,
                     inside,
-                } => builder.push_block(BlockLevel::new(child, author_styles, &style, inside)),
+                } => builder.push_block(BlockLevel::new(author_styles, child, &style, inside)),
             }
         }
         builder
@@ -167,15 +167,15 @@ impl BlockContainerBuilder {
 
 impl BlockLevel {
     fn new(
-        element: dom::NodeRef,
         author_styles: &StyleSet,
+        element: dom::NodeRef,
         style: &ComputedValues,
         inside: DisplayInside,
     ) -> Self {
         match inside {
             DisplayInside::Flow => BlockLevel::SameFormattingContextBlock(BlockContainer::new(
-                element,
                 author_styles,
+                element,
                 style,
             )),
         }
@@ -184,14 +184,14 @@ impl BlockLevel {
 
 impl InlineLevel {
     fn new(
-        element: dom::NodeRef,
         author_styles: &StyleSet,
+        element: dom::NodeRef,
         style: &ComputedValues,
         inside: DisplayInside,
     ) -> Self {
         match inside {
             DisplayInside::Flow => {
-                InlineLevel::Inline(Vec::from_child_elements(element, author_styles, style))
+                InlineLevel::Inline(Vec::from_child_elements(author_styles, element, style))
             }
         }
     }
