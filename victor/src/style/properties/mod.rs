@@ -1,6 +1,6 @@
 use crate::style::values::generic::FourSides;
 use crate::style::values::length::{Length, PxLength};
-use crate::style::values::Display;
+use crate::style::values::*;
 
 #[macro_use]
 mod macros;
@@ -27,7 +27,10 @@ properties! {
         display {
             "display",
             Display,
-            initial = Display::Inline
+            initial = Display::Other {
+                outside: DisplayOutside::Inline,
+                inside: DisplayInside::Flow,
+            }
         }
     }
 

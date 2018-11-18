@@ -1,5 +1,5 @@
 use crate::dom;
-use crate::style::values::Display;
+use crate::style::values::*;
 use crate::style::*;
 use html5ever::tendril::StrTendril;
 
@@ -55,9 +55,14 @@ fn blockify(
         Display::None => {
             FormattingContext::Flow(BlockFormattingContext(BlockContainer::Blocks(Vec::new())))
         }
-        Display::Inline | Display::Block => FormattingContext::Flow(BlockFormattingContext(
-            BlockContainer::new(element.first_child.get(), author_styles, style),
-        )),
+        Display::Other {
+            inside: DisplayInside::Flow,
+            ..
+        } => FormattingContext::Flow(BlockFormattingContext(BlockContainer::new(
+            element.first_child.get(),
+            author_styles,
+            style,
+        ))),
     }
 }
 
@@ -88,13 +93,14 @@ impl BlockContainer {
             let style = cascade(child, author_styles, Some(parent_style));
             match style.display.display {
                 Display::None => {}
-                Display::Inline => {
-                    builder.push_inline(InlineLevel::Inline(vec![]));
-                    unimplemented!()
-                }
-                Display::Block => builder.push_block(BlockLevel::SameFormattingContextBlock(
-                    BlockContainer::new(child.first_child.get(), author_styles, &style),
-                )),
+                Display::Other {
+                    outside: DisplayOutside::Inline,
+                    inside,
+                } => builder.push_inline(InlineLevel::new(child, author_styles, &style, inside)),
+                Display::Other {
+                    outside: DisplayOutside::Block,
+                    inside,
+                } => builder.push_block(BlockLevel::new(child, author_styles, &style, inside)),
             }
         }
         builder.build()
@@ -146,5 +152,38 @@ impl BlockContainerBuilder {
             self.wrap_inlines_in_anonymous_block()
         }
         BlockContainer::Blocks(self.blocks)
+    }
+}
+
+impl BlockLevel {
+    fn new(
+        element: dom::NodeRef,
+        author_styles: &StyleSet,
+        style: &ComputedValues,
+        inside: DisplayInside,
+    ) -> Self {
+        match inside {
+            DisplayInside::Flow => BlockLevel::SameFormattingContextBlock(BlockContainer::new(
+                element.first_child.get(),
+                author_styles,
+                style,
+            )),
+        }
+    }
+}
+
+impl InlineLevel {
+    fn new(
+        _element: dom::NodeRef,
+        _author_styles: &StyleSet,
+        _style: &ComputedValues,
+        inside: DisplayInside,
+    ) -> Self {
+        match inside {
+            DisplayInside::Flow => {
+                InlineLevel::Inline(Vec::new());
+                unimplemented!()
+            }
+        }
     }
 }
