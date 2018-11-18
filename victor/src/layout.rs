@@ -110,12 +110,28 @@ trait Builder {
                 Display::None => {}
                 Display::Other {
                     outside: DisplayOutside::Inline,
-                    inside,
-                } => builder.push_inline(InlineLevel::new(author_styles, child, &style, inside)),
+                    inside: DisplayInside::Flow,
+                } => {
+                    let InlineBuilder {
+                        self_fragments_split_by_blocks,
+                        children: grand_children,
+                    } = InlineBuilder::from_child_elements(author_styles, element, element_style);
+                    for (previous_grand_children, block) in self_fragments_split_by_blocks {
+                        if !previous_grand_children.is_empty() {
+                            builder.push_inline(InlineLevel::Inline(previous_grand_children))
+                        }
+                        builder.push_block(block)
+                    }
+                    if !grand_children.is_empty() {
+                        builder.push_inline(InlineLevel::Inline(grand_children))
+                    }
+                }
                 Display::Other {
                     outside: DisplayOutside::Block,
-                    inside,
-                } => builder.push_block(BlockLevel::new(author_styles, child, &style, inside)),
+                    inside: DisplayInside::Flow,
+                } => builder.push_block(BlockLevel::SameFormattingContextBlock(
+                    BlockContainer::new(author_styles, element, &style),
+                )),
             }
         }
         builder
@@ -147,10 +163,7 @@ impl Builder for BlockContainerBuilder {
 impl BlockContainerBuilder {
     fn wrap_inlines_in_anonymous_block(&mut self) {
         self.blocks.push(BlockLevel::SameFormattingContextBlock(
-            BlockContainer::InlineFormattingContext(std::mem::replace(
-                &mut self.consecutive_inlines,
-                Vec::new(),
-            )),
+            BlockContainer::InlineFormattingContext(self.consecutive_inlines.take()),
         ));
     }
 
@@ -165,40 +178,9 @@ impl BlockContainerBuilder {
     }
 }
 
-impl BlockLevel {
-    fn new(
-        author_styles: &StyleSet,
-        element: dom::NodeRef,
-        style: &ComputedValues,
-        inside: DisplayInside,
-    ) -> Self {
-        match inside {
-            DisplayInside::Flow => BlockLevel::SameFormattingContextBlock(BlockContainer::new(
-                author_styles,
-                element,
-                style,
-            )),
-        }
-    }
-}
-
-impl InlineLevel {
-    fn new(
-        author_styles: &StyleSet,
-        element: dom::NodeRef,
-        style: &ComputedValues,
-        inside: DisplayInside,
-    ) -> Self {
-        match inside {
-            DisplayInside::Flow => InlineLevel::Inline(
-                InlineBuilder::from_child_elements(author_styles, element, style).children,
-            ),
-        }
-    }
-}
-
 #[derive(Default)]
 struct InlineBuilder {
+    self_fragments_split_by_blocks: Vec<(Vec<InlineLevel>, BlockLevel)>,
     children: Vec<InlineLevel>,
 }
 
@@ -211,8 +193,9 @@ impl Builder for InlineBuilder {
         self.children.push(inline)
     }
 
-    fn push_block(&mut self, _block: BlockLevel) {
-        unimplemented!()
+    fn push_block(&mut self, block: BlockLevel) {
+        self.self_fragments_split_by_blocks
+            .push((self.children.take(), block))
     }
 }
 
@@ -221,5 +204,15 @@ fn inline_level_push_text(inlines: &mut Vec<InlineLevel>, text: &StrTendril) {
         last_text.push_tendril(text)
     } else {
         inlines.push(InlineLevel::Text(text.clone()))
+    }
+}
+
+trait Take {
+    fn take(&mut self) -> Self;
+}
+
+impl<T> Take for Vec<T> {
+    fn take(&mut self) -> Self {
+        std::mem::replace(self, Vec::new())
     }
 }
