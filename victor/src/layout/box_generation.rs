@@ -45,9 +45,7 @@ impl BlockContainer {
 }
 
 trait Builder {
-    fn push_text(&mut self, text: &StrTendril);
-
-    fn push_inline(&mut self, inline: InlineLevel);
+    fn inlines(&mut self) -> &mut Vec<InlineLevel>;
 
     fn push_block(&mut self, block: BlockLevel);
 
@@ -72,7 +70,13 @@ trait Builder {
                 | dom::NodeData::Comment { .. }
                 | dom::NodeData::ProcessingInstruction { .. } => continue,
                 dom::NodeData::Text { contents } => {
-                    builder.push_text(&contents.borrow());
+                    let text = contents.borrow();
+                    let inlines = builder.inlines();
+                    if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
+                        last_text.push_tendril(&text)
+                    } else {
+                        inlines.push(InlineLevel::Text(text.clone()))
+                    }
                     continue
                 }
                 dom::NodeData::Element(_) => {}
@@ -90,12 +94,14 @@ trait Builder {
                     } = InlineBuilder::from_child_elements(author_styles, element, element_style);
                     for (previous_grand_children, block) in self_fragments_split_by_blocks {
                         if !previous_grand_children.is_empty() {
-                            builder.push_inline(InlineLevel::Inline(previous_grand_children))
+                            builder
+                                .inlines()
+                                .push(InlineLevel::Inline(previous_grand_children))
                         }
                         builder.push_block(block)
                     }
                     if !grand_children.is_empty() {
-                        builder.push_inline(InlineLevel::Inline(grand_children))
+                        builder.inlines().push(InlineLevel::Inline(grand_children))
                     }
                 }
                 Display::Other {
@@ -111,18 +117,31 @@ trait Builder {
 }
 
 #[derive(Default)]
+struct InlineBuilder {
+    self_fragments_split_by_blocks: Vec<(Vec<InlineLevel>, BlockLevel)>,
+    children: Vec<InlineLevel>,
+}
+
+impl Builder for InlineBuilder {
+    fn inlines(&mut self) -> &mut Vec<InlineLevel> {
+        &mut self.children
+    }
+
+    fn push_block(&mut self, block: BlockLevel) {
+        self.self_fragments_split_by_blocks
+            .push((self.children.take(), block))
+    }
+}
+
+#[derive(Default)]
 struct BlockContainerBuilder {
     blocks: Vec<BlockLevel>,
     consecutive_inlines: Vec<InlineLevel>,
 }
 
 impl Builder for BlockContainerBuilder {
-    fn push_text(&mut self, text: &StrTendril) {
-        inline_level_push_text(&mut self.consecutive_inlines, text)
-    }
-
-    fn push_inline(&mut self, inline: InlineLevel) {
-        self.consecutive_inlines.push(inline)
+    fn inlines(&mut self) -> &mut Vec<InlineLevel> {
+        &mut self.consecutive_inlines
     }
 
     fn push_block(&mut self, block: BlockLevel) {
@@ -147,35 +166,6 @@ impl BlockContainerBuilder {
             self.wrap_inlines_in_anonymous_block()
         }
         BlockContainer::Blocks(self.blocks)
-    }
-}
-
-#[derive(Default)]
-struct InlineBuilder {
-    self_fragments_split_by_blocks: Vec<(Vec<InlineLevel>, BlockLevel)>,
-    children: Vec<InlineLevel>,
-}
-
-impl Builder for InlineBuilder {
-    fn push_text(&mut self, text: &StrTendril) {
-        inline_level_push_text(&mut self.children, text)
-    }
-
-    fn push_inline(&mut self, inline: InlineLevel) {
-        self.children.push(inline)
-    }
-
-    fn push_block(&mut self, block: BlockLevel) {
-        self.self_fragments_split_by_blocks
-            .push((self.children.take(), block))
-    }
-}
-
-fn inline_level_push_text(inlines: &mut Vec<InlineLevel>, text: &StrTendril) {
-    if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
-        last_text.push_tendril(text)
-    } else {
-        inlines.push(InlineLevel::Text(text.clone()))
     }
 }
 
