@@ -1,9 +1,12 @@
+use crate::style::ComputedValues;
 use html5ever::tendril::StrTendril;
+use std::rc::Rc;
 
 mod box_generation;
 
-type BoxTreeRoot = FormattingContext;
+type BoxTreeRoot = BlockFormattingContext;
 
+#[allow(unused)]
 enum FormattingContext {
     // Not included: inline formatting context, which is always part of a block container
     Flow(BlockFormattingContext),
@@ -20,12 +23,26 @@ enum BlockContainer {
 }
 
 enum BlockLevel {
-    SameFormattingContextBlock(BlockContainer),
-    // Other(FormattingContext),
+    #[allow(unused)]
+    SameFormattingContextBlock {
+        style: Rc<ComputedValues>,
+        contents: BlockContainer,
+    },
+    // Other {
+    //     style: Rc<ComputedValues>,
+    //     contents: FormattingContext,
+    // },
 }
 
 enum InlineLevel {
     Text(StrTendril),
-    Inline(Vec<InlineLevel>),
-    // Atomic(FormattingContext),
+    #[allow(unused)]
+    Inline {
+        style: Rc<ComputedValues>,
+        children: Vec<InlineLevel>,
+    },
+    // Atomic {
+    //     style: Rc<ComputedValues>,
+    //     contents: FormattingContext,
+    // },
 }

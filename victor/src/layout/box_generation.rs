@@ -15,9 +15,12 @@ impl<'arena> dom::Document<'arena> {
 
         let root_element = self.root_element();
         let root_element_style = cascade(&author_styles, root_element, None);
-        let mut builder = BlockContainerBuilder::default();
-        builder.push_element(&author_styles, root_element, &root_element_style);
-        FormattingContext::Flow(BlockFormattingContext(builder.build()))
+        // If any, anonymous blocks wrapping inlines at the root level get initial styles,
+        // they don’t have a parent element to inherit from.
+        let initial_values = Rc::new(ComputedValues::new_inheriting_from(None));
+        let mut builder = BlockContainerBuilder::new(initial_values);
+        builder.push_element(&author_styles, root_element, root_element_style);
+        BlockFormattingContext(builder.build())
     }
 }
 
@@ -26,15 +29,12 @@ trait Builder {
 
     fn push_block(&mut self, block: BlockLevel);
 
-    fn from_child_elements(
+    fn push_child_elements(
+        &mut self,
         author_styles: &StyleSet,
         parent_element: dom::NodeRef,
         parent_element_style: &ComputedValues,
-    ) -> Self
-    where
-        Self: Default,
-    {
-        let mut builder = Self::default();
+    ) {
         if let Some(first_child) = parent_element.first_child.get() {
             for child in first_child.self_and_next_siblings() {
                 match &child.data {
@@ -44,7 +44,7 @@ trait Builder {
                     | dom::NodeData::ProcessingInstruction { .. } => continue,
                     dom::NodeData::Text { contents } => {
                         let text = contents.borrow();
-                        let inlines = builder.inlines();
+                        let inlines = self.inlines();
                         if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
                             last_text.push_tendril(&text)
                         } else {
@@ -54,19 +54,18 @@ trait Builder {
                     }
                     dom::NodeData::Element(_) => {
                         let style = cascade(author_styles, child, Some(parent_element_style));
-                        builder.push_element(author_styles, child, &style)
+                        self.push_element(author_styles, child, style)
                     }
                 }
             }
         }
-        builder
     }
 
     fn push_element(
         &mut self,
         author_styles: &StyleSet,
         element: dom::NodeRef,
-        style: &ComputedValues,
+        style: Rc<ComputedValues>,
     ) {
         match style.display.display {
             Display::None => {}
@@ -74,27 +73,34 @@ trait Builder {
                 outside: DisplayOutside::Inline,
                 inside: DisplayInside::Flow,
             } => {
-                let InlineBuilder {
-                    self_fragments_split_by_blocks,
-                    children: grand_children,
-                } = InlineBuilder::from_child_elements(author_styles, element, style);
-                for (previous_grand_children, block) in self_fragments_split_by_blocks {
+                let mut builder = InlineBuilder::default();
+                builder.push_child_elements(author_styles, element, &style);
+                for (previous_grand_children, block) in builder.self_fragments_split_by_blocks {
                     if !previous_grand_children.is_empty() {
-                        self.inlines()
-                            .push(InlineLevel::Inline(previous_grand_children))
+                        self.inlines().push(InlineLevel::Inline {
+                            style: Rc::clone(&style),
+                            children: previous_grand_children,
+                        })
                     }
                     self.push_block(block)
                 }
+                let grand_children = builder.children;
                 if !grand_children.is_empty() {
-                    self.inlines().push(InlineLevel::Inline(grand_children))
+                    self.inlines().push(InlineLevel::Inline {
+                        style,
+                        children: grand_children,
+                    })
                 }
             }
             Display::Other {
                 outside: DisplayOutside::Block,
                 inside: DisplayInside::Flow,
-            } => self.push_block(BlockLevel::SameFormattingContextBlock(
-                BlockContainerBuilder::from_child_elements(author_styles, element, &style).build(),
-            )),
+            } => {
+                let mut builder = BlockContainerBuilder::new(Rc::clone(&style));
+                builder.push_child_elements(author_styles, element, &style);
+                let contents = builder.build();
+                self.push_block(BlockLevel::SameFormattingContextBlock { style, contents })
+            }
         }
     }
 }
@@ -116,8 +122,8 @@ impl Builder for InlineBuilder {
     }
 }
 
-#[derive(Default)]
 struct BlockContainerBuilder {
+    style: Rc<ComputedValues>,
     blocks: Vec<BlockLevel>,
     consecutive_inlines: Vec<InlineLevel>,
 }
@@ -135,10 +141,19 @@ impl Builder for BlockContainerBuilder {
     }
 }
 impl BlockContainerBuilder {
+    fn new(style: Rc<ComputedValues>) -> Self {
+        Self {
+            style,
+            blocks: Vec::new(),
+            consecutive_inlines: Vec::new(),
+        }
+    }
+
     fn wrap_inlines_in_anonymous_block(&mut self) {
-        self.blocks.push(BlockLevel::SameFormattingContextBlock(
-            BlockContainer::InlineFormattingContext(self.consecutive_inlines.take()),
-        ));
+        self.blocks.push(BlockLevel::SameFormattingContextBlock {
+            style: ComputedValues::anonymous_inheriting_from(&self.style),
+            contents: BlockContainer::InlineFormattingContext(self.consecutive_inlines.take()),
+        });
     }
 
     fn build(mut self) -> BlockContainer {

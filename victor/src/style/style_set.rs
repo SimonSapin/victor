@@ -71,10 +71,10 @@ pub fn cascade(
     author: &StyleSet,
     node: NodeRef,
     parent_style: Option<&ComputedValues>,
-) -> ComputedValues {
+) -> Rc<ComputedValues> {
     assert!(node.as_element().is_some());
-    let mut computed = ComputedValues::new(parent_style);
+    let mut computed = ComputedValues::new_inheriting_from(parent_style);
     USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(node, &mut computed));
     author.cascade_into(node, &mut computed);
-    computed
+    Rc::new(computed)
 }

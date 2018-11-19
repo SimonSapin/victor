@@ -47,7 +47,7 @@ macro_rules! properties {
         }
 
         impl ComputedValues {
-            pub fn new(parent_style: Option<&Self>) -> Self {
+            pub fn new_inheriting_from(parent_style: Option<&Self>) -> Self {
                 // XXX: if we ever replace Rc with Arc for style structs,
                 // replace thread_local! with lazy_static! here.
                 thread_local! {
@@ -81,6 +81,10 @@ macro_rules! properties {
                         initial.clone()
                     }
                 })
+            }
+
+            pub fn anonymous_inheriting_from(parent_style: &Self) -> std::rc::Rc<Self> {
+                std::rc::Rc::new(Self::new_inheriting_from(Some(parent_style)))
             }
         }
 
