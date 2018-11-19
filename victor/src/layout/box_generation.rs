@@ -5,42 +5,19 @@ use crate::style::*;
 
 impl<'arena> dom::Document<'arena> {
     pub fn render(&self) {
+        let _ = self.box_tree();
+    }
+
+    fn box_tree(&self) -> BoxTreeRoot {
         let mut builder = StyleSetBuilder::new();
         self.parse_stylesheets(&mut builder);
         let author_styles = builder.finish();
 
         let root_element = self.root_element();
         let root_element_style = cascade(&author_styles, root_element, None);
-        // https://drafts.csswg.org/css-display-3/#transformations
-        // The root element’s display type is always blockified.
-        let _box_tree_root: BoxTreeRoot =
-            blockify(&author_styles, root_element, &root_element_style);
-    }
-}
-
-fn blockify(
-    author_styles: &StyleSet,
-    element: dom::NodeRef,
-    style: &ComputedValues,
-) -> FormattingContext {
-    match style.display.display {
-        Display::None => {
-            FormattingContext::Flow(BlockFormattingContext(BlockContainer::Blocks(Vec::new())))
-        }
-        Display::Other {
-            inside: DisplayInside::Flow,
-            ..
-        } => FormattingContext::Flow(BlockFormattingContext(BlockContainer::new(
-            author_styles,
-            element,
-            style,
-        ))),
-    }
-}
-
-impl BlockContainer {
-    fn new(author_styles: &StyleSet, element: dom::NodeRef, element_syle: &ComputedValues) -> Self {
-        BlockContainerBuilder::from_child_elements(author_styles, element, element_syle).build()
+        let mut builder = BlockContainerBuilder::default();
+        builder.push_element(&author_styles, root_element, &root_element_style);
+        FormattingContext::Flow(BlockFormattingContext(builder.build()))
     }
 }
 
@@ -51,68 +28,74 @@ trait Builder {
 
     fn from_child_elements(
         author_styles: &StyleSet,
-        element: dom::NodeRef,
-        element_style: &ComputedValues,
+        parent_element: dom::NodeRef,
+        parent_element_style: &ComputedValues,
     ) -> Self
     where
         Self: Default,
     {
         let mut builder = Self::default();
-        let first_child = if let Some(first) = element.first_child.get() {
-            first
-        } else {
-            return builder
-        };
-        for child in first_child.self_and_next_siblings() {
-            match &child.data {
-                dom::NodeData::Document
-                | dom::NodeData::Doctype { .. }
-                | dom::NodeData::Comment { .. }
-                | dom::NodeData::ProcessingInstruction { .. } => continue,
-                dom::NodeData::Text { contents } => {
-                    let text = contents.borrow();
-                    let inlines = builder.inlines();
-                    if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
-                        last_text.push_tendril(&text)
-                    } else {
-                        inlines.push(InlineLevel::Text(text.clone()))
-                    }
-                    continue
-                }
-                dom::NodeData::Element(_) => {}
-            }
-            let style = cascade(author_styles, child, Some(element_style));
-            match style.display.display {
-                Display::None => {}
-                Display::Other {
-                    outside: DisplayOutside::Inline,
-                    inside: DisplayInside::Flow,
-                } => {
-                    let InlineBuilder {
-                        self_fragments_split_by_blocks,
-                        children: grand_children,
-                    } = InlineBuilder::from_child_elements(author_styles, element, element_style);
-                    for (previous_grand_children, block) in self_fragments_split_by_blocks {
-                        if !previous_grand_children.is_empty() {
-                            builder
-                                .inlines()
-                                .push(InlineLevel::Inline(previous_grand_children))
+        if let Some(first_child) = parent_element.first_child.get() {
+            for child in first_child.self_and_next_siblings() {
+                match &child.data {
+                    dom::NodeData::Document
+                    | dom::NodeData::Doctype { .. }
+                    | dom::NodeData::Comment { .. }
+                    | dom::NodeData::ProcessingInstruction { .. } => continue,
+                    dom::NodeData::Text { contents } => {
+                        let text = contents.borrow();
+                        let inlines = builder.inlines();
+                        if let Some(InlineLevel::Text(last_text)) = inlines.last_mut() {
+                            last_text.push_tendril(&text)
+                        } else {
+                            inlines.push(InlineLevel::Text(text.clone()))
                         }
-                        builder.push_block(block)
+                        continue
                     }
-                    if !grand_children.is_empty() {
-                        builder.inlines().push(InlineLevel::Inline(grand_children))
+                    dom::NodeData::Element(_) => {
+                        let style = cascade(author_styles, child, Some(parent_element_style));
+                        builder.push_element(author_styles, child, &style)
                     }
                 }
-                Display::Other {
-                    outside: DisplayOutside::Block,
-                    inside: DisplayInside::Flow,
-                } => builder.push_block(BlockLevel::SameFormattingContextBlock(
-                    BlockContainer::new(author_styles, element, &style),
-                )),
             }
         }
         builder
+    }
+
+    fn push_element(
+        &mut self,
+        author_styles: &StyleSet,
+        element: dom::NodeRef,
+        style: &ComputedValues,
+    ) {
+        match style.display.display {
+            Display::None => {}
+            Display::Other {
+                outside: DisplayOutside::Inline,
+                inside: DisplayInside::Flow,
+            } => {
+                let InlineBuilder {
+                    self_fragments_split_by_blocks,
+                    children: grand_children,
+                } = InlineBuilder::from_child_elements(author_styles, element, style);
+                for (previous_grand_children, block) in self_fragments_split_by_blocks {
+                    if !previous_grand_children.is_empty() {
+                        self.inlines()
+                            .push(InlineLevel::Inline(previous_grand_children))
+                    }
+                    self.push_block(block)
+                }
+                if !grand_children.is_empty() {
+                    self.inlines().push(InlineLevel::Inline(grand_children))
+                }
+            }
+            Display::Other {
+                outside: DisplayOutside::Block,
+                inside: DisplayInside::Flow,
+            } => self.push_block(BlockLevel::SameFormattingContextBlock(
+                BlockContainerBuilder::from_child_elements(author_styles, element, &style).build(),
+            )),
+        }
     }
 }
 
