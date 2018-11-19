@@ -46,25 +46,23 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                     dom::NodeData::Document
                     | dom::NodeData::Doctype { .. }
                     | dom::NodeData::Comment { .. }
-                    | dom::NodeData::ProcessingInstruction { .. } => continue,
-                    dom::NodeData::Text { contents } => {
-                        let text = contents.borrow();
-                        if let Some(InlineLevel::Text(last_text)) =
-                            self.consecutive_inline_levels.last_mut()
-                        {
-                            last_text.push_tendril(&text)
-                        } else {
-                            self.consecutive_inline_levels
-                                .push(InlineLevel::Text(text.clone()))
-                        }
-                        continue
-                    }
+                    | dom::NodeData::ProcessingInstruction { .. } => {}
+                    dom::NodeData::Text { contents } => self.push_text(&contents.borrow()),
                     dom::NodeData::Element(_) => {
                         let style = cascade(author_styles, child, Some(&self.style));
                         self.push_element(author_styles, child, style)
                     }
                 }
             }
+        }
+    }
+
+    fn push_text(&mut self, text: &StrTendril) {
+        if let Some(InlineLevel::Text(last_text)) = self.consecutive_inline_levels.last_mut() {
+            last_text.push_tendril(&text)
+        } else {
+            self.consecutive_inline_levels
+                .push(InlineLevel::Text(text.clone()))
         }
     }
 
