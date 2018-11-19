@@ -27,7 +27,7 @@ impl<'arena> dom::Document<'arena> {
 
 struct Builder<Extra> {
     style: Rc<ComputedValues>,
-    consecutive_inlines: Vec<InlineLevel>,
+    consecutive_inline_levels: Vec<InlineLevel>,
     extra: Extra,
 }
 
@@ -35,7 +35,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
     fn new(style: Rc<ComputedValues>) -> Self {
         Self {
             style,
-            consecutive_inlines: Vec::new(),
+            consecutive_inline_levels: Vec::new(),
             extra: Extra::default(),
         }
     }
@@ -50,11 +50,11 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                     dom::NodeData::Text { contents } => {
                         let text = contents.borrow();
                         if let Some(InlineLevel::Text(last_text)) =
-                            self.consecutive_inlines.last_mut()
+                            self.consecutive_inline_levels.last_mut()
                         {
                             last_text.push_tendril(&text)
                         } else {
-                            self.consecutive_inlines
+                            self.consecutive_inline_levels
                                 .push(InlineLevel::Text(text.clone()))
                         }
                         continue
@@ -82,19 +82,20 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
             } => {
                 let mut builder = Builder::<InlineBuilderExtra>::new(style);
                 builder.push_child_elements(author_styles, element);
-                for (previous_grand_children, block) in builder.extra.self_fragments_split_by_blocks
+                for (previous_grand_children, block) in
+                    builder.extra.self_fragments_split_by_block_levels
                 {
                     if !previous_grand_children.is_empty() {
-                        self.consecutive_inlines.push(InlineLevel::Inline {
+                        self.consecutive_inline_levels.push(InlineLevel::Inline {
                             style: Rc::clone(&builder.style),
                             children: previous_grand_children,
                         })
                     }
                     Extra::push_block(self, block)
                 }
-                let grand_children = builder.consecutive_inlines;
+                let grand_children = builder.consecutive_inline_levels;
                 if !grand_children.is_empty() {
-                    self.consecutive_inlines.push(InlineLevel::Inline {
+                    self.consecutive_inline_levels.push(InlineLevel::Inline {
                         style: builder.style,
                         children: grand_children,
                     })
@@ -122,52 +123,57 @@ trait PushBlock: Sized {
 
 #[derive(Default)]
 struct InlineBuilderExtra {
-    self_fragments_split_by_blocks: Vec<(Vec<InlineLevel>, BlockLevel)>,
+    self_fragments_split_by_block_levels: Vec<(Vec<InlineLevel>, BlockLevel)>,
 }
 
 impl PushBlock for InlineBuilderExtra {
     fn push_block(builder: &mut Builder<Self>, block: BlockLevel) {
         builder
             .extra
-            .self_fragments_split_by_blocks
-            .push((builder.consecutive_inlines.take(), block))
+            .self_fragments_split_by_block_levels
+            .push((builder.consecutive_inline_levels.take(), block))
     }
 }
 
 #[derive(Default)]
 struct BlockContainerBuilderExtra {
-    blocks: Vec<BlockLevel>,
+    block_levels: Vec<BlockLevel>,
 }
 
 impl PushBlock for BlockContainerBuilderExtra {
     fn push_block(builder: &mut Builder<Self>, block: BlockLevel) {
-        if !builder.consecutive_inlines.is_empty() {
+        if !builder.consecutive_inline_levels.is_empty() {
             builder.wrap_inlines_in_anonymous_block();
         }
-        builder.extra.blocks.push(block)
+        builder.extra.block_levels.push(block)
     }
 }
 impl Builder<BlockContainerBuilderExtra> {
     fn wrap_inlines_in_anonymous_block(&mut self) {
         self.extra
-            .blocks
+            .block_levels
             .push(BlockLevel::SameFormattingContextBlock {
                 style: ComputedValues::anonymous_inheriting_from(&self.style),
-                contents: BlockContainer::InlineFormattingContext(self.consecutive_inlines.take()),
+                contents: BlockContainer::InlineFormattingContext(
+                    self.consecutive_inline_levels.take(),
+                ),
             });
     }
 
     fn build(mut self) -> (Rc<ComputedValues>, BlockContainer) {
-        if !self.consecutive_inlines.is_empty() {
-            if self.extra.blocks.is_empty() {
+        if !self.consecutive_inline_levels.is_empty() {
+            if self.extra.block_levels.is_empty() {
                 return (
                     self.style,
-                    BlockContainer::InlineFormattingContext(self.consecutive_inlines),
+                    BlockContainer::InlineFormattingContext(self.consecutive_inline_levels),
                 )
             }
             self.wrap_inlines_in_anonymous_block()
         }
-        (self.style, BlockContainer::Blocks(self.extra.blocks))
+        (
+            self.style,
+            BlockContainer::BlockLevels(self.extra.block_levels),
+        )
     }
 }
 

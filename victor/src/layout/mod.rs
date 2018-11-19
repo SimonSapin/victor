@@ -18,7 +18,7 @@ enum FormattingContext {
 struct BlockFormattingContext(BlockContainer);
 
 enum BlockContainer {
-    Blocks(Vec<BlockLevel>),
+    BlockLevels(Vec<BlockLevel>),
     InlineFormattingContext(Vec<InlineLevel>),
 }
 
