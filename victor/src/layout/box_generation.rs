@@ -90,18 +90,24 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
             } => {
                 let mut builder = Builder::<InlineBuilderExtra>::new(style);
                 builder.push_child_elements(context, element);
+                let mut first = true;
                 for (previous_grand_children, block) in
                     builder.extra.self_fragments_split_by_block_levels
                 {
                     self.consecutive_inline_levels.push(InlineLevel::Inline {
                         style: Rc::clone(&builder.style),
+                        first_fragment: first,
+                        last_fragment: false,
                         children: previous_grand_children,
                     });
+                    first = false;
                     Extra::push_block(self, block)
                 }
                 let grand_children = builder.consecutive_inline_levels;
                 self.consecutive_inline_levels.push(InlineLevel::Inline {
                     style: builder.style,
+                    first_fragment: first,
+                    last_fragment: true,
                     children: grand_children,
                 })
             }

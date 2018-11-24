@@ -39,6 +39,8 @@ enum InlineLevel {
     #[allow(unused)]
     Inline {
         style: Rc<ComputedValues>,
+        first_fragment: bool,
+        last_fragment: bool,
         children: Vec<InlineLevel>,
     },
     // Atomic {
