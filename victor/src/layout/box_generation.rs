@@ -93,21 +93,17 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                 for (previous_grand_children, block) in
                     builder.extra.self_fragments_split_by_block_levels
                 {
-                    if !previous_grand_children.is_empty() {
-                        self.consecutive_inline_levels.push(InlineLevel::Inline {
-                            style: Rc::clone(&builder.style),
-                            children: previous_grand_children,
-                        })
-                    }
+                    self.consecutive_inline_levels.push(InlineLevel::Inline {
+                        style: Rc::clone(&builder.style),
+                        children: previous_grand_children,
+                    });
                     Extra::push_block(self, block)
                 }
                 let grand_children = builder.consecutive_inline_levels;
-                if !grand_children.is_empty() {
-                    self.consecutive_inline_levels.push(InlineLevel::Inline {
-                        style: builder.style,
-                        children: grand_children,
-                    })
-                }
+                self.consecutive_inline_levels.push(InlineLevel::Inline {
+                    style: builder.style,
+                    children: grand_children,
+                })
             }
             Display::Other {
                 outside: DisplayOutside::Block,
