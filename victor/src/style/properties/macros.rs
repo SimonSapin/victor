@@ -131,22 +131,14 @@ macro_rules! properties {
         ascii_case_insensitive_phf_map! {
             declaration_parsing_function_by_name -> FnParseProperty = {
                 $($(
-                    $name => {
-                        // FIXME: this works around https://github.com/rust-lang/rust/issues/48540
-                        const PARSE: FnParseProperty = |parser, declarations| {
-                            let v = <$ValueType as crate::style::values::Parse>::parse(parser)?;
-                            declarations.push(PropertyDeclaration::$ident(v));
-                            Ok(())
-                        };
-                        PARSE
+                    $name => |parser, declarations| {
+                        let v = <$ValueType as crate::style::values::Parse>::parse(parser)?;
+                        declarations.push(PropertyDeclaration::$ident(v));
+                        Ok(())
                     },
                 )+)+
                 $(
-                    $shorthand_name => {
-                        // FIXME: this works around https://github.com/rust-lang/rust/issues/48540
-                        const PARSE: FnParseProperty = $shorthand_parse;
-                        PARSE
-                    },
+                    $shorthand_name => $shorthand_parse,
                 )+
             }
         }
