@@ -36,6 +36,11 @@ properties! {
     }
 
     @shorthands {
-        "margin": parse_four_sides!(margin_top, margin_left, margin_bottom, margin_right);
+        "margin" => FourSides {
+            top: margin_top,
+            left: margin_left,
+            bottom: margin_bottom,
+            right: margin_right,
+        }
     }
 }

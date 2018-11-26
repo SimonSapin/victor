@@ -19,7 +19,11 @@ macro_rules! properties {
         )+
         @shorthands {
             $(
-                $shorthand_name: tt : $shorthand_parse: expr;
+                $shorthand_name: tt => $shorthand_struct: ident {
+                    $(
+                        $shorthand_field: ident: $longhand_ident: ident,
+                    )+
+                }
             )+
         }
     ) => {
@@ -145,27 +149,21 @@ macro_rules! properties {
                     },
                 )+)+
                 $(
-                    $shorthand_name => $shorthand_parse,
+                    $shorthand_name => |parser, declarations| {
+                        let $shorthand_struct {
+                            $(
+                                $shorthand_field: $longhand_ident,
+                            )+
+                        } = Parse::parse(parser)?;
+                        $(
+                            declarations.push(
+                                LonghandDeclaration::$longhand_ident($longhand_ident)
+                            );
+                        )+
+                        Ok(())
+                    },
                 )+
             }
         }
     }
-}
-
-macro_rules! parse_four_sides {
-    ($Top: ident, $Left: ident, $Bottom: ident, $Right: ident) => {
-        |parser, declarations: &mut Vec<LonghandDeclaration>| {
-            let FourSides {
-                top,
-                left,
-                bottom,
-                right,
-            } = Parse::parse(parser)?;
-            declarations.push(LonghandDeclaration::$Top(top));
-            declarations.push(LonghandDeclaration::$Left(left));
-            declarations.push(LonghandDeclaration::$Bottom(bottom));
-            declarations.push(LonghandDeclaration::$Right(right));
-            Ok(())
-        }
-    };
 }
