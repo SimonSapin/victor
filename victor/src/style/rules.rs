@@ -1,5 +1,5 @@
 use crate::style::errors::{PropertyParseErrorKind, RuleParseErrorKind};
-use crate::style::properties::{declaration_parsing_function_by_name, PropertyDeclaration};
+use crate::style::properties::{declaration_parsing_function_by_name, LonghandDeclaration};
 use crate::style::selectors::{self, SelectorList};
 use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
@@ -14,7 +14,7 @@ pub enum CssRule {
         // (as positions based on the selector’s specificity)
         //
         // Use `Rc` to enable having multiple references to the `Vec` without cloning it.
-        declarations: Rc<Vec<PropertyDeclaration>>,
+        declarations: Rc<Vec<LonghandDeclaration>>,
     },
 }
 
@@ -40,7 +40,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         let mut iter = DeclarationListParser::new(
             parser,
-            PropertyDeclarationParser {
+            LonghandDeclarationParser {
                 declarations: Vec::new(),
             },
         );
@@ -69,11 +69,11 @@ impl<'i> AtRuleParser<'i> for RulesParser {
     type Error = RuleParseErrorKind<'i>;
 }
 
-pub struct PropertyDeclarationParser {
-    declarations: Vec<PropertyDeclaration>,
+pub struct LonghandDeclarationParser {
+    declarations: Vec<LonghandDeclaration>,
 }
 
-impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
+impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
     type Declaration = ();
     type Error = PropertyParseErrorKind<'i>;
 
@@ -90,7 +90,7 @@ impl<'i> DeclarationParser<'i> for PropertyDeclarationParser {
     }
 }
 
-impl<'i> AtRuleParser<'i> for PropertyDeclarationParser {
+impl<'i> AtRuleParser<'i> for LonghandDeclarationParser {
     type PreludeNoBlock = ();
     type PreludeBlock = ();
     type AtRule = ();

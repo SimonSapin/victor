@@ -1,5 +1,5 @@
 use crate::dom;
-use crate::style::properties::{ComputedValues, PropertyDeclaration};
+use crate::style::properties::{ComputedValues, LonghandDeclaration};
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
@@ -8,7 +8,7 @@ use std::rc::Rc;
 pub struct StyleSetBuilder(StyleSet);
 
 pub struct StyleSet {
-    rules: Vec<(Selector, Rc<Vec<PropertyDeclaration>>)>,
+    rules: Vec<(Selector, Rc<Vec<LonghandDeclaration>>)>,
 }
 
 // XXX: if we ever replace Rc with Arc for style structs,

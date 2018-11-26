@@ -20,7 +20,7 @@ macro_rules! properties {
     ) => {
         #[repr($DiscriminantType)]
         #[allow(non_camel_case_types)]
-        pub enum PropertyDeclaration {
+        pub enum LonghandDeclaration {
             $($(
                 $ident($ValueType),
             )+)+
@@ -88,11 +88,11 @@ macro_rules! properties {
             }
         }
 
-        impl PropertyDeclaration {
+        impl LonghandDeclaration {
             fn id(&self) -> $DiscriminantType {
                 // #[repr(u8)] guarantees that an enum’s representation starts with a u8 tag:
                 // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
-                let ptr: *const PropertyDeclaration = self;
+                let ptr: *const LonghandDeclaration = self;
                 let ptr = ptr as *const $DiscriminantType;
                 unsafe {
                     *ptr
@@ -100,7 +100,7 @@ macro_rules! properties {
             }
 
             pub fn cascade_into(&self, computed: &mut ComputedValues) {
-                static CASCADE_FNS: &'static [fn(&PropertyDeclaration, &mut ComputedValues)] = &[
+                static CASCADE_FNS: &'static [fn(&LonghandDeclaration, &mut ComputedValues)] = &[
                     $($(
                         |declaration, computed| {
                             // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
@@ -109,7 +109,7 @@ macro_rules! properties {
                                 tag: $DiscriminantType,
                                 value: $ValueType,
                             }
-                            let ptr: *const PropertyDeclaration = declaration;
+                            let ptr: *const LonghandDeclaration = declaration;
                             let ptr = ptr as *const Repr;
                             let declaration = unsafe {
                                 &*ptr
@@ -125,7 +125,7 @@ macro_rules! properties {
 
         type FnParseProperty =
             for<'i, 't>
-            fn(&mut cssparser::Parser<'i, 't>, &mut Vec<PropertyDeclaration>)
+            fn(&mut cssparser::Parser<'i, 't>, &mut Vec<LonghandDeclaration>)
             -> Result<(), crate::style::errors::PropertyParseError<'i>>;
 
         ascii_case_insensitive_phf_map! {
@@ -133,7 +133,7 @@ macro_rules! properties {
                 $($(
                     $name => |parser, declarations| {
                         let v = <$ValueType as crate::style::values::Parse>::parse(parser)?;
-                        declarations.push(PropertyDeclaration::$ident(v));
+                        declarations.push(LonghandDeclaration::$ident(v));
                         Ok(())
                     },
                 )+)+
@@ -147,17 +147,17 @@ macro_rules! properties {
 
 macro_rules! parse_four_sides {
     ($Top: ident, $Left: ident, $Bottom: ident, $Right: ident) => {
-        |parser, declarations: &mut Vec<PropertyDeclaration>| {
+        |parser, declarations: &mut Vec<LonghandDeclaration>| {
             let FourSides {
                 top,
                 left,
                 bottom,
                 right,
             } = <FourSides<_> as crate::style::values::Parse>::parse(parser)?;
-            declarations.push(PropertyDeclaration::$Top(top));
-            declarations.push(PropertyDeclaration::$Left(left));
-            declarations.push(PropertyDeclaration::$Bottom(bottom));
-            declarations.push(PropertyDeclaration::$Right(right));
+            declarations.push(LonghandDeclaration::$Top(top));
+            declarations.push(LonghandDeclaration::$Left(left));
+            declarations.push(LonghandDeclaration::$Bottom(bottom));
+            declarations.push(LonghandDeclaration::$Right(right));
             Ok(())
         }
     };
