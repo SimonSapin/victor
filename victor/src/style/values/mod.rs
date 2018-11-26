@@ -13,6 +13,13 @@ pub trait ToComputedValue {
     fn to_computed(&self) -> Self::Computed;
 }
 
+#[derive(Copy, Clone, Parse)]
+pub enum CssWideKeyword {
+    Inherit,
+    Initial,
+    Unset,
+}
+
 /// https://drafts.csswg.org/css-display-3/#the-display-properties
 #[derive(Copy, Clone, ComputedAsSpecified)]
 pub enum Display {

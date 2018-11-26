@@ -1,5 +1,5 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{Parse, ToComputedValue};
+use crate::style::values::{CssWideKeyword, Parse, ToComputedValue};
 use cssparser::Parser;
 use std::rc::Rc;
 
@@ -60,6 +60,7 @@ macro_rules! properties {
             $($(
                 $ident($ValueType),
             )+)+
+            CssWide(LonghandId, CssWideKeyword)
         }
 
         #[derive(Clone)]
@@ -136,11 +137,13 @@ macro_rules! properties {
             pub fn cascade_into(
                 &self,
                 computed: &mut ComputedValues,
-                _inherited: &ComputedValues,
+                inherited: &ComputedValues,
             ) {
-                static CASCADE_FNS: &'static [fn(&LonghandDeclaration, &mut ComputedValues)] = &[
+                static CASCADE_FNS: &'static [
+                    fn(&LonghandDeclaration, &mut ComputedValues, &ComputedValues)
+                ] = &[
                     $($(
-                        |declaration, computed| {
+                        |declaration, computed, _inherited| {
                             let fields = unsafe_cast_to_enum_fields!(declaration => {
                                 tag: $DiscriminantType,
                                 value: $ValueType,
@@ -149,8 +152,41 @@ macro_rules! properties {
                                 ToComputedValue::to_computed(&fields.value)
                         },
                     )+)+
+                    // LonghandDeclaration::CssWide
+                    |declaration, computed, inherited| {
+                        let fields = unsafe_cast_to_enum_fields!(declaration => {
+                            tag: $DiscriminantType,
+                            longhand: LonghandId,
+                            keyword: CssWideKeyword,
+                        });
+                        static CASCADE_CSS_WIDE_FNS: &'static [
+                            fn(CssWideKeyword, &mut ComputedValues, &ComputedValues)
+                        ] = &[
+                            $($(
+                                |keyword, computed, inherited| {
+                                    macro_rules! unset_is_initial {
+                                        (inherited) => { false };
+                                        (reset) => { true };
+                                    }
+                                    let is_initial = match keyword {
+                                        CssWideKeyword::Initial => true,
+                                        CssWideKeyword::Inherit => false,
+                                        CssWideKeyword::Unset => unset_is_initial!($inherited),
+                                    };
+                                    Rc::make_mut(&mut computed.$struct_name).$ident =
+                                    if is_initial {
+                                        $initial_value
+                                    } else {
+                                        inherited.$struct_name.$ident.clone()
+                                    };
+                                },
+                            )+)+
+                        ];
+                        CASCADE_CSS_WIDE_FNS[fields.longhand as usize]
+                            (fields.keyword, computed, inherited)
+                    }
                 ];
-                CASCADE_FNS[self.id() as usize](self, computed)
+                CASCADE_FNS[self.id() as usize](self, computed, inherited)
             }
         }
 

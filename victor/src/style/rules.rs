@@ -1,6 +1,7 @@
 use crate::style::errors::{PropertyParseErrorKind, RuleParseErrorKind};
 use crate::style::properties::{property_data_by_name, LonghandDeclaration};
 use crate::style::selectors::{self, SelectorList};
+use crate::style::values::{CssWideKeyword, Parse};
 use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
@@ -83,7 +84,15 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::Declaration, ParseError<'i, Self::Error>> {
         if let Some(data) = property_data_by_name(&name) {
-            (data.parse)(parser, &mut self.declarations)
+            if let Ok(keyword) = parser.r#try(CssWideKeyword::parse) {
+                for &longhand in data.longhands {
+                    self.declarations
+                        .push(LonghandDeclaration::CssWide(longhand, keyword))
+                }
+                Ok(())
+            } else {
+                (data.parse)(parser, &mut self.declarations)
+            }
         } else {
             Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
         }

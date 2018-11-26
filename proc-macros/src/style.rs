@@ -15,7 +15,7 @@ pub fn derive_computed_as_specified(input: proc_macro::TokenStream) -> proc_macr
     tokens.into()
 }
 
-#[proc_macro_derive(ParseSingleKeyword)]
+#[proc_macro_derive(Parse)]
 pub fn derive_parse_single_keyword(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = &input.ident;
@@ -26,7 +26,7 @@ pub fn derive_parse_single_keyword(input: proc_macro::TokenStream) -> proc_macro
             .into_iter()
             .map(|variant| variant.ident)
             .collect(),
-        _ => panic!("derive(ParseSingleKeyword) only supports enums"),
+        _ => panic!("derive(Parse) only supports enums"),
     };
 
     let names: Vec<_> = variants
