@@ -21,7 +21,7 @@ impl dom::Document {
         let root_element_style = cascade(&author_styles, self, root_element, None);
         // If any, anonymous blocks wrapping inlines at the root level get initial styles,
         // they don’t have a parent element to inherit from.
-        let initial_values = Rc::new(ComputedValues::new_inheriting_from(None));
+        let initial_values = ComputedValues::initial();
         let mut builder = Builder::<BlockContainerBuilderExtra>::new(initial_values);
         builder.push_element(&context, root_element, root_element_style);
         let (_, block) = builder.build();

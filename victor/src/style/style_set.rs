@@ -61,11 +61,12 @@ impl StyleSet {
         document: &dom::Document,
         node: dom::NodeId,
         computed: &mut ComputedValues,
+        inherited: &ComputedValues,
     ) {
         for &(ref selector, ref declarations) in &self.rules {
             if selectors::matches(selector, document, node) {
                 for declaration in declarations.iter() {
-                    declaration.cascade_into(computed)
+                    declaration.cascade_into(computed, inherited)
                 }
             }
         }
@@ -79,8 +80,10 @@ pub(crate) fn cascade(
     parent_style: Option<&ComputedValues>,
 ) -> Rc<ComputedValues> {
     assert!(document[node].as_element().is_some());
-    let mut computed = ComputedValues::new_inheriting_from(parent_style);
-    USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, &mut computed));
-    author.cascade_into(document, node, &mut computed);
+    let initial = ComputedValues::initial();
+    let inherited = parent_style.unwrap_or(&*initial);
+    let mut computed = ComputedValues::new_inheriting_from(inherited, &*initial);
+    USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, &mut computed, inherited));
+    author.cascade_into(document, node, &mut computed, inherited);
     Rc::new(computed)
 }

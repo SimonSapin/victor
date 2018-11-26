@@ -51,45 +51,43 @@ macro_rules! properties {
             )+
         }
 
-        impl ComputedValues {
-            pub fn new_inheriting_from(parent_style: Option<&Self>) -> Self {
-                // XXX: if we ever replace Rc with Arc for style structs,
-                // replace thread_local! with lazy_static! here.
-                thread_local! {
-                    static INITIAL_VALUES: ComputedValues = ComputedValues {
-                        $(
-                            $struct_name: Rc::new(
-                                style_structs::$struct_name {
-                                    $(
-                                        $ident: $initial_value,
-                                    )+
-                                }
-                            ),
-                        )+
-                    };
-                }
-
-                INITIAL_VALUES.with(|initial| {
-                    if let Some(parent) = parent_style {
-                        macro_rules! select {
-                            (inherited, $parent: expr, $initial: expr) => { $parent };
-                            (reset,     $parent: expr, $initial: expr) => { $initial };
-                        }
-                        ComputedValues {
+        // XXX: if we ever replace Rc with Arc for style structs,
+        // replace thread_local! with lazy_static! here.
+        thread_local! {
+            static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
+                $(
+                    $struct_name: Rc::new(
+                        style_structs::$struct_name {
                             $(
-                                $struct_name: Rc::clone(
-                                    &select!($inherited, parent, initial).$struct_name
-                                ),
+                                $ident: $initial_value,
                             )+
                         }
-                    } else {
-                        initial.clone()
-                    }
-                })
+                    ),
+                )+
+            });
+        }
+
+        impl ComputedValues {
+            pub fn initial() -> Rc<Self> {
+                INITIAL_VALUES.with(|initial| initial.clone())
             }
 
+            pub fn new_inheriting_from(inherited: &Self, initial: &Self) -> Self {
+                macro_rules! select {
+                    (inherited) => { inherited };
+                    (reset) => { initial };
+                }
+                ComputedValues {
+                    $(
+                        $struct_name: Rc::clone(&select!($inherited).$struct_name),
+                    )+
+                }
+        }
+
             pub fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-                Rc::new(Self::new_inheriting_from(Some(parent_style)))
+                INITIAL_VALUES.with(|initial| {
+                    Rc::new(Self::new_inheriting_from(parent_style, initial))
+                })
             }
         }
 
@@ -104,7 +102,11 @@ macro_rules! properties {
                 }
             }
 
-            pub fn cascade_into(&self, computed: &mut ComputedValues) {
+            pub fn cascade_into(
+                &self,
+                computed: &mut ComputedValues,
+                _inherited: &ComputedValues,
+            ) {
                 static CASCADE_FNS: &'static [fn(&LonghandDeclaration, &mut ComputedValues)] = &[
                     $($(
                         |declaration, computed| {
