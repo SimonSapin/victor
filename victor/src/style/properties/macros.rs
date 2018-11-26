@@ -3,6 +3,24 @@ use crate::style::values::{Parse, ToComputedValue};
 use cssparser::Parser;
 use std::rc::Rc;
 
+/// https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
+macro_rules! unsafe_cast_to_enum_fields {
+    ($declaration: expr => { tag: $DiscriminantType: ty, $($field: ident: $ty: ty,)+ }) => {{
+        #[repr(C)]
+        struct Repr {
+            tag: $DiscriminantType,
+            $(
+                $field: $ty,
+            )+
+        }
+        let ptr: *const LonghandDeclaration = $declaration;
+        let ptr = ptr as *const Repr;
+        unsafe {
+            &*ptr
+        }
+    }};
+}
+
 macro_rules! properties {
     (
         type Discriminant = $DiscriminantType: ident;
@@ -114,19 +132,12 @@ macro_rules! properties {
                 static CASCADE_FNS: &'static [fn(&LonghandDeclaration, &mut ComputedValues)] = &[
                     $($(
                         |declaration, computed| {
-                            // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
-                            #[repr(C)]
-                            struct Repr {
+                            let fields = unsafe_cast_to_enum_fields!(declaration => {
                                 tag: $DiscriminantType,
                                 value: $ValueType,
-                            }
-                            let ptr: *const LonghandDeclaration = declaration;
-                            let ptr = ptr as *const Repr;
-                            let declaration = unsafe {
-                                &*ptr
-                            };
+                            });
                             Rc::make_mut(&mut computed.$struct_name).$ident =
-                                ToComputedValue::to_computed(&declaration.value)
+                                ToComputedValue::to_computed(&fields.value)
                         },
                     )+)+
                 ];
