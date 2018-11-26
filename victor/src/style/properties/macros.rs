@@ -46,6 +46,15 @@ macro_rules! properties {
         }
     ) => {
         #[repr($DiscriminantType)]
+        #[derive(Copy, Clone)]
+        #[allow(non_camel_case_types)]
+        pub enum LonghandId {
+            $($(
+                $ident,
+            )+)+
+        }
+
+        #[repr($DiscriminantType)]
         #[allow(non_camel_case_types)]
         pub enum LonghandDeclaration {
             $($(
@@ -150,28 +159,43 @@ macro_rules! properties {
             fn(&mut Parser<'i, 't>, &mut Vec<LonghandDeclaration>)
             -> Result<(), PropertyParseError<'i>>;
 
+        pub struct PropertyData {
+            pub longhands: &'static [LonghandId],
+            pub parse: FnParseProperty,
+        }
+
         ascii_case_insensitive_phf_map! {
-            declaration_parsing_function_by_name -> FnParseProperty = {
+            property_data_by_name -> PropertyData = {
                 $($(
-                    $name => |parser, declarations| {
-                        let v = Parse::parse(parser)?;
-                        declarations.push(LonghandDeclaration::$ident(v));
-                        Ok(())
+                    $name => PropertyData {
+                        longhands: &[LonghandId::$ident],
+                        parse: |parser, declarations| {
+                            let v = Parse::parse(parser)?;
+                            declarations.push(LonghandDeclaration::$ident(v));
+                            Ok(())
+                        },
                     },
                 )+)+
                 $(
-                    $shorthand_name => |parser, declarations| {
-                        let $shorthand_struct {
+                    $shorthand_name => PropertyData {
+                        longhands: &[
                             $(
-                                $shorthand_field: $longhand_ident,
+                                LonghandId::$longhand_ident,
                             )+
-                        } = Parse::parse(parser)?;
-                        $(
-                            declarations.push(
-                                LonghandDeclaration::$longhand_ident($longhand_ident)
-                            );
-                        )+
-                        Ok(())
+                        ],
+                        parse: |parser, declarations| {
+                            let $shorthand_struct {
+                                $(
+                                    $shorthand_field: $longhand_ident,
+                                )+
+                            } = Parse::parse(parser)?;
+                            $(
+                                declarations.push(
+                                    LonghandDeclaration::$longhand_ident($longhand_ident)
+                                );
+                            )+
+                            Ok(())
+                        },
                     },
                 )+
             }

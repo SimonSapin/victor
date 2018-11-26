@@ -1,5 +1,5 @@
 use crate::style::errors::{PropertyParseErrorKind, RuleParseErrorKind};
-use crate::style::properties::{declaration_parsing_function_by_name, LonghandDeclaration};
+use crate::style::properties::{property_data_by_name, LonghandDeclaration};
 use crate::style::selectors::{self, SelectorList};
 use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
@@ -82,8 +82,8 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
         name: CowRcStr<'i>,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::Declaration, ParseError<'i, Self::Error>> {
-        if let Some(parse) = declaration_parsing_function_by_name(&name) {
-            parse(parser, &mut self.declarations)
+        if let Some(data) = property_data_by_name(&name) {
+            (data.parse)(parser, &mut self.declarations)
         } else {
             Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))
         }
