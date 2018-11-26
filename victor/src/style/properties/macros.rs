@@ -1,3 +1,8 @@
+use crate::style::errors::PropertyParseError;
+use crate::style::values::{Parse, ToComputedValue};
+use cssparser::Parser;
+use std::rc::Rc;
+
 macro_rules! properties {
     (
         type Discriminant = $DiscriminantType: ident;
@@ -29,7 +34,7 @@ macro_rules! properties {
         #[derive(Clone)]
         pub struct ComputedValues {
             $(
-                pub $struct_name: std::rc::Rc<style_structs::$struct_name>,
+                pub $struct_name: Rc<style_structs::$struct_name>,
             )+
         }
 
@@ -40,7 +45,7 @@ macro_rules! properties {
                 #[derive(Clone)]  // FIXME: only for inherited structs?
                 pub struct $struct_name {
                     $(
-                        pub $ident: <$ValueType as crate::style::values::ToComputedValue>::Computed,
+                        pub $ident: <$ValueType as ToComputedValue>::Computed,
                     )+
                 }
             )+
@@ -53,7 +58,7 @@ macro_rules! properties {
                 thread_local! {
                     static INITIAL_VALUES: ComputedValues = ComputedValues {
                         $(
-                            $struct_name: std::rc::Rc::new(
+                            $struct_name: Rc::new(
                                 style_structs::$struct_name {
                                     $(
                                         $ident: $initial_value,
@@ -72,7 +77,7 @@ macro_rules! properties {
                         }
                         ComputedValues {
                             $(
-                                $struct_name: std::rc::Rc::clone(
+                                $struct_name: Rc::clone(
                                     &select!($inherited, parent, initial).$struct_name
                                 ),
                             )+
@@ -83,8 +88,8 @@ macro_rules! properties {
                 })
             }
 
-            pub fn anonymous_inheriting_from(parent_style: &Self) -> std::rc::Rc<Self> {
-                std::rc::Rc::new(Self::new_inheriting_from(Some(parent_style)))
+            pub fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
+                Rc::new(Self::new_inheriting_from(Some(parent_style)))
             }
         }
 
@@ -114,8 +119,8 @@ macro_rules! properties {
                             let declaration = unsafe {
                                 &*ptr
                             };
-                            std::rc::Rc::make_mut(&mut computed.$struct_name).$ident =
-                                crate::style::values::ToComputedValue::to_computed(&declaration.value)
+                            Rc::make_mut(&mut computed.$struct_name).$ident =
+                                ToComputedValue::to_computed(&declaration.value)
                         },
                     )+)+
                 ];
@@ -125,14 +130,14 @@ macro_rules! properties {
 
         type FnParseProperty =
             for<'i, 't>
-            fn(&mut cssparser::Parser<'i, 't>, &mut Vec<LonghandDeclaration>)
-            -> Result<(), crate::style::errors::PropertyParseError<'i>>;
+            fn(&mut Parser<'i, 't>, &mut Vec<LonghandDeclaration>)
+            -> Result<(), PropertyParseError<'i>>;
 
         ascii_case_insensitive_phf_map! {
             declaration_parsing_function_by_name -> FnParseProperty = {
                 $($(
                     $name => |parser, declarations| {
-                        let v = <$ValueType as crate::style::values::Parse>::parse(parser)?;
+                        let v = Parse::parse(parser)?;
                         declarations.push(LonghandDeclaration::$ident(v));
                         Ok(())
                     },
@@ -153,7 +158,7 @@ macro_rules! parse_four_sides {
                 left,
                 bottom,
                 right,
-            } = <FourSides<_> as crate::style::values::Parse>::parse(parser)?;
+            } = Parse::parse(parser)?;
             declarations.push(LonghandDeclaration::$Top(top));
             declarations.push(LonghandDeclaration::$Left(left));
             declarations.push(LonghandDeclaration::$Bottom(bottom));
