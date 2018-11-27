@@ -103,7 +103,7 @@ impl<'a> Drop for InProgressPage<'a> {
         let content_id = self
             .doc
             .pdf
-            .add_stream(dictionary!{}, self.operations.as_slice().into());
+            .add_stream(dictionary! {}, self.operations.as_slice().into());
         let page_id = self.doc.pdf.add_dictionary(dictionary! {
             "Type" => "Page",
             "Parent" => PAGE_TREE_ID,
@@ -353,7 +353,7 @@ impl<'a> InProgressPage<'a> {
         let to_unicode_id = self
             .doc
             .pdf
-            .add_stream(dictionary!{}, to_unicode_cmap.into());
+            .add_stream(dictionary! {}, to_unicode_cmap.into());
         // Type 0 Font Dictionaries
         // https://www.adobe.com/content/dam/acom/en/devnet/pdf/PDF32000_2008.pdf#G8.1859105
 

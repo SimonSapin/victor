@@ -56,13 +56,17 @@ pub const CAIRO_ANTIALIAS_BEST: cairo_antialias_t = 6;
 pub const CAIRO_FORMAT_ARGB32: cairo_format_t = 0;
 pub const CAIRO_FORMAT_RGB24: cairo_format_t = 1;
 
-pub type cairo_read_func_t =
-    unsafe extern "C" fn(closure: *mut c_void, data: *mut c_uchar, length: c_uint)
-        -> cairo_status_t;
+pub type cairo_read_func_t = unsafe extern "C" fn(
+    closure: *mut c_void,
+    data: *mut c_uchar,
+    length: c_uint,
+) -> cairo_status_t;
 
-pub type cairo_write_func_t =
-    unsafe extern "C" fn(closure: *mut c_void, data: *const c_uchar, length: c_uint)
-        -> cairo_status_t;
+pub type cairo_write_func_t = unsafe extern "C" fn(
+    closure: *mut c_void,
+    data: *const c_uchar,
+    length: c_uint,
+) -> cairo_status_t;
 
 #[repr(C)]
 pub struct cairo_surface_t {
