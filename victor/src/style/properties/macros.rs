@@ -19,7 +19,7 @@ macro_rules! properties {
         )+
         @shorthands {
             $(
-                $shorthand_name: tt => $shorthand_struct: ident {
+                $shorthand_name: tt => $shorthand_struct: path {
                     $(
                         $shorthand_field: ident: $longhand_ident: ident,
                     )+
@@ -133,10 +133,6 @@ macro_rules! properties {
         }
 
         impl ComputedValues {
-            pub fn initial() -> Rc<Self> {
-                INITIAL_VALUES.with(|initial| initial.clone())
-            }
-
             pub fn new_inheriting_from(inherited: &Self, initial: &Self) -> Self {
                 macro_rules! select {
                     (inherited) => { inherited };
@@ -147,23 +143,7 @@ macro_rules! properties {
                         $struct_name: Rc::clone(&select!($inherited).$struct_name),
                     )+
                 }
-        }
-
-            pub fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-                INITIAL_VALUES.with(|initial| {
-                    Rc::new(Self::new_inheriting_from(parent_style, initial))
-                })
             }
-        }
-
-        type FnParseProperty =
-            for<'i, 't>
-            fn(&mut Parser<'i, 't>, &mut Vec<LonghandDeclaration>)
-            -> Result<(), PropertyParseError<'i>>;
-
-        pub struct PropertyData {
-            pub longhands: &'static [LonghandId],
-            pub parse: FnParseProperty,
         }
 
         ascii_case_insensitive_phf_map! {
@@ -193,7 +173,11 @@ macro_rules! properties {
                             } = Parse::parse(parser)?;
                             $(
                                 declarations.push(
-                                    LonghandDeclaration::$longhand_ident($longhand_ident)
+                                    ValueOrInitial::into(
+                                        $longhand_ident,
+                                        LonghandId::$longhand_ident,
+                                        LonghandDeclaration::$longhand_ident,
+                                    )
                                 );
                             )+
                             Ok(())
@@ -201,6 +185,54 @@ macro_rules! properties {
                     },
                 )+
             }
+        }
+
+    }
+}
+
+impl ComputedValues {
+    pub fn initial() -> Rc<Self> {
+        INITIAL_VALUES.with(|initial| initial.clone())
+    }
+
+    pub fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
+        INITIAL_VALUES.with(|initial| Rc::new(Self::new_inheriting_from(parent_style, initial)))
+    }
+}
+
+type FnParseProperty = for<'i, 't> fn(
+    &mut Parser<'i, 't>,
+    &mut Vec<LonghandDeclaration>,
+) -> Result<(), PropertyParseError<'i>>;
+
+pub struct PropertyData {
+    pub longhands: &'static [LonghandId],
+    pub parse: FnParseProperty,
+}
+
+trait ValueOrInitial<T> {
+    fn into<F>(self, id: LonghandId, constructor: F) -> LonghandDeclaration
+    where
+        F: Fn(T) -> LonghandDeclaration;
+}
+
+impl<T> ValueOrInitial<T> for T {
+    fn into<F>(self, _id: LonghandId, constructor: F) -> LonghandDeclaration
+    where
+        F: Fn(T) -> LonghandDeclaration,
+    {
+        constructor(self)
+    }
+}
+
+impl<T> ValueOrInitial<T> for Option<T> {
+    fn into<F>(self, id: LonghandId, constructor: F) -> LonghandDeclaration
+    where
+        F: Fn(T) -> LonghandDeclaration,
+    {
+        match self {
+            Some(value) => constructor(value),
+            None => LonghandDeclaration::CssWide(id, CssWideKeyword::Initial),
         }
     }
 }

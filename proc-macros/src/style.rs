@@ -16,7 +16,7 @@ pub fn derive_computed_as_specified(input: proc_macro::TokenStream) -> proc_macr
 }
 
 #[proc_macro_derive(Parse)]
-pub fn derive_parse_single_keyword(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = &input.ident;
 

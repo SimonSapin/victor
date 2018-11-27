@@ -1,6 +1,7 @@
 use crate::style::errors::PropertyParseError;
-use cssparser::Parser;
+use cssparser::{Color, Parser};
 
+pub mod border;
 pub mod generic;
 pub mod length;
 
@@ -11,6 +12,19 @@ pub trait Parse: Sized {
 pub trait ToComputedValue {
     type Computed;
     fn to_computed(&self) -> Self::Computed;
+}
+
+impl Parse for Color {
+    fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
+        Ok(Color::parse(parser)?)
+    }
+}
+
+impl ToComputedValue for Color {
+    type Computed = Self;
+    fn to_computed(&self) -> Self {
+        self.clone()
+    }
 }
 
 #[derive(Copy, Clone, Parse)]
