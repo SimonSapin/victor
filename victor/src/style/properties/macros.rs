@@ -3,24 +3,6 @@ use crate::style::values::{CssWideKeyword, Parse, ToComputedValue};
 use cssparser::Parser;
 use std::rc::Rc;
 
-/// https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
-macro_rules! unsafe_cast_to_enum_fields {
-    ($declaration: expr => { tag: $DiscriminantType: ty, $($field: ident: $ty: ty,)+ }) => {{
-        #[repr(C)]
-        struct Repr {
-            tag: $DiscriminantType,
-            $(
-                $field: $ty,
-            )+
-        }
-        let ptr: *const LonghandDeclaration = $declaration;
-        let ptr = ptr as *const Repr;
-        unsafe {
-            &*ptr
-        }
-    }};
-}
-
 macro_rules! properties {
     (
         type Discriminant = $DiscriminantType: ident;
@@ -45,22 +27,73 @@ macro_rules! properties {
             )+
         }
     ) => {
-        #[repr($DiscriminantType)]
-        #[derive(Copy, Clone)]
-        #[allow(non_camel_case_types)]
-        pub enum LonghandId {
-            $($(
-                $ident,
-            )+)+
+        tagged_union_with_jump_tables! {
+            #[repr($DiscriminantType)]
+            #[derive(Copy, Clone)]
+            #[allow(non_camel_case_types)]
+            pub enum LonghandId {
+                $($(
+                    $ident,
+                )+)+
+            }
+
+            pub fn cascade_css_wide_keyword_into(
+                &self,
+                keyword: CssWideKeyword,
+                computed: &mut ComputedValues,
+                inherited: &ComputedValues,
+            ) -> () {
+                match *self {
+                    $($(
+                        LonghandId::$ident => {
+                            macro_rules! unset_is_initial {
+                                (inherited) => { false };
+                                (reset) => { true };
+                            }
+                            let is_initial = match keyword {
+                                CssWideKeyword::Initial => true,
+                                CssWideKeyword::Inherit => false,
+                                CssWideKeyword::Unset => unset_is_initial!($inherited),
+                            };
+                            Rc::make_mut(&mut computed.$struct_name).$ident =
+                            if is_initial {
+                                $initial_value
+                            } else {
+                                inherited.$struct_name.$ident.clone()
+                            };
+                        }
+                    )+)+
+                }
+            }
         }
 
-        #[repr($DiscriminantType)]
-        #[allow(non_camel_case_types)]
-        pub enum LonghandDeclaration {
-            $($(
-                $ident($ValueType),
-            )+)+
-            CssWide(LonghandId, CssWideKeyword)
+        tagged_union_with_jump_tables! {
+            #[repr($DiscriminantType)]
+            #[allow(non_camel_case_types)]
+            pub enum LonghandDeclaration {
+                $($(
+                    $ident($ValueType),
+                )+)+
+                CssWide(LonghandId, CssWideKeyword)
+            }
+
+            pub fn cascade_into(
+                &self,
+                computed: &mut ComputedValues,
+                inherited: &ComputedValues,
+            ) -> () {
+                match *self {
+                    $($(
+                        LonghandDeclaration::$ident(ref value) => {
+                            Rc::make_mut(&mut computed.$struct_name).$ident =
+                                ToComputedValue::to_computed(value)
+                        }
+                    )+)+
+                    LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
+                        longhand.cascade_css_wide_keyword_into(*keyword, computed, inherited)
+                    }
+                }
+            }
         }
 
         #[derive(Clone)]
@@ -120,73 +153,6 @@ macro_rules! properties {
                 INITIAL_VALUES.with(|initial| {
                     Rc::new(Self::new_inheriting_from(parent_style, initial))
                 })
-            }
-        }
-
-        impl LonghandDeclaration {
-            fn id(&self) -> $DiscriminantType {
-                // #[repr(u8)] guarantees that an enum’s representation starts with a u8 tag:
-                // https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
-                let ptr: *const LonghandDeclaration = self;
-                let ptr = ptr as *const $DiscriminantType;
-                unsafe {
-                    *ptr
-                }
-            }
-
-            pub fn cascade_into(
-                &self,
-                computed: &mut ComputedValues,
-                inherited: &ComputedValues,
-            ) {
-                static CASCADE_FNS: &'static [
-                    fn(&LonghandDeclaration, &mut ComputedValues, &ComputedValues)
-                ] = &[
-                    $($(
-                        |declaration, computed, _inherited| {
-                            let fields = unsafe_cast_to_enum_fields!(declaration => {
-                                tag: $DiscriminantType,
-                                value: $ValueType,
-                            });
-                            Rc::make_mut(&mut computed.$struct_name).$ident =
-                                ToComputedValue::to_computed(&fields.value)
-                        },
-                    )+)+
-                    // LonghandDeclaration::CssWide
-                    |declaration, computed, inherited| {
-                        let fields = unsafe_cast_to_enum_fields!(declaration => {
-                            tag: $DiscriminantType,
-                            longhand: LonghandId,
-                            keyword: CssWideKeyword,
-                        });
-                        static CASCADE_CSS_WIDE_FNS: &'static [
-                            fn(CssWideKeyword, &mut ComputedValues, &ComputedValues)
-                        ] = &[
-                            $($(
-                                |keyword, computed, inherited| {
-                                    macro_rules! unset_is_initial {
-                                        (inherited) => { false };
-                                        (reset) => { true };
-                                    }
-                                    let is_initial = match keyword {
-                                        CssWideKeyword::Initial => true,
-                                        CssWideKeyword::Inherit => false,
-                                        CssWideKeyword::Unset => unset_is_initial!($inherited),
-                                    };
-                                    Rc::make_mut(&mut computed.$struct_name).$ident =
-                                    if is_initial {
-                                        $initial_value
-                                    } else {
-                                        inherited.$struct_name.$ident.clone()
-                                    };
-                                },
-                            )+)+
-                        ];
-                        CASCADE_CSS_WIDE_FNS[fields.longhand as usize]
-                            (fields.keyword, computed, inherited)
-                    }
-                ];
-                CASCADE_FNS[self.id() as usize](self, computed, inherited)
             }
         }
 
