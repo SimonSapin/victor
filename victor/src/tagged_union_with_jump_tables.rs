@@ -1,6 +1,3 @@
-// FIXME use `?` zero-or-one repetition when it is stable
-// https://github.com/rust-lang/rust/issues/48075
-
 /// Create an enum with methods that match on it,
 /// where matching is implemented as a jump table
 /// (static array of function pointers, indexed by discriminant).
@@ -21,11 +18,11 @@ macro_rules! tagged_union_with_jump_tables {
                         $(
                             $variant_field_type: ty
                         ),*
-                        $(,)*  // FIXME #48075
+                        $(,)?
                     )
-                )*  // FIXME #48075
+                )?
             ),*
-            $(,)*  // FIXME #48075
+            $(,)?
         }
 
         $($tail: tt)*
@@ -43,7 +40,7 @@ macro_rules! tagged_union_with_jump_tables {
             tagged_union_with_jump_tables! {
                 @methods
                 $discriminant_type
-                $EnumName { $( $Variant $( ($( $variant_field_type )*) )* )* }
+                $EnumName { $( $Variant ($( $( $variant_field_type )* )?) )* }
                 $($tail)*
             }
         }
@@ -51,18 +48,18 @@ macro_rules! tagged_union_with_jump_tables {
     (
         @methods
         $discriminant_type: ident
-        $EnumName: ident { $( $Variant: ident $( ($( $variant_field_type: ty )*) )* )* }
+        $EnumName: ident { $( $Variant: ident ($( $variant_field_type: ty )*) )* }
 
         $visibility: vis fn $method: ident(
             &self
             $( , $arg: ident: $arg_type: ty)*
-            $(,)*  // FIXME #48075
+            $(,)?
         ) -> $ret: ty  {
             match *self {
                 $(
                     $ReEnumName: ident::$MatchedVariant: ident $( (
-                        $(ref $matched_field: ident),* $(,)*
-                    ) )*  // FIXME #48075
+                        $(ref $matched_field: ident),* $(,)?
+                    ) )?
                     =>  $block: block
                 )*
             }
@@ -88,8 +85,8 @@ macro_rules! tagged_union_with_jump_tables {
                 @closures_table
                 $EnumName $discriminant_type
                 [ $($arg)* ]
-                [ $( $Variant [ $( ($( $variant_field_type )*) )* ] )* ]
-                [ $( $ReEnumName $MatchedVariant $( ($( $matched_field )*) )* $block )* ]
+                [ $( $Variant ($( $variant_field_type )*) )* ]
+                [ $( $ReEnumName $MatchedVariant ($( $( $matched_field )* )?) $block )* ]
                 []
             };
         }
@@ -97,14 +94,14 @@ macro_rules! tagged_union_with_jump_tables {
         tagged_union_with_jump_tables! {
             @methods
             $discriminant_type
-            $EnumName { $( $Variant $( ($( $variant_field_type )*) )* )* }
+            $EnumName { $( $Variant ($( $variant_field_type )*) )* }
             $($tail)*
         }
     };
     (
         @methods
         $discriminant_type: ident
-        $EnumName: ident { $( $Variant: ident $( ($( $variant_field_type: ty )*) )* )* }
+        $EnumName: ident { $( $Variant: ident $( ($( $variant_field_type: ty )*) )? )* }
     ) => {
         // Base case for recursion over methods
     };
@@ -114,14 +111,12 @@ macro_rules! tagged_union_with_jump_tables {
         [ $($arg: ident)* ]
         [
             $Variant: ident
-            [ $(
-                ($( $variant_field_type: ty )*)
-            )* ]
+            ($( $variant_field_type: ty )*)
             $($variants_tail: tt)*
         ]
         [
             $ReEnumName: ident $MatchedVariant: ident
-            $( ($( $matched_field: ident )*) )*
+            ($( $matched_field: ident )*)
             $block: block
             $($matched_tail: tt)*
         ]
@@ -152,10 +147,10 @@ macro_rules! tagged_union_with_jump_tables {
                     #[repr(C)]
                     struct Variant(
                         $discriminant_type  // tag
-                        $( $(, $variant_field_type )* )*
+                        $(, $variant_field_type )*
                     );
                     let ptr = ptr as *const Variant;
-                    let &Variant(_, $( $( ref $matched_field ),* )*) = unsafe { &*ptr };
+                    let &Variant(_, $( ref $matched_field ),*) = unsafe { &*ptr };
                     $block
                 },
             ]
