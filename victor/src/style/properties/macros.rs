@@ -42,7 +42,7 @@ macro_rules! properties {
                 keyword: CssWideKeyword,
                 computed: &mut ComputedValues,
                 inherited: &ComputedValues,
-            ) -> () {
+            ) {
                 match *self {
                     $($(
                         LonghandId::$ident => {
@@ -81,7 +81,7 @@ macro_rules! properties {
                 &self,
                 computed: &mut ComputedValues,
                 inherited: &ComputedValues,
-            ) -> () {
+            ) {
                 match *self {
                     $($(
                         LonghandDeclaration::$ident(ref value) => {

@@ -54,7 +54,7 @@ macro_rules! tagged_union_with_jump_tables {
             &self
             $( , $arg: ident: $arg_type: ty)*
             $(,)?
-        ) -> $ret: ty  {
+        ) $( -> $ret: ty )?  {
             match *self {
                 $(
                     $ReEnumName: ident::$MatchedVariant: ident $( (
@@ -67,7 +67,7 @@ macro_rules! tagged_union_with_jump_tables {
 
         $($tail: tt)*
     ) => {
-        $visibility fn $method(&self $(, $arg: $arg_type)*) -> $ret {
+        $visibility fn $method(&self $(, $arg: $arg_type)*) $( -> $ret )? {
             // The layout of an enum with #[repr($Int)] always starts
             // with the discriminant, an integer tag of type $Int
             #[repr(C)]
@@ -80,7 +80,7 @@ macro_rules! tagged_union_with_jump_tables {
             let tag = unsafe { (*ptr).tag };
             return JUMP_TABLE[tag as usize](self $(, $arg)*);
             static JUMP_TABLE: &'static [
-                fn(&$EnumName $(, $arg_type)*) -> $ret
+                fn(&$EnumName $(, $arg_type)*) $( -> $ret )?
             ] = tagged_union_with_jump_tables! {
                 @closures_table
                 $EnumName $discriminant_type
