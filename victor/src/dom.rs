@@ -1,12 +1,15 @@
 //! This is *a* Document Object Model, but is not necessarily compatible with *the* DOM.
 
 mod html;
+mod xml;
 
 use crate::style::StyleSetBuilder;
 use html5ever::tendril::StrTendril;
 use html5ever::{Attribute, ExpandedName, LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
+
+pub use self::xml::XmlError;
 
 pub struct Document {
     nodes: Vec<Node>,
