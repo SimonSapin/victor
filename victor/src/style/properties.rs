@@ -6,7 +6,7 @@ use cssparser::Color;
 
 // `include` rather than `mod` so that macro definition and use are in the same scope,
 // which makes `use` imports easier.
-include!("macros.rs");
+include!("properties/macros.rs");
 
 properties! {
     type Discriminant = u8;
