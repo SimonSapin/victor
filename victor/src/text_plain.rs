@@ -65,7 +65,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
         |(position, is_hard_break)| {
             let range = previous_break_position..position;
             previous_break_position = position;
-            let text_segment = text[range].trim_right_matches('\n');
+            let text_segment = text[range].trim_end_matches('\n');
             let segment = ShapedSegment::naive_shape(text_segment, style.font.clone())?;
             Ok((segment, is_hard_break))
         },
