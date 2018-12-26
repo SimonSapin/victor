@@ -101,6 +101,10 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                         children: previous_grand_children,
                     });
                     first = false;
+                    // FIXME: wrap this block in an anonymous block that inherits
+                    // **some** properties from the inline being split,
+                    // in order to handle cases like this inline being `position: relative`.
+                    // https://github.com/servo/servo/issues/22397#issuecomment-446678506
                     Extra::push_block(self, block)
                 }
                 let grand_children = builder.consecutive_inline_levels;
