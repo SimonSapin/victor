@@ -1,6 +1,6 @@
 use super::length::{Length, SpecifiedLength};
 use super::Parse;
-use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
+use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
 use euclid;
 use std::marker::PhantomData;
@@ -69,7 +69,8 @@ macro_rules! parse_one_or_more {
                 if any {
                     Ok(values)
                 } else {
-                    Err(parser.new_custom_error(PropertyParseErrorKind::Other))
+                    let token = parser.next()?.clone();
+                    Err(parser.new_unexpected_token_error(token))
                 }
             }
         }

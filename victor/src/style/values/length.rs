@@ -13,16 +13,19 @@ pub enum SpecifiedLength {
 
 impl Parse for SpecifiedLength {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
-        match *parser.next()? {
-            Token::Dimension {
-                value, ref unit, ..
-            } => match_ignore_ascii_case!(unit,
-                "px" => return Ok(SpecifiedLength::Px(Length::new(value))),
-                _ => {}
+        match parser.next()? {
+            Token::Dimension { value, unit, .. } => match_ignore_ascii_case!(unit,
+                "px" => Ok(SpecifiedLength::Px(Length::new(*value))),
+                _ => {
+                    let u = unit.clone();
+                    Err(parser.new_custom_error(PropertyParseErrorKind::UnknownUnit(u)))
+                }
             ),
-            _ => {}
+            token => {
+                let t = token.clone();
+                Err(parser.new_unexpected_token_error(t))
+            }
         }
-        Err(parser.new_custom_error(PropertyParseErrorKind::Other))
     }
 }
 

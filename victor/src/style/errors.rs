@@ -5,7 +5,7 @@ pub type PropertyParseError<'i> = ParseError<'i, PropertyParseErrorKind<'i>>;
 
 pub enum PropertyParseErrorKind<'i> {
     UnknownProperty(CowRcStr<'i>),
-    Other,
+    UnknownUnit(CowRcStr<'i>),
 }
 
 pub enum RuleParseErrorKind<'i> {
