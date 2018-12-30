@@ -1,6 +1,6 @@
 use super::*;
 use crate::dom;
-use crate::style::values::*;
+use crate::style::values::display::*;
 use crate::style::*;
 
 impl dom::Document {

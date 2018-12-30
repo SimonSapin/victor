@@ -1,7 +1,4 @@
-use crate::style::values::border::*;
-use crate::style::values::generic::FourSides;
-use crate::style::values::length::*;
-use crate::style::values::*;
+use crate::style::values::{border::*, display::*, generic::*, length::*};
 use cssparser::Color;
 
 // `include` rather than `mod` so that macro definition and use are in the same scope,
