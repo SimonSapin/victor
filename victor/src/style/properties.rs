@@ -26,6 +26,13 @@ properties! {
         margin_right { "margin-right", Length, initial = PxLength::new(0.) }
     }
 
+    reset struct padding {
+        padding_top { "padding-top", Length, initial = PxLength::new(0.) }
+        padding_left { "padding-left", Length, initial = PxLength::new(0.) }
+        padding_bottom { "padding-bottom", Length, initial = PxLength::new(0.) }
+        padding_right { "padding-right", Length, initial = PxLength::new(0.) }
+    }
+
     reset struct border {
         border_top_color { "border-top-color", Color, initial = Color::CurrentColor }
         border_left_color { "border-left-color", Color, initial = Color::CurrentColor }
@@ -60,6 +67,12 @@ properties! {
             left: margin_left,
             bottom: margin_bottom,
             right: margin_right,
+        }
+        "padding" => FourSides<Length> {
+            top: padding_top,
+            left: padding_left,
+            bottom: padding_bottom,
+            right: padding_right,
         }
         "border-style" => FourSides<LineStyle> {
             top: border_top_style,

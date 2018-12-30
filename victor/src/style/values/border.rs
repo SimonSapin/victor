@@ -12,6 +12,13 @@ pub enum LineStyle {
     Solid,
 }
 
+#[derive(Parse)]
+enum LineWidthKeyword {
+    Thin,
+    Medium,
+    Thick,
+}
+
 #[derive(Copy, Clone)]
 pub struct LineWidth(pub Length);
 
@@ -31,8 +38,18 @@ impl ToComputedValue for LineWidth {
 
 impl Parse for LineWidth {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
-        // FIXME keywords
-        Length::parse(parser).map(LineWidth)
+        parser
+            .r#try(Length::parse)
+            .or_else(|_| {
+                Ok(Length::Px(PxLength::new(
+                    match LineWidthKeyword::parse(parser)? {
+                        LineWidthKeyword::Thin => 1.0,
+                        LineWidthKeyword::Medium => 3.0,
+                        LineWidthKeyword::Thick => 5.0,
+                    },
+                )))
+            })
+            .map(LineWidth)
     }
 }
 
