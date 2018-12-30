@@ -1,7 +1,7 @@
 #[proc_macro_derive(SpecifiedAsComputed)]
 pub fn derive_specified_as_computed(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
-    let name = &input.ident;
+    let name = input.ident;
     quote!(
         impl crate::style::values::FromSpecified for #name {
             type SpecifiedValue = Self;
@@ -9,19 +9,20 @@ pub fn derive_specified_as_computed(input: proc_macro::TokenStream) -> proc_macr
                 std::clone::Clone::clone(specified)
             }
         }
-    ).into()
+    )
+    .into()
 }
 
 #[proc_macro_derive(FromSpecified)]
 pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
-    let name = &input.ident;
+    let name = input.ident;
     let specified = syn::Ident::new(&format!("Specified{}", name), name.span());
     let gen_variant = |fields, variant| match fields {
-        &syn::Fields::Unit => quote! {
+        syn::Fields::Unit => quote! {
             #specified #variant => #name  #variant,
         },
-        &syn::Fields::Unnamed(_) => {
+        syn::Fields::Unnamed(_) => {
             let fields = &fields
                 .iter()
                 .enumerate()
@@ -37,7 +38,7 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
                 ),
             }
         }
-        &syn::Fields::Named(_) => {
+        syn::Fields::Named(_) => {
             let fields = &fields
                 .iter()
                 .map(|field| field.ident.as_ref().unwrap())
@@ -52,14 +53,14 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
             }
         }
     };
-    let variants = match &input.data {
-        syn::Data::Struct(data) => vec![gen_variant(&data.fields, quote!())],
+    let variants = match input.data {
+        syn::Data::Struct(data) => vec![gen_variant(data.fields, quote!())],
         syn::Data::Enum(data) => data
             .variants
-            .iter()
+            .into_iter()
             .map(|variant| {
-                let variant_name = &variant.ident;
-                gen_variant(&variant.fields, quote!(:: #variant_name))
+                let variant_name = variant.ident;
+                gen_variant(variant.fields, quote!(:: #variant_name))
             })
             .collect(),
         syn::Data::Union(_) => unimplemented!(),
@@ -81,7 +82,7 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
 #[proc_macro_derive(Parse)]
 pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
-    let name = &input.ident;
+    let name = input.ident;
 
     let variants: Vec<_> = match input.data {
         syn::Data::Enum(data) => data
@@ -94,22 +95,7 @@ pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let names: Vec<_> = variants
         .iter()
-        .map(|ident| {
-            let mut name = String::new();
-            for c in ident.to_string().chars() {
-                if c.is_ascii_lowercase() {
-                    name.push(c)
-                } else if c.is_ascii_uppercase() {
-                    if !name.is_empty() {
-                        name.push('-')
-                    }
-                    name.push(c.to_ascii_lowercase())
-                } else {
-                    panic!("Unsupported variant name char {:?}", c)
-                }
-            }
-            name
-        })
+        .map(|ident| camel_case_to_kebab_case(&ident.to_string()))
         .collect();
 
     quote!(
@@ -130,5 +116,26 @@ pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
         }
-    ).into()
+    )
+    .into()
+}
+
+fn camel_case_to_kebab_case(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.to_string().chars() {
+        if c.is_ascii_lowercase() {
+            out.push(c)
+        } else if c.is_ascii_uppercase() {
+            if !out.is_empty() {
+                out.push('-')
+            }
+            out.push(c.to_ascii_lowercase())
+        } else {
+            panic!(
+                "Unsupported char {:?}, converting {:?} from CamelCase",
+                c, s
+            )
+        }
+    }
+    out
 }
