@@ -1,5 +1,5 @@
 use super::length::{Length, SpecifiedLength};
-use super::{FromSpecified, Parse};
+use super::Parse;
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
 use cssparser::{Color, Parser};
 use euclid;
@@ -22,18 +22,11 @@ enum LineWidthKeyword {
 #[derive(Clone)]
 pub struct SpecifiedLineWidth(pub SpecifiedLength);
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromSpecified)]
 pub struct LineWidth(pub Length);
 
 impl LineWidth {
     pub const MEDIUM: Self = LineWidth(euclid::Length(3., PhantomData));
-}
-
-impl FromSpecified for LineWidth {
-    type SpecifiedValue = SpecifiedLineWidth;
-    fn from_specified(specified: &SpecifiedLineWidth) -> Self {
-        LineWidth(FromSpecified::from_specified(&specified.0))
-    }
 }
 
 impl Parse for SpecifiedLineWidth {
