@@ -1,5 +1,5 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{CssWideKeyword, Parse, ToComputedValue};
+use crate::style::values::{CssWideKeyword, Parse, FromSpecified};
 use cssparser::Parser;
 use std::rc::Rc;
 
@@ -72,7 +72,7 @@ macro_rules! properties {
             #[allow(non_camel_case_types)]
             pub enum LonghandDeclaration {
                 $($(
-                    $ident($ValueType),
+                    $ident(<$ValueType as FromSpecified>::SpecifiedValue),
                 )+)+
                 CssWide(LonghandId, CssWideKeyword)
             }
@@ -86,7 +86,7 @@ macro_rules! properties {
                     $($(
                         LonghandDeclaration::$ident(ref value) => {
                             Rc::make_mut(&mut computed.$struct_name).$ident =
-                                ToComputedValue::to_computed(value)
+                                FromSpecified::from_specified(value)
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
@@ -110,7 +110,7 @@ macro_rules! properties {
                 #[derive(Clone)]  // FIXME: only for inherited structs?
                 pub struct $struct_name {
                     $(
-                        pub $ident: <$ValueType as ToComputedValue>::Computed,
+                        pub $ident: $ValueType,
                     )+
                 }
             )+

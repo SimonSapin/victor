@@ -1,12 +1,12 @@
-use super::length::{Length, PxLength};
-use super::{Parse, ToComputedValue};
+use super::length::{Length, SpecifiedLength};
+use super::{FromSpecified, Parse};
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
 use cssparser::{Color, Parser};
 use euclid;
 use std::marker::PhantomData;
 
 /// https://drafts.csswg.org/css-backgrounds/#typedef-line-style
-#[derive(Copy, Clone, Parse, ComputedAsSpecified)]
+#[derive(Copy, Clone, Parse, SpecifiedAsComputed)]
 pub enum LineStyle {
     None,
     Solid,
@@ -19,29 +19,29 @@ enum LineWidthKeyword {
     Thick,
 }
 
+#[derive(Clone)]
+pub struct SpecifiedLineWidth(pub SpecifiedLength);
+
 #[derive(Copy, Clone)]
 pub struct LineWidth(pub Length);
 
-#[derive(Copy, Clone)]
-pub struct LineWidthComputed(pub PxLength);
-
 impl LineWidth {
-    pub const MEDIUM: LineWidthComputed = LineWidthComputed(euclid::Length(3., PhantomData));
+    pub const MEDIUM: Self = LineWidth(euclid::Length(3., PhantomData));
 }
 
-impl ToComputedValue for LineWidth {
-    type Computed = LineWidthComputed;
-    fn to_computed(&self) -> Self::Computed {
-        LineWidthComputed(self.0.to_computed())
+impl FromSpecified for LineWidth {
+    type SpecifiedValue = SpecifiedLineWidth;
+    fn from_specified(specified: &SpecifiedLineWidth) -> Self {
+        LineWidth(FromSpecified::from_specified(&specified.0))
     }
 }
 
-impl Parse for LineWidth {
+impl Parse for SpecifiedLineWidth {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
         parser
-            .r#try(Length::parse)
+            .r#try(SpecifiedLength::parse)
             .or_else(|_| {
-                Ok(Length::Px(PxLength::new(
+                Ok(SpecifiedLength::Px(Length::new(
                     match LineWidthKeyword::parse(parser)? {
                         LineWidthKeyword::Thin => 1.0,
                         LineWidthKeyword::Medium => 3.0,
@@ -49,7 +49,7 @@ impl Parse for LineWidth {
                     },
                 )))
             })
-            .map(LineWidth)
+            .map(SpecifiedLineWidth)
     }
 }
 
@@ -93,5 +93,5 @@ parse_one_or_more!(BorderSide {
 pub struct BorderSide {
     pub style: Option<LineStyle>,
     pub color: Option<Color>,
-    pub width: Option<LineWidth>,
+    pub width: Option<SpecifiedLineWidth>,
 }

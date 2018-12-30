@@ -1,6 +1,6 @@
 use crate::style::values::border::*;
 use crate::style::values::generic::FourSides;
-use crate::style::values::length::{Length, PxLength};
+use crate::style::values::length::*;
 use crate::style::values::*;
 use cssparser::Color;
 
@@ -15,22 +15,22 @@ properties! {
         font_size {
             "font-size",
             Length,
-            initial = PxLength::new(16.)
+            initial = Length::new(16.)
         }
     }
 
     reset struct margin {
-        margin_top { "margin-top", Length, initial = PxLength::new(0.) }
-        margin_left { "margin-left", Length, initial = PxLength::new(0.) }
-        margin_bottom { "margin-bottom", Length, initial = PxLength::new(0.) }
-        margin_right { "margin-right", Length, initial = PxLength::new(0.) }
+        margin_top { "margin-top", Length, initial = Length::new(0.) }
+        margin_left { "margin-left", Length, initial = Length::new(0.) }
+        margin_bottom { "margin-bottom", Length, initial = Length::new(0.) }
+        margin_right { "margin-right", Length, initial = Length::new(0.) }
     }
 
     reset struct padding {
-        padding_top { "padding-top", Length, initial = PxLength::new(0.) }
-        padding_left { "padding-left", Length, initial = PxLength::new(0.) }
-        padding_bottom { "padding-bottom", Length, initial = PxLength::new(0.) }
-        padding_right { "padding-right", Length, initial = PxLength::new(0.) }
+        padding_top { "padding-top", Length, initial = Length::new(0.) }
+        padding_left { "padding-left", Length, initial = Length::new(0.) }
+        padding_bottom { "padding-bottom", Length, initial = Length::new(0.) }
+        padding_right { "padding-right", Length, initial = Length::new(0.) }
     }
 
     reset struct border {
@@ -62,13 +62,13 @@ properties! {
     }
 
     @shorthands {
-        "margin" => FourSides<Length> {
+        "margin" => FourSides<SpecifiedLength> {
             top: margin_top,
             left: margin_left,
             bottom: margin_bottom,
             right: margin_right,
         }
-        "padding" => FourSides<Length> {
+        "padding" => FourSides<SpecifiedLength> {
             top: padding_top,
             left: padding_left,
             bottom: padding_bottom,
@@ -86,7 +86,7 @@ properties! {
             bottom: border_bottom_color,
             right: border_right_color,
         }
-        "border-width" => FourSides<LineWidth> {
+        "border-width" => FourSides<SpecifiedLineWidth> {
             top: border_top_width,
             left: border_left_width,
             bottom: border_bottom_width,

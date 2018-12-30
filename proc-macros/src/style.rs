@@ -1,13 +1,13 @@
-#[proc_macro_derive(ComputedAsSpecified)]
-pub fn derive_computed_as_specified(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(SpecifiedAsComputed)]
+pub fn derive_specified_as_computed(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = &input.ident;
 
     let tokens = quote! {
-        impl crate::style::values::ToComputedValue for #name {
-            type Computed = Self;
-            fn to_computed(&self) -> Self::Computed {
-                std::clone::Clone::clone(self)
+        impl crate::style::values::FromSpecified for #name {
+            type SpecifiedValue = Self;
+            fn from_specified(specified: &Self) -> Self {
+                std::clone::Clone::clone(specified)
             }
         }
     };

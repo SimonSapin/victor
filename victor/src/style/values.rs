@@ -9,9 +9,9 @@ pub trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;
 }
 
-pub trait ToComputedValue {
-    type Computed;
-    fn to_computed(&self) -> Self::Computed;
+pub trait FromSpecified {
+    type SpecifiedValue;
+    fn from_specified(specified: &Self::SpecifiedValue) -> Self;
 }
 
 impl Parse for Color {
@@ -20,10 +20,10 @@ impl Parse for Color {
     }
 }
 
-impl ToComputedValue for Color {
-    type Computed = Self;
-    fn to_computed(&self) -> Self {
-        self.clone()
+impl FromSpecified for Color {
+    type SpecifiedValue = Self;
+    fn from_specified(specified: &Self) -> Self {
+        specified.clone()
     }
 }
 
@@ -35,7 +35,7 @@ pub enum CssWideKeyword {
 }
 
 /// https://drafts.csswg.org/css-display-3/#the-display-properties
-#[derive(Copy, Clone, ComputedAsSpecified)]
+#[derive(Copy, Clone, SpecifiedAsComputed)]
 pub enum Display {
     None,
     Other {
