@@ -9,6 +9,7 @@ extern crate quote;
 extern crate syn;
 
 include!("style.rs");
+include!("generic.rs");
 
 use quote::ToTokens;
 
