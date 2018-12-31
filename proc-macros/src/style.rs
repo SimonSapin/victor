@@ -1,5 +1,7 @@
+use proc_macro::TokenStream;
+
 #[proc_macro_derive(SpecifiedAsComputed)]
-pub fn derive_specified_as_computed(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_specified_as_computed(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = input.ident;
     quote!(
@@ -14,15 +16,24 @@ pub fn derive_specified_as_computed(input: proc_macro::TokenStream) -> proc_macr
 }
 
 #[proc_macro_derive(FromSpecified)]
-pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_from_specified(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
-    let name = input.ident;
-    let specified = syn::Ident::new(&format!("Specified{}", name), name.span());
+    let name = &input.ident;
+    let (specified_type, specified_name) = if input.generics.type_params().next().is_none() {
+        let specified = syn::Ident::new(&format!("Specified{}", name), name.span());
+        (quote!(#specified), specified)
+    } else {
+        let type_params = input.generics.type_params().map(|p| &p.ident);
+        (
+            quote!(#name< #( #type_params::SpecifiedValue ),* >),
+            name.clone(),
+        )
+    };
     let gen_variant = |fields, variant| match fields {
-        syn::Fields::Unit => quote! {
-            #specified #variant => #name  #variant,
+        &syn::Fields::Unit => quote! {
+            #specified_name #variant => #name  #variant,
         },
-        syn::Fields::Unnamed(_) => {
+        &syn::Fields::Unnamed(_) => {
             let fields = &fields
                 .iter()
                 .enumerate()
@@ -31,21 +42,21 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
                 })
                 .collect::<Vec<_>>();
             quote! {
-                #specified #variant ( #( #fields ),* ) => #name #variant (
+                #specified_name #variant ( #( #fields ),* ) => #name #variant (
                     #(
                         FromSpecified::from_specified(#fields),
                     )*
                 ),
             }
         }
-        syn::Fields::Named(_) => {
+        &syn::Fields::Named(_) => {
             let fields = &fields
                 .iter()
                 .map(|field| field.ident.as_ref().unwrap())
                 .collect::<Vec<_>>();
             let fields2 = fields;
             quote! {
-                #specified #variant { #( #fields ),* } => #name #variant {
+                #specified_name #variant { #( #fields ),* } => #name #variant {
                     #(
                         #fields: FromSpecified::from_specified(#fields2),
                     )*
@@ -53,59 +64,53 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
             }
         }
     };
-    let variants = match input.data {
-        syn::Data::Struct(data) => vec![gen_variant(data.fields, quote!())],
+    let variants = match &input.data {
+        syn::Data::Struct(data) => vec![gen_variant(&data.fields, quote!())],
         syn::Data::Enum(data) => data
             .variants
-            .into_iter()
+            .iter()
             .map(|variant| {
-                let variant_name = variant.ident;
-                gen_variant(variant.fields, quote!(:: #variant_name))
+                let variant_name = &variant.ident;
+                gen_variant(&variant.fields, quote!(:: #variant_name))
             })
             .collect(),
         syn::Data::Union(_) => unimplemented!(),
     };
-    quote!(
-        impl crate::style::values::FromSpecified for #name {
-            type SpecifiedValue = #specified;
+    derive_trait(
+        &input,
+        quote!(crate::style::values::FromSpecified),
+        quote! {
+            type SpecifiedValue = #specified_type;
             fn from_specified(specified: &Self::SpecifiedValue) -> Self {
                 use crate::style::values::FromSpecified;
                 match specified {
                     #( #variants )*
                 }
             }
-        }
+        },
     )
-    .into()
 }
 
 #[proc_macro_derive(Parse)]
-pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_parse(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let predicates = where_clause.map(|w| &w.predicates);
-    let type_params = input
-        .generics
-        .type_params()
-        .map(|p| p.ident.clone())
-        .collect::<Vec<_>>();
+    let name = &input.ident;
 
     let mut unit_variants = Vec::new();
     let mut keywords = Vec::new();
     let mut single_unnamed_field_variants = Vec::new();
 
-    match input.data {
+    match &input.data {
         syn::Data::Enum(data) => {
-            for variant in data.variants {
+            for variant in &data.variants {
                 match variant.fields {
                     syn::Fields::Unit => {
-                        let variant = variant.ident;
+                        let variant = &variant.ident;
                         unit_variants.push(quote!(#name :: #variant));
                         keywords.push(camel_case_to_kebab_case(&variant.to_string()))
                     }
                     syn::Fields::Unnamed(_) if variant.fields.iter().len() == 1 => {
-                        let variant = variant.ident;
+                        let variant = &variant.ident;
                         single_unnamed_field_variants.push(quote!(#name :: #variant))
                     }
                     _ => unimplemented!(),
@@ -136,22 +141,18 @@ pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         })
     }
-
-    quote!(
-        impl #impl_generics crate::style::values::Parse for #name #ty_generics
-            where
-                #( #type_params: crate::style::values::Parse, )*
-                #predicates
-        {
+    derive_trait(
+        &input,
+        quote!(crate::style::values::Parse),
+        quote! {
             fn parse<'i, 't>(parser: &mut cssparser::Parser<'i, 't>)
                 -> Result<Self, crate::style::errors::PropertyParseError<'i>>
             {
                 #parse
                 Err(parser.new_error_for_next_token())
             }
-        }
+        },
     )
-    .into()
 }
 
 fn camel_case_to_kebab_case(s: &str) -> String {
@@ -172,4 +173,30 @@ fn camel_case_to_kebab_case(s: &str) -> String {
         }
     }
     out
+}
+
+fn derive_trait(
+    input: &syn::DeriveInput,
+    trait_: proc_macro2::TokenStream,
+    items: proc_macro2::TokenStream,
+) -> TokenStream {
+    let type_ = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let predicates = where_clause.map(|w| &w.predicates);
+    let additional_predicates = input
+        .generics
+        .type_params()
+        .map(|p| &p.ident)
+        .map(|p| quote! { #p: #trait_, })
+        .collect::<Vec<_>>();
+    quote!(
+        impl #impl_generics #trait_ for #type_ #ty_generics
+            where
+                #( #additional_predicates )*
+                #predicates
+        {
+            #items
+        }
+    )
+    .into()
 }

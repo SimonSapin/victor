@@ -2,6 +2,12 @@ use crate::style::errors::PropertyParseError;
 use crate::style::values::Parse;
 use cssparser::Parser;
 
+#[derive(Copy, Clone, Parse, FromSpecified)]
+pub enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
 pub struct FourSides<T> {
     pub top: T,
     pub left: T,
