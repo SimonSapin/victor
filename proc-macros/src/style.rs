@@ -83,6 +83,13 @@ pub fn derive_from_specified(input: proc_macro::TokenStream) -> proc_macro::Toke
 pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let predicates = where_clause.map(|w| &w.predicates);
+    let type_params = input
+        .generics
+        .type_params()
+        .map(|p| p.ident.clone())
+        .collect::<Vec<_>>();
 
     let mut unit_variants = Vec::new();
     let mut keywords = Vec::new();
@@ -131,7 +138,11 @@ pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 
     quote!(
-        impl crate::style::values::Parse for #name {
+        impl #impl_generics crate::style::values::Parse for #name #ty_generics
+            where
+                #( #type_params: crate::style::values::Parse, )*
+                #predicates
+        {
             fn parse<'i, 't>(parser: &mut cssparser::Parser<'i, 't>)
                 -> Result<Self, crate::style::errors::PropertyParseError<'i>>
             {
