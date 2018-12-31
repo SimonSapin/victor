@@ -84,36 +84,59 @@ pub fn derive_parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = input.ident;
 
-    let variants: Vec<_> = match input.data {
-        syn::Data::Enum(data) => data
-            .variants
-            .into_iter()
-            .map(|variant| variant.ident)
-            .collect(),
+    let mut unit_variants = Vec::new();
+    let mut keywords = Vec::new();
+    let mut single_unnamed_field_variants = Vec::new();
+
+    match input.data {
+        syn::Data::Enum(data) => {
+            for variant in data.variants {
+                match variant.fields {
+                    syn::Fields::Unit => {
+                        let variant = variant.ident;
+                        unit_variants.push(quote!(#name :: #variant));
+                        keywords.push(camel_case_to_kebab_case(&variant.to_string()))
+                    }
+                    syn::Fields::Unnamed(_) if variant.fields.iter().len() == 1 => {
+                        let variant = variant.ident;
+                        single_unnamed_field_variants.push(quote!(#name :: #variant))
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+        }
         _ => panic!("derive(Parse) only supports enums"),
     };
 
-    let names: Vec<_> = variants
-        .iter()
-        .map(|ident| camel_case_to_kebab_case(&ident.to_string()))
-        .collect();
+    let mut parse = quote! {
+        #(
+            if let Ok(value) = parser.r#try(crate::style::values::Parse::parse) {
+                return Ok(#single_unnamed_field_variants(value))
+            }
+        )*
+    };
+    if !unit_variants.is_empty() {
+        parse.extend(quote! {
+            if let Ok(ident) = parser.r#try(|parser| parser.expect_ident_cloned()) {
+                match &*ident {
+                    #(
+                        #keywords => return Ok(#unit_variants),
+                    )*
+                    _ => return Err(parser.new_unexpected_token_error(
+                        cssparser::Token::Ident(ident)
+                    ))
+                }
+            }
+        })
+    }
 
     quote!(
         impl crate::style::values::Parse for #name {
             fn parse<'i, 't>(parser: &mut cssparser::Parser<'i, 't>)
                 -> Result<Self, crate::style::errors::PropertyParseError<'i>>
             {
-                use self::#name::*;
-                let ident = parser.expect_ident()?;
-                match &**ident {
-                    #(
-                        #names => Ok(#variants),
-                    )*
-                    _ => {
-                        let token = cssparser::Token::Ident(ident.clone());
-                        Err(parser.new_unexpected_token_error(token))
-                    }
-                }
+                #parse
+                Err(parser.new_error_for_next_token())
             }
         }
     )

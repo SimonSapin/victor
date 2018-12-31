@@ -11,7 +11,7 @@ edition = "2018"
 doctest = false
 
 [dependencies]
-cssparser = "0.24"
+cssparser = "0.25.2"
 dtoa = "0.4"
 euclid = "0.19"
 html5ever = "0.22"
@@ -20,7 +20,7 @@ lock_api = "0.1"
 matches = "0.1"
 num-traits = "0.2"
 parking_lot = "0.6"
-selectors = "0.20"
+selectors = "0.21"
 victor-internal-proc-macros = {path = "../proc-macros"}
 xi-unicode = "0.1"
 xml-rs = {package = "xml-rs", version = "0.8"}

@@ -69,8 +69,7 @@ macro_rules! parse_one_or_more {
                 if any {
                     Ok(values)
                 } else {
-                    let token = parser.next()?.clone();
-                    Err(parser.new_unexpected_token_error(token))
+                    Err(parser.new_error_for_next_token())
                 }
             }
         }
