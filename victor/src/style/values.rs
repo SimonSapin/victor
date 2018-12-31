@@ -34,3 +34,6 @@ pub enum CssWideKeyword {
     Initial,
     Unset,
 }
+
+#[derive(Copy, Clone, Parse, SpecifiedAsComputed)]
+pub struct Auto;

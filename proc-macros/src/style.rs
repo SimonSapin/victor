@@ -117,6 +117,13 @@ pub fn derive_parse(input: TokenStream) -> TokenStream {
                 }
             }
         }
+        syn::Data::Struct(syn::DataStruct {
+            fields: syn::Fields::Unit,
+            ..
+        }) => {
+            unit_variants.push(quote!(#name));
+            keywords.push(camel_case_to_kebab_case(&name.to_string()))
+        }
         _ => panic!("derive(Parse) only supports enums"),
     };
 
