@@ -1,5 +1,4 @@
 use super::length::*;
-use super::Parse;
 use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
 use euclid;
@@ -30,7 +29,7 @@ impl LineWidth {
     pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(euclid::Length(3., PhantomData)));
 }
 
-impl Parse for SpecifiedLineWidth {
+impl super::Parse for SpecifiedLineWidth {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
         let px = match ParsedLineWidth::parse(parser)? {
             ParsedLineWidth::Thin => 1.0,
@@ -46,7 +45,7 @@ impl Parse for SpecifiedLineWidth {
 
 macro_rules! parse_one_or_more {
     ($type: ty { $( $field: ident, )+ }) => {
-        impl Parse for BorderSide {
+        impl crate::style::values::Parse for BorderSide {
             fn parse<'i, 't>(parser: &mut Parser<'i, 't>)
                 -> Result<Self, PropertyParseError<'i>>
             {
@@ -55,7 +54,7 @@ macro_rules! parse_one_or_more {
                 loop {
                     $(
                         if values.$field.is_none() {
-                            if let Ok(value) = parser.r#try(Parse::parse) {
+                            if let Ok(value) = parser.r#try(crate::style::values::Parse::parse) {
                                 values.$field = Some(value);
                                 any = true;
                                 continue

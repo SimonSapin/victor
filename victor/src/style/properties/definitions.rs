@@ -1,4 +1,4 @@
-use crate::style::values::{border::*, display::*, generic::*, length::*};
+use crate::style::values::*;
 use cssparser::Color;
 
 properties! {

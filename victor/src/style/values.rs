@@ -1,10 +1,13 @@
 use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
 
-pub(crate) mod border;
-pub(crate) mod display;
-pub(crate) mod generic;
-pub(crate) mod length;
+mod border;
+mod display;
+mod generic;
+mod length;
+
+pub(super) use self::generic::*;
+pub(crate) use self::{border::*, display::*, length::*};
 
 pub(super) trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;
