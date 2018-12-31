@@ -6,7 +6,7 @@ use cssparser::{Parser, Token};
 pub type Length = EuclidLength<CssPx>;
 
 /// <https://drafts.csswg.org/css-values/#lengths>
-#[derive(Clone)]
+#[derive(Clone, FromVariants)]
 pub enum SpecifiedLength {
     Px(Length),
 }
@@ -36,4 +36,40 @@ impl FromSpecified for Length {
             SpecifiedLength::Px(px) => *px,
         }
     }
+}
+
+/// https://drafts.csswg.org/css-values/#percentages
+#[derive(Copy, Clone, SpecifiedAsComputed)]
+pub struct Percentage(f32);
+
+impl Parse for Percentage {
+    fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
+        Ok(Percentage(parser.expect_percentage()?))
+    }
+}
+
+#[derive(Clone, Parse, FromVariants)]
+pub enum SpecifiedLengthOrPercentage {
+    Length(SpecifiedLength),
+    Percentage(Percentage),
+}
+
+#[derive(Copy, Clone, FromSpecified, FromVariants)]
+pub enum LengthOrPercentage {
+    Length(Length),
+    Percentage(Percentage),
+}
+
+#[derive(Clone, Parse, FromVariants)]
+pub enum SpecifiedLengthOrPercentageOrAuto {
+    Length(SpecifiedLength),
+    Percentage(Percentage),
+    Auto,
+}
+
+#[derive(Copy, Clone, FromSpecified, FromVariants)]
+pub enum LengthOrPercentageOrAuto {
+    Length(Length),
+    Percentage(Percentage),
+    Auto,
 }

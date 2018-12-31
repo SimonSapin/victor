@@ -17,17 +17,17 @@ properties! {
     }
 
     reset struct margin {
-        margin_top { "margin-top", Length, initial = Length::new(0.) }
-        margin_left { "margin-left", Length, initial = Length::new(0.) }
-        margin_bottom { "margin-bottom", Length, initial = Length::new(0.) }
-        margin_right { "margin-right", Length, initial = Length::new(0.) }
+        margin_top { "margin-top", LengthOrPercentageOrAuto, initial = Length::new(0.) }
+        margin_left { "margin-left", LengthOrPercentageOrAuto, initial = Length::new(0.) }
+        margin_bottom { "margin-bottom", LengthOrPercentageOrAuto, initial = Length::new(0.) }
+        margin_right { "margin-right", LengthOrPercentageOrAuto, initial = Length::new(0.) }
     }
 
     reset struct padding {
-        padding_top { "padding-top", Length, initial = Length::new(0.) }
-        padding_left { "padding-left", Length, initial = Length::new(0.) }
-        padding_bottom { "padding-bottom", Length, initial = Length::new(0.) }
-        padding_right { "padding-right", Length, initial = Length::new(0.) }
+        padding_top { "padding-top", LengthOrPercentage, initial = Length::new(0.) }
+        padding_left { "padding-left", LengthOrPercentage, initial = Length::new(0.) }
+        padding_bottom { "padding-bottom", LengthOrPercentage, initial = Length::new(0.) }
+        padding_right { "padding-right", LengthOrPercentage, initial = Length::new(0.) }
     }
 
     reset struct border {
@@ -59,13 +59,13 @@ properties! {
     }
 
     @shorthands {
-        "margin" => FourSides<SpecifiedLength> {
+        "margin" => FourSides<SpecifiedLengthOrPercentageOrAuto> {
             top: margin_top,
             left: margin_left,
             bottom: margin_bottom,
             right: margin_right,
         }
-        "padding" => FourSides<SpecifiedLength> {
+        "padding" => FourSides<SpecifiedLengthOrPercentage> {
             top: padding_top,
             left: padding_left,
             bottom: padding_bottom,

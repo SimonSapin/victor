@@ -1,5 +1,5 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{CssWideKeyword, Parse, FromSpecified};
+use crate::style::values::{CssWideKeyword, FromSpecified, Parse};
 use cssparser::Parser;
 use std::rc::Rc;
 
@@ -57,7 +57,7 @@ macro_rules! properties {
                             };
                             Rc::make_mut(&mut computed.$struct_name).$ident =
                             if is_initial {
-                                $initial_value
+                                From::from($initial_value)
                             } else {
                                 inherited.$struct_name.$ident.clone()
                             };
@@ -124,7 +124,7 @@ macro_rules! properties {
                     $struct_name: Rc::new(
                         style_structs::$struct_name {
                             $(
-                                $ident: $initial_value,
+                                $ident: From::from($initial_value),
                             )+
                         }
                     ),

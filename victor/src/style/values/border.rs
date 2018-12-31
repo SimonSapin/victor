@@ -1,4 +1,4 @@
-use super::length::{Length, SpecifiedLength};
+use super::length::*;
 use super::Parse;
 use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
@@ -13,36 +13,34 @@ pub enum LineStyle {
 }
 
 #[derive(Parse)]
-enum LineWidthKeyword {
+enum ParsedLineWidth {
     Thin,
     Medium,
     Thick,
+    Other(SpecifiedLengthOrPercentage),
 }
 
 #[derive(Clone)]
-pub struct SpecifiedLineWidth(pub SpecifiedLength);
+pub struct SpecifiedLineWidth(pub SpecifiedLengthOrPercentage);
 
 #[derive(Copy, Clone, FromSpecified)]
-pub struct LineWidth(pub Length);
+pub struct LineWidth(pub LengthOrPercentage);
 
 impl LineWidth {
-    pub const MEDIUM: Self = LineWidth(euclid::Length(3., PhantomData));
+    pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(euclid::Length(3., PhantomData)));
 }
 
 impl Parse for SpecifiedLineWidth {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
-        parser
-            .r#try(SpecifiedLength::parse)
-            .or_else(|_| {
-                Ok(SpecifiedLength::Px(Length::new(
-                    match LineWidthKeyword::parse(parser)? {
-                        LineWidthKeyword::Thin => 1.0,
-                        LineWidthKeyword::Medium => 3.0,
-                        LineWidthKeyword::Thick => 5.0,
-                    },
-                )))
-            })
-            .map(SpecifiedLineWidth)
+        let px = match ParsedLineWidth::parse(parser)? {
+            ParsedLineWidth::Thin => 1.0,
+            ParsedLineWidth::Medium => 3.0,
+            ParsedLineWidth::Thick => 5.0,
+            ParsedLineWidth::Other(value) => return Ok(SpecifiedLineWidth(value)),
+        };
+        Ok(SpecifiedLineWidth(
+            SpecifiedLength::Px(Length::new(px)).into(),
+        ))
     }
 }
 
