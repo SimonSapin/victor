@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 /// https://drafts.csswg.org/css-backgrounds/#typedef-line-style
 #[derive(Copy, Clone, Parse, SpecifiedAsComputed)]
-pub enum LineStyle {
+pub(crate) enum LineStyle {
     None,
     Solid,
 }
@@ -21,10 +21,10 @@ enum ParsedLineWidth {
 }
 
 #[derive(Clone)]
-pub struct SpecifiedLineWidth(pub SpecifiedLengthOrPercentage);
+pub(in crate::style) struct SpecifiedLineWidth(pub SpecifiedLengthOrPercentage);
 
 #[derive(Copy, Clone, FromSpecified)]
-pub struct LineWidth(pub LengthOrPercentage);
+pub(crate) struct LineWidth(pub LengthOrPercentage);
 
 impl LineWidth {
     pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(euclid::Length(3., PhantomData)));
@@ -81,7 +81,7 @@ parse_one_or_more!(BorderSide {
 });
 
 #[derive(Default)]
-pub struct BorderSide {
+pub(in crate::style) struct BorderSide {
     pub style: Option<LineStyle>,
     pub color: Option<Color>,
     pub width: Option<SpecifiedLineWidth>,

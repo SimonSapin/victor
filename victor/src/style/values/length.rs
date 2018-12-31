@@ -3,11 +3,11 @@ use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
 use crate::style::values::{FromSpecified, Parse};
 use cssparser::{Parser, Token};
 
-pub type Length = EuclidLength<CssPx>;
+pub(crate) type Length = EuclidLength<CssPx>;
 
 /// <https://drafts.csswg.org/css-values/#lengths>
 #[derive(Clone, FromVariants)]
-pub enum SpecifiedLength {
+pub(in crate::style) enum SpecifiedLength {
     Px(Length),
 }
 
@@ -40,7 +40,7 @@ impl FromSpecified for Length {
 
 /// https://drafts.csswg.org/css-values/#percentages
 #[derive(Copy, Clone, SpecifiedAsComputed)]
-pub struct Percentage(f32);
+pub(crate) struct Percentage(f32);
 
 impl Parse for Percentage {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
@@ -49,26 +49,26 @@ impl Parse for Percentage {
 }
 
 #[derive(Clone, Parse, FromVariants)]
-pub enum SpecifiedLengthOrPercentage {
+pub(in crate::style) enum SpecifiedLengthOrPercentage {
     Length(SpecifiedLength),
     Percentage(Percentage),
 }
 
 #[derive(Copy, Clone, FromSpecified, FromVariants)]
-pub enum LengthOrPercentage {
+pub(crate) enum LengthOrPercentage {
     Length(Length),
     Percentage(Percentage),
 }
 
 #[derive(Clone, Parse, FromVariants)]
-pub enum SpecifiedLengthOrPercentageOrAuto {
+pub(in crate::style) enum SpecifiedLengthOrPercentageOrAuto {
     Length(SpecifiedLength),
     Percentage(Percentage),
     Auto,
 }
 
 #[derive(Copy, Clone, FromSpecified, FromVariants)]
-pub enum LengthOrPercentageOrAuto {
+pub(crate) enum LengthOrPercentageOrAuto {
     Length(Length),
     Percentage(Percentage),
     Auto,

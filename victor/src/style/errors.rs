@@ -1,14 +1,14 @@
 use cssparser::{CowRcStr, ParseError};
 use selectors::parser::SelectorParseErrorKind;
 
-pub type PropertyParseError<'i> = ParseError<'i, PropertyParseErrorKind<'i>>;
+pub(super) type PropertyParseError<'i> = ParseError<'i, PropertyParseErrorKind<'i>>;
 
-pub enum PropertyParseErrorKind<'i> {
+pub(super) enum PropertyParseErrorKind<'i> {
     UnknownProperty(CowRcStr<'i>),
     UnknownUnit(CowRcStr<'i>),
 }
 
-pub enum RuleParseErrorKind<'i> {
+pub(super) enum RuleParseErrorKind<'i> {
     Selector(SelectorParseErrorKind<'i>),
 }
 

@@ -4,7 +4,7 @@ use cssparser::Parser;
 
 /// https://drafts.csswg.org/css-display-3/#the-display-properties
 #[derive(Copy, Clone, SpecifiedAsComputed)]
-pub enum Display {
+pub(crate) enum Display {
     None,
     Other {
         outside: DisplayOutside,
@@ -13,13 +13,13 @@ pub enum Display {
 }
 
 #[derive(Copy, Clone)]
-pub enum DisplayOutside {
+pub(crate) enum DisplayOutside {
     Inline,
     Block,
 }
 
 #[derive(Copy, Clone)]
-pub enum DisplayInside {
+pub(crate) enum DisplayInside {
     Flow,
 }
 

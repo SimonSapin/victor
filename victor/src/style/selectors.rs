@@ -7,10 +7,10 @@ use selectors::context::{MatchingContext, MatchingMode, QuirksMode};
 use selectors::matching::{matches_selector, ElementSelectorFlags};
 use std::fmt;
 
-pub type SelectorList = selectors::SelectorList<Impl>;
-pub type Selector = selectors::parser::Selector<Impl>;
+pub(super) type SelectorList = selectors::SelectorList<Impl>;
+pub(super) type Selector = selectors::parser::Selector<Impl>;
 
-pub(crate) fn matches(selector: &Selector, document: &Document, element: NodeId) -> bool {
+pub(super) fn matches(selector: &Selector, document: &Document, element: NodeId) -> bool {
     matches_selector(
         selector,
         0,
@@ -25,15 +25,15 @@ pub(crate) fn matches(selector: &Selector, document: &Document, element: NodeId)
 }
 
 #[derive(Clone, Debug)]
-pub struct Impl;
+pub(super) struct Impl;
 
-pub struct Parser;
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum PseudoElement {}
+pub(super) struct Parser;
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum PseudoClass {}
+pub(super) enum PseudoElement {}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(super) enum PseudoClass {}
 
 impl selectors::parser::NonTSPseudoClass for PseudoClass {
     type Impl = Impl;

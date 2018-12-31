@@ -1,16 +1,16 @@
 use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
 
-pub mod border;
-pub mod display;
-pub mod generic;
-pub mod length;
+pub(crate) mod border;
+pub(crate) mod display;
+pub(crate) mod generic;
+pub(crate) mod length;
 
-pub trait Parse: Sized {
+pub(super) trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;
 }
 
-pub trait FromSpecified {
+pub(super) trait FromSpecified {
     type SpecifiedValue;
     fn from_specified(specified: &Self::SpecifiedValue) -> Self;
 }
@@ -29,7 +29,7 @@ impl FromSpecified for Color {
 }
 
 #[derive(Copy, Clone, Parse)]
-pub enum CssWideKeyword {
+pub(super) enum CssWideKeyword {
     Inherit,
     Initial,
     Unset,

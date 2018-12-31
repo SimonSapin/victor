@@ -6,7 +6,7 @@ use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLoc
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::rc::Rc;
 
-pub enum CssRule {
+pub(super) enum CssRule {
     StyleRule {
         selectors: SelectorList,
 
@@ -19,7 +19,7 @@ pub enum CssRule {
     },
 }
 
-pub struct RulesParser;
+pub(super) struct RulesParser;
 
 impl<'i> QualifiedRuleParser<'i> for RulesParser {
     type Prelude = SelectorList;
@@ -70,7 +70,7 @@ impl<'i> AtRuleParser<'i> for RulesParser {
     type Error = RuleParseErrorKind<'i>;
 }
 
-pub struct LonghandDeclarationParser {
+pub(super) struct LonghandDeclarationParser {
     declarations: Vec<LonghandDeclaration>,
 }
 

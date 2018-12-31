@@ -31,13 +31,13 @@ macro_rules! properties {
             #[repr($DiscriminantType)]
             #[derive(Copy, Clone)]
             #[allow(non_camel_case_types)]
-            pub enum LonghandId {
+            pub(in crate::style) enum LonghandId {
                 $($(
                     $ident,
                 )+)+
             }
 
-            pub fn cascade_css_wide_keyword_into(
+            fn cascade_css_wide_keyword_into(
                 &self,
                 keyword: CssWideKeyword,
                 computed: &mut ComputedValues,
@@ -70,14 +70,14 @@ macro_rules! properties {
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
             #[allow(non_camel_case_types)]
-            pub enum LonghandDeclaration {
+            pub(in crate::style) enum LonghandDeclaration {
                 $($(
                     $ident(<$ValueType as FromSpecified>::SpecifiedValue),
                 )+)+
                 CssWide(LonghandId, CssWideKeyword)
             }
 
-            pub fn cascade_into(
+            pub(in crate::style) fn cascade_into(
                 &self,
                 computed: &mut ComputedValues,
                 inherited: &ComputedValues,
@@ -97,20 +97,20 @@ macro_rules! properties {
         }
 
         #[derive(Clone)]
-        pub struct ComputedValues {
+        pub(crate) struct ComputedValues {
             $(
-                pub $struct_name: Rc<style_structs::$struct_name>,
+                pub(crate) $struct_name: Rc<style_structs::$struct_name>,
             )+
         }
 
-        pub mod style_structs {
+        pub(crate) mod style_structs {
             use super::*;
             $(
                 #[allow(non_camel_case_types)]
                 #[derive(Clone)]  // FIXME: only for inherited structs?
-                pub struct $struct_name {
+                pub(crate) struct $struct_name {
                     $(
-                        pub $ident: $ValueType,
+                        pub(crate) $ident: $ValueType,
                     )+
                 }
             )+
@@ -133,7 +133,7 @@ macro_rules! properties {
         }
 
         impl ComputedValues {
-            pub fn new_inheriting_from(inherited: &Self, initial: &Self) -> Self {
+            pub(crate) fn new_inheriting_from(inherited: &Self, initial: &Self) -> Self {
                 macro_rules! select {
                     (inherited) => { inherited };
                     (reset) => { initial };
@@ -191,11 +191,11 @@ macro_rules! properties {
 }
 
 impl ComputedValues {
-    pub fn initial() -> Rc<Self> {
+    pub(crate) fn initial() -> Rc<Self> {
         INITIAL_VALUES.with(|initial| initial.clone())
     }
 
-    pub fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
+    pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
         INITIAL_VALUES.with(|initial| Rc::new(Self::new_inheriting_from(parent_style, initial)))
     }
 }
@@ -206,8 +206,8 @@ type FnParseProperty = for<'i, 't> fn(
 ) -> Result<(), PropertyParseError<'i>>;
 
 pub struct PropertyData {
-    pub longhands: &'static [LonghandId],
-    pub parse: FnParseProperty,
+    pub(in crate::style) longhands: &'static [LonghandId],
+    pub(in crate::style) parse: FnParseProperty,
 }
 
 trait ValueOrInitial<T> {
