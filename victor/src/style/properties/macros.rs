@@ -1,8 +1,3 @@
-use crate::style::errors::PropertyParseError;
-use crate::style::values::{CssWideKeyword, FromSpecified, Parse};
-use cssparser::Parser;
-use std::rc::Rc;
-
 macro_rules! properties {
     (
         type Discriminant = $DiscriminantType: ident;
@@ -27,6 +22,8 @@ macro_rules! properties {
             )+
         }
     ) => {
+        use std::rc::Rc;
+
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
             #[derive(Copy, Clone)]
@@ -39,7 +36,7 @@ macro_rules! properties {
 
             fn cascade_css_wide_keyword_into(
                 &self,
-                keyword: CssWideKeyword,
+                keyword: crate::style::values::CssWideKeyword,
                 computed: &mut ComputedValues,
                 inherited: &ComputedValues,
             ) {
@@ -50,6 +47,7 @@ macro_rules! properties {
                                 (inherited) => { false };
                                 (reset) => { true };
                             }
+                            use crate::style::values::CssWideKeyword;
                             let is_initial = match keyword {
                                 CssWideKeyword::Initial => true,
                                 CssWideKeyword::Inherit => false,
@@ -72,9 +70,9 @@ macro_rules! properties {
             #[allow(non_camel_case_types)]
             pub(in crate::style) enum LonghandDeclaration {
                 $($(
-                    $ident(<$ValueType as FromSpecified>::SpecifiedValue),
+                    $ident(<$ValueType as crate::style::values::FromSpecified>::SpecifiedValue),
                 )+)+
-                CssWide(LonghandId, CssWideKeyword)
+                CssWide(LonghandId, crate::style::values::CssWideKeyword)
             }
 
             pub(in crate::style) fn cascade_into(
@@ -86,7 +84,7 @@ macro_rules! properties {
                     $($(
                         LonghandDeclaration::$ident(ref value) => {
                             Rc::make_mut(&mut computed.$struct_name).$ident =
-                                FromSpecified::from_specified(value)
+                                crate::style::values::FromSpecified::from_specified(value)
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
@@ -152,7 +150,7 @@ macro_rules! properties {
                     $name => PropertyData {
                         longhands: &[LonghandId::$ident],
                         parse: |parser, declarations| {
-                            let v = Parse::parse(parser)?;
+                            let v = crate::style::values::Parse::parse(parser)?;
                             declarations.push(LonghandDeclaration::$ident(v));
                             Ok(())
                         },
@@ -170,7 +168,7 @@ macro_rules! properties {
                                 $(
                                     $shorthand_field: $longhand_ident,
                                 )+
-                            } = Parse::parse(parser)?;
+                            } = crate::style::values::Parse::parse(parser)?;
                             $(
                                 declarations.push(
                                     ValueOrInitial::into(
@@ -201,9 +199,9 @@ impl ComputedValues {
 }
 
 type FnParseProperty = for<'i, 't> fn(
-    &mut Parser<'i, 't>,
+    &mut cssparser::Parser<'i, 't>,
     &mut Vec<LonghandDeclaration>,
-) -> Result<(), PropertyParseError<'i>>;
+) -> Result<(), crate::style::errors::PropertyParseError<'i>>;
 
 pub struct PropertyData {
     pub(in crate::style) longhands: &'static [LonghandId],
@@ -230,6 +228,7 @@ impl<T> ValueOrInitial<T> for Option<T> {
     where
         F: Fn(T) -> LonghandDeclaration,
     {
+        use crate::style::values::CssWideKeyword;
         match self {
             Some(value) => constructor(value),
             None => LonghandDeclaration::CssWide(id, CssWideKeyword::Initial),
