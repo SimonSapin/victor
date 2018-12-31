@@ -117,7 +117,7 @@ macro_rules! properties {
         // XXX: if we ever replace Rc with Arc for style structs,
         // replace thread_local! with lazy_static! here.
         thread_local! {
-            static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
+            pub(super) static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
                 $(
                     $struct_name: Rc::new(
                         style_structs::$struct_name {
@@ -145,9 +145,9 @@ macro_rules! properties {
         }
 
         ascii_case_insensitive_phf_map! {
-            property_data_by_name -> PropertyData = {
+            property_data_by_name -> crate::style::properties::PropertyData = {
                 $($(
-                    $name => PropertyData {
+                    $name => crate::style::properties::PropertyData {
                         longhands: &[LonghandId::$ident],
                         parse: |parser, declarations| {
                             let v = crate::style::values::Parse::parse(parser)?;
@@ -157,7 +157,7 @@ macro_rules! properties {
                     },
                 )+)+
                 $(
-                    $shorthand_name => PropertyData {
+                    $shorthand_name => crate::style::properties::PropertyData {
                         longhands: &[
                             $(
                                 LonghandId::$longhand_ident,
@@ -171,7 +171,7 @@ macro_rules! properties {
                             } = crate::style::values::Parse::parse(parser)?;
                             $(
                                 declarations.push(
-                                    ValueOrInitial::into(
+                                    crate::style::properties::ValueOrInitial::into(
                                         $longhand_ident,
                                         LonghandId::$longhand_ident,
                                         LonghandDeclaration::$longhand_ident,
@@ -185,53 +185,5 @@ macro_rules! properties {
             }
         }
 
-    }
-}
-
-impl ComputedValues {
-    pub(crate) fn initial() -> Rc<Self> {
-        INITIAL_VALUES.with(|initial| initial.clone())
-    }
-
-    pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-        INITIAL_VALUES.with(|initial| Rc::new(Self::new_inheriting_from(parent_style, initial)))
-    }
-}
-
-type FnParseProperty = for<'i, 't> fn(
-    &mut cssparser::Parser<'i, 't>,
-    &mut Vec<LonghandDeclaration>,
-) -> Result<(), crate::style::errors::PropertyParseError<'i>>;
-
-pub struct PropertyData {
-    pub(in crate::style) longhands: &'static [LonghandId],
-    pub(in crate::style) parse: FnParseProperty,
-}
-
-trait ValueOrInitial<T> {
-    fn into<F>(self, id: LonghandId, constructor: F) -> LonghandDeclaration
-    where
-        F: Fn(T) -> LonghandDeclaration;
-}
-
-impl<T> ValueOrInitial<T> for T {
-    fn into<F>(self, _id: LonghandId, constructor: F) -> LonghandDeclaration
-    where
-        F: Fn(T) -> LonghandDeclaration,
-    {
-        constructor(self)
-    }
-}
-
-impl<T> ValueOrInitial<T> for Option<T> {
-    fn into<F>(self, id: LonghandId, constructor: F) -> LonghandDeclaration
-    where
-        F: Fn(T) -> LonghandDeclaration,
-    {
-        use crate::style::values::CssWideKeyword;
-        match self {
-            Some(value) => constructor(value),
-            None => LonghandDeclaration::CssWide(id, CssWideKeyword::Initial),
-        }
     }
 }
