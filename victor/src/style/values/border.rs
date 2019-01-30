@@ -1,8 +1,6 @@
 use super::length::*;
 use crate::style::errors::PropertyParseError;
 use cssparser::{Color, Parser};
-use euclid;
-use std::marker::PhantomData;
 
 /// https://drafts.csswg.org/css-backgrounds/#typedef-line-style
 #[derive(Copy, Clone, Parse, SpecifiedAsComputed)]
@@ -26,7 +24,7 @@ pub(in crate::style) struct SpecifiedLineWidth(pub SpecifiedLengthOrPercentage);
 pub(crate) struct LineWidth(pub LengthOrPercentage);
 
 impl LineWidth {
-    pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(euclid::Length(3., PhantomData)));
+    pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(Length { px: 3. }));
 }
 
 impl super::Parse for SpecifiedLineWidth {
@@ -38,7 +36,7 @@ impl super::Parse for SpecifiedLineWidth {
             ParsedLineWidth::Other(value) => return Ok(SpecifiedLineWidth(value)),
         };
         Ok(SpecifiedLineWidth(
-            SpecifiedLength::Px(Length::new(px)).into(),
+            SpecifiedLength::Absolute(Length { px }).into(),
         ))
     }
 }

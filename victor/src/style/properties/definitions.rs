@@ -5,21 +5,21 @@ properties! {
     type Discriminant = u8;
 
     inherited struct font {
-        font_size { "font-size", Length, initial = Length::new(16.) }
+        font_size { "font-size", Length, initial = Length { px: 16. } }
     }
 
     reset struct margin {
-        margin_top { "margin-top", LengthOrPercentageOrAuto, initial = Length::new(0.) }
-        margin_left { "margin-left", LengthOrPercentageOrAuto, initial = Length::new(0.) }
-        margin_bottom { "margin-bottom", LengthOrPercentageOrAuto, initial = Length::new(0.) }
-        margin_right { "margin-right", LengthOrPercentageOrAuto, initial = Length::new(0.) }
+        margin_top { "margin-top", LengthOrPercentageOrAuto, initial = Length::zero() }
+        margin_left { "margin-left", LengthOrPercentageOrAuto, initial = Length::zero() }
+        margin_bottom { "margin-bottom", LengthOrPercentageOrAuto, initial = Length::zero() }
+        margin_right { "margin-right", LengthOrPercentageOrAuto, initial = Length::zero() }
     }
 
     reset struct padding {
-        padding_top { "padding-top", LengthOrPercentage, initial = Length::new(0.) }
-        padding_left { "padding-left", LengthOrPercentage, initial = Length::new(0.) }
-        padding_bottom { "padding-bottom", LengthOrPercentage, initial = Length::new(0.) }
-        padding_right { "padding-right", LengthOrPercentage, initial = Length::new(0.) }
+        padding_top { "padding-top", LengthOrPercentage, initial = Length::zero() }
+        padding_left { "padding-left", LengthOrPercentage, initial = Length::zero() }
+        padding_bottom { "padding-bottom", LengthOrPercentage, initial = Length::zero() }
+        padding_right { "padding-right", LengthOrPercentage, initial = Length::zero() }
     }
 
     reset struct border {
