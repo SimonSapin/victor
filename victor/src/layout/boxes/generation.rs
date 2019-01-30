@@ -4,11 +4,7 @@ use crate::style::values::{Display, DisplayInside, DisplayOutside};
 use crate::style::*;
 
 impl dom::Document {
-    pub fn render(&self) {
-        let _ = self.box_tree();
-    }
-
-    fn box_tree(&self) -> BoxTreeRoot {
+    pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
         let mut builder = StyleSetBuilder::new();
         self.parse_stylesheets(&mut builder);
         let author_styles = builder.finish();

@@ -11,6 +11,7 @@ pub mod text_plain;
 
 #[macro_use]
 mod tagged_union_with_jump_tables;
+mod geom;
 mod layout;
 mod style;
 

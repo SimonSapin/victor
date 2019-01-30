@@ -5,9 +5,10 @@ mod border;
 mod display;
 mod generic;
 mod length;
+mod writing_modes;
 
 pub(super) use self::generic::*;
-pub(crate) use self::{border::*, display::*, length::*};
+pub(crate) use self::{border::*, display::*, length::*, writing_modes::*};
 
 pub(super) trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;

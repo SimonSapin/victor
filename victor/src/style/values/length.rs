@@ -1,7 +1,7 @@
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
 use crate::style::values::{FromSpecified, Parse};
 use cssparser::{Parser, Token};
-use std::ops::{Add, Mul};
+use std::ops;
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
@@ -89,7 +89,7 @@ impl Length {
     }
 }
 
-impl Add for Length {
+impl ops::Add for Length {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         Length {
@@ -98,7 +98,31 @@ impl Add for Length {
     }
 }
 
-impl Mul<Percentage> for Length {
+impl<'a> ops::Add for &'a Length {
+    type Output = Length;
+    fn add(self, other: Self) -> Length {
+        Length {
+            px: self.px + other.px,
+        }
+    }
+}
+
+impl ops::Sub for Length {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Length {
+            px: self.px - other.px,
+        }
+    }
+}
+
+impl ops::AddAssign for Length {
+    fn add_assign(&mut self, other: Self) {
+        self.px += other.px
+    }
+}
+
+impl ops::Mul<Percentage> for Length {
     type Output = Self;
 
     fn mul(self, other: Percentage) -> Self {

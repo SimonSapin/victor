@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 mod generation;
 
-type BoxTreeRoot = BlockFormattingContext;
+pub(super) type BoxTreeRoot = BlockFormattingContext;
 
 #[allow(unused)]
-enum FormattingContext {
+pub(super) enum FormattingContext {
     // Not included: inline formatting context, which is always part of a block container
     Flow(BlockFormattingContext),
     // Replaced(ReplacedElement), // Not called FC in specs, but behaves close enough
@@ -15,14 +15,14 @@ enum FormattingContext {
     // Other layout modes go here
 }
 
-struct BlockFormattingContext(BlockContainer);
+pub(super) struct BlockFormattingContext(pub BlockContainer);
 
-enum BlockContainer {
+pub(super) enum BlockContainer {
     BlockLevels(Vec<BlockLevel>),
     InlineFormattingContext(Vec<InlineLevel>),
 }
 
-enum BlockLevel {
+pub(super) enum BlockLevel {
     #[allow(unused)]
     SameFormattingContextBlock {
         style: Rc<ComputedValues>,
@@ -34,7 +34,7 @@ enum BlockLevel {
     // },
 }
 
-enum InlineLevel {
+pub(super) enum InlineLevel {
     Text(StrTendril),
     #[allow(unused)]
     Inline {
