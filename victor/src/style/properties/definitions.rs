@@ -5,7 +5,7 @@ properties! {
     type Discriminant = u8;
 
     inherited struct font {
-        font_size { "font-size", Length, initial = Length { px: 16. } }
+        @early font_size { "font-size", Length, initial = Length { px: 16. } }
     }
 
     inherited struct color {

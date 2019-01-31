@@ -4,7 +4,7 @@ macro_rules! properties {
         $(
             $inherited: ident struct $struct_name: ident {
                 $(
-                    $ident: ident {
+                    $( @$early: ident )? $ident: ident {
                         $name: expr,
                         $ValueType: ty,
                         initial = $initial_value: expr
@@ -66,6 +66,30 @@ macro_rules! properties {
             }
         }
 
+        impl LonghandId {
+            fn is_early(self) -> bool {
+                macro_rules! is_early {
+                    (early) => { true };
+                    () => { false };
+                }
+                [
+                    $($(
+                        is_early!($( $early )?),
+                    )+)+
+                ][self as usize]
+            }
+        }
+
+        macro_rules! if_early {
+            (early $then: block) => { $then };
+            ($then: block) => {};
+        }
+
+        macro_rules! if_late {
+            (early $then: block) => {};
+            ($then: block) => { $then };
+        }
+
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
             #[allow(non_camel_case_types)]
@@ -76,20 +100,50 @@ macro_rules! properties {
                 CssWide(LonghandId, crate::style::values::CssWideKeyword)
             }
 
-            pub(in crate::style) fn cascade_into(
+            pub(in crate::style) fn if_early_cascade_into(
                 &self,
                 computed: &mut ComputedValues,
                 context: &CascadeContext,
             ) {
                 match *self {
                     $($(
-                        LonghandDeclaration::$ident(ref value) => {
-                            Rc::make_mut(&mut computed.$struct_name).$ident =
-                                crate::style::values::FromSpecified::from_specified(value, context)
+                        LonghandDeclaration::$ident(ref _value) => {
+                            if_early! {
+                                $( $early )? {
+                                    Rc::make_mut(&mut computed.$struct_name).$ident =
+                                        crate::style::values::FromSpecified::from_specified(_value, context)
+                                }
+                            }
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
-                        longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
+                        if longhand.is_early() {
+                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
+                        }
+                    }
+                }
+            }
+
+            pub(in crate::style) fn if_late_cascade_into(
+                &self,
+                computed: &mut ComputedValues,
+                context: &CascadeContext,
+            ) {
+                match *self {
+                    $($(
+                        LonghandDeclaration::$ident(ref _value) => {
+                            if_late! {
+                                $( $early )? {
+                                    Rc::make_mut(&mut computed.$struct_name).$ident =
+                                        crate::style::values::FromSpecified::from_specified(_value, context)
+                                }
+                            }
+                        }
+                    )+)+
+                    LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
+                        if !longhand.is_early() {
+                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
+                        }
                     }
                 }
             }
@@ -150,7 +204,12 @@ macro_rules! properties {
                         inherited,
                     };
                     if let Some(matching) = matching {
-                        matching.for_each(&mut |decl| decl.cascade_into(&mut computed, &context))
+                        matching.for_each(&mut |decl| {
+                            decl.if_early_cascade_into(&mut computed, &context)
+                        });
+                        matching.for_each(&mut |decl| {
+                            decl.if_late_cascade_into(&mut computed, &context)
+                        });
                     }
                     computed.post_cascade_fixups();
                     Rc::new(computed)
