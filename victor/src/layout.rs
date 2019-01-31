@@ -3,7 +3,7 @@ mod fragments;
 
 use crate::geom::flow_relative::Vec2;
 use crate::geom::Length;
-use crate::style::values::{Direction, LengthOrPercentageOrAuto, WritingMode};
+use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 
 impl crate::dom::Document {
     pub fn render(&self, viewport: crate::primitives::Size<crate::primitives::CssPx>) {
@@ -13,9 +13,9 @@ impl crate::dom::Document {
         // https://drafts.csswg.org/css-writing-modes/#principal-flow
         let initial_containing_block = ContainingBlock {
             inline_size: Length { px: viewport.width },
-            // block_size: Some(Length {
-            //     px: viewport.height,
-            // }),
+            block_size: Some(Length {
+                px: viewport.height,
+            }),
             mode: (WritingMode::HorizontalTb, Direction::Ltr),
         };
 
@@ -25,7 +25,7 @@ impl crate::dom::Document {
 
 struct ContainingBlock {
     inline_size: Length,
-    // block_size: Option<Length>,
+    block_size: Option<Length>,
     mode: (WritingMode, Direction),
 }
 
@@ -109,9 +109,15 @@ impl boxes::BlockLevel {
                 let inline_size = inline_size.unwrap_or_else(|| cbis - pbm.inline_sum());
                 let mut content_start_corner = pbm.start_corner();
                 content_start_corner.block += block_size_before;
+                let block_size = box_size.block.non_auto().and_then(|b| match b {
+                    LengthOrPercentage::Length(l) => Some(l),
+                    LengthOrPercentage::Percentage(p) => {
+                        containing_block.block_size.map(|cbbs| cbbs * p)
+                    }
+                });
                 let containing_block_for_children = ContainingBlock {
                     inline_size,
-                    // block_size: None,
+                    block_size,
                     mode: style.writing_mode(),
                 };
                 assert_eq!(
@@ -120,9 +126,10 @@ impl boxes::BlockLevel {
                 );
                 let (children, content_block_size) =
                     contents.layout(&containing_block_for_children);
+                let block_size = block_size.unwrap_or(content_block_size);
                 let content_size = Vec2 {
-                    block: content_block_size,
-                    inline: containing_block_for_children.inline_size,
+                    block: block_size,
+                    inline: inline_size,
                 };
                 let block = fragments::Fragment {
                     style: style.clone(),
@@ -133,7 +140,7 @@ impl boxes::BlockLevel {
                     border,
                     margin,
                 };
-                let margin_height = pbm.block_sum() + content_block_size;
+                let margin_height = pbm.block_sum() + block_size;
                 (block, margin_height)
             }
         }
