@@ -85,5 +85,6 @@ pub(crate) fn cascade(
     let mut computed = ComputedValues::new_inheriting_from(inherited, &*initial);
     USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, &mut computed, inherited));
     author.cascade_into(document, node, &mut computed, inherited);
+    computed.post_cascade_fixups();
     Rc::new(computed)
 }

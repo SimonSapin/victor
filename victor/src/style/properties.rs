@@ -20,6 +20,14 @@ impl ComputedValues {
         INITIAL_VALUES.with(|initial| Rc::new(Self::new_inheriting_from(parent_style, initial)))
     }
 
+    pub(super) fn post_cascade_fixups(&mut self) {
+        let b = Rc::make_mut(&mut self.border);
+        b.border_top_width.fixup(b.border_top_style);
+        b.border_left_width.fixup(b.border_left_style);
+        b.border_bottom_width.fixup(b.border_bottom_style);
+        b.border_right_width.fixup(b.border_right_style);
+    }
+
     pub(crate) fn writing_mode(&self) -> (WritingMode, Direction) {
         // FIXME: For now, this is the only supported mode
         (WritingMode::HorizontalTb, Direction::Ltr)

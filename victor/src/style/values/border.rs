@@ -24,7 +24,14 @@ pub(in crate::style) struct SpecifiedLineWidth(pub SpecifiedLengthOrPercentage);
 pub(crate) struct LineWidth(pub LengthOrPercentage);
 
 impl LineWidth {
-    pub const MEDIUM: Self = LineWidth(LengthOrPercentage::Length(Length { px: 3. }));
+    pub(in crate::style) const MEDIUM: Self =
+        LineWidth(LengthOrPercentage::Length(Length { px: 3. }));
+
+    pub(in crate::style) fn fixup(&mut self, style: LineStyle) {
+        if let LineStyle::None = style {
+            self.0 = LengthOrPercentage::Length(Length::zero())
+        }
+    }
 }
 
 impl super::Parse for SpecifiedLineWidth {
