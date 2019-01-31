@@ -8,6 +8,11 @@ properties! {
         font_size { "font-size", Length, initial = Length { px: 16. } }
     }
 
+    reset struct box_ {
+        width { "width", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
+        height { "height", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
+    }
+
     reset struct margin {
         margin_top { "margin-top", LengthOrPercentageOrAuto, initial = Length::zero() }
         margin_left { "margin-left", LengthOrPercentageOrAuto, initial = Length::zero() }

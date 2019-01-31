@@ -2,6 +2,12 @@ pub(crate) use crate::style::values::Length;
 
 pub(crate) mod physical {
     #[derive(Debug, Clone)]
+    pub(crate) struct Vec2<T> {
+        pub x: T,
+        pub y: T,
+    }
+
+    #[derive(Debug, Clone)]
     pub(crate) struct Sides<T> {
         pub top: T,
         pub left: T,
@@ -28,6 +34,21 @@ pub(crate) mod flow_relative {
 
 use crate::style::values::{Direction, WritingMode};
 use std::ops::Add;
+
+impl<T: Clone> physical::Vec2<T> {
+    pub fn to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Vec2<T> {
+        // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
+        let (i, b) = if let (WritingMode::HorizontalTb, _) = mode {
+            (&self.x, &self.y)
+        } else {
+            (&self.y, &self.x)
+        };
+        flow_relative::Vec2 {
+            inline: i.clone(),
+            block: b.clone(),
+        }
+    }
+}
 
 impl<T: Clone> physical::Sides<T> {
     pub fn to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Sides<T> {
@@ -69,7 +90,7 @@ impl<T> flow_relative::Sides<T> {
         }
     }
 
-    pub fn map_block_inline_axes<U>(
+    pub fn map_inline_and_block_axes<U>(
         &self,
         inline_f: impl Fn(&T) -> U,
         block_f: impl Fn(&T) -> U,

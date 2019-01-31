@@ -132,6 +132,16 @@ impl ops::Mul<Percentage> for Length {
     }
 }
 
+impl ops::Div<f32> for Length {
+    type Output = Self;
+
+    fn div(self, other: f32) -> Self {
+        Length {
+            px: self.px / other,
+        }
+    }
+}
+
 impl LengthOrPercentage {
     pub(crate) fn percentage_relative_to(&self, reference: Length) -> Length {
         match *self {
@@ -142,11 +152,19 @@ impl LengthOrPercentage {
 }
 
 impl LengthOrPercentageOrAuto {
-    pub(crate) fn auto_is(&self, auto_value: Length) -> LengthOrPercentage {
+    pub(crate) fn auto_is(&self, auto_value: impl FnOnce() -> Length) -> LengthOrPercentage {
         match *self {
             LengthOrPercentageOrAuto::Length(l) => LengthOrPercentage::Length(l),
             LengthOrPercentageOrAuto::Percentage(p) => LengthOrPercentage::Percentage(p),
-            LengthOrPercentageOrAuto::Auto => LengthOrPercentage::Length(auto_value),
+            LengthOrPercentageOrAuto::Auto => LengthOrPercentage::Length(auto_value()),
+        }
+    }
+
+    pub(crate) fn non_auto(&self) -> Option<LengthOrPercentage> {
+        match *self {
+            LengthOrPercentageOrAuto::Length(l) => Some(LengthOrPercentage::Length(l)),
+            LengthOrPercentageOrAuto::Percentage(p) => Some(LengthOrPercentage::Percentage(p)),
+            LengthOrPercentageOrAuto::Auto => None,
         }
     }
 }

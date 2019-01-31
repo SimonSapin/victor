@@ -33,6 +33,14 @@ impl ComputedValues {
         (WritingMode::HorizontalTb, Direction::Ltr)
     }
 
+    pub(crate) fn box_size(&self) -> flow_relative::Vec2<values::LengthOrPercentageOrAuto> {
+        physical::Vec2 {
+            x: self.box_.width,
+            y: self.box_.height,
+        }
+        .to_flow_relative(self.writing_mode())
+    }
+
     pub(crate) fn padding(&self) -> flow_relative::Sides<values::LengthOrPercentage> {
         physical::Sides {
             top: self.padding.padding_top,

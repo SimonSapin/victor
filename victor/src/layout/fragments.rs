@@ -3,9 +3,9 @@ use crate::geom::Length;
 use crate::style::ComputedValues;
 use std::rc::Rc;
 
-pub(super) struct Block {
+pub(super) struct Fragment {
     pub style: Rc<ComputedValues>,
-    pub children: Vec<Block>,
+    pub children: Vec<Fragment>,
 
     /// From the containing block’s start corner
     pub content_start_corner: Vec2<Length>,
