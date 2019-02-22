@@ -14,6 +14,7 @@ mod tagged_union_with_jump_tables;
 mod geom;
 mod layout;
 mod style;
+mod paint;
 
 #[macro_use]
 extern crate cssparser;

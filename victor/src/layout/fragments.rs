@@ -3,7 +3,7 @@ use crate::geom::Length;
 use crate::style::ComputedValues;
 use std::rc::Rc;
 
-pub(super) struct Fragment {
+pub(crate) struct Fragment {
     pub style: Rc<ComputedValues>,
     pub children: Vec<Fragment>,
 

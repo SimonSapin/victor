@@ -1,5 +1,5 @@
 mod boxes;
-mod fragments;
+pub(crate) mod fragments;
 
 use crate::geom::flow_relative::Vec2;
 use crate::geom::Length;
@@ -8,28 +8,30 @@ use crate::style::ComputedValues;
 use std::rc::Rc;
 
 impl crate::dom::Document {
-    pub fn render(&self, viewport: crate::primitives::Size<crate::primitives::CssPx>) {
-        let box_tree = self.box_tree();
-        let _ = Self::layout(&box_tree, viewport);
-    }
-
-    fn layout(
-        box_tree: &boxes::BoxTreeRoot,
+    pub(crate) fn layout(
+        &self,
         viewport: crate::primitives::Size<crate::primitives::CssPx>,
     ) -> Vec<fragments::Fragment> {
-        // FIXME: use the document’s mode:
-        // https://drafts.csswg.org/css-writing-modes/#principal-flow
-        let initial_containing_block = ContainingBlock {
-            inline_size: Length { px: viewport.width },
-            block_size: Some(Length {
-                px: viewport.height,
-            }),
-            mode: (WritingMode::HorizontalTb, Direction::Ltr),
-        };
-
-        let (fragments, _) = box_tree.layout(&initial_containing_block);
-        fragments
+        let box_tree = self.box_tree();
+        layout_document(&box_tree, viewport)
     }
+}
+fn layout_document(
+    box_tree: &boxes::BoxTreeRoot,
+    viewport: crate::primitives::Size<crate::primitives::CssPx>,
+) -> Vec<fragments::Fragment> {
+    // FIXME: use the document’s mode:
+    // https://drafts.csswg.org/css-writing-modes/#principal-flow
+    let initial_containing_block = ContainingBlock {
+        inline_size: Length { px: viewport.width },
+        block_size: Some(Length {
+            px: viewport.height,
+        }),
+        mode: (WritingMode::HorizontalTb, Direction::Ltr),
+    };
+
+    let (fragments, _) = box_tree.layout(&initial_containing_block);
+    fragments
 }
 
 struct ContainingBlock {
@@ -58,7 +60,10 @@ impl boxes::BlockContainer {
                 }
                 (child_fragments, block_size)
             }
-            boxes::BlockContainer::InlineFormattingContext(_children) => unimplemented!(),
+            boxes::BlockContainer::InlineFormattingContext(_children) => {
+                eprintln!("Unimplemented: inline formatting context");
+                (Vec::new(), Length::zero())
+            }
         }
     }
 }
