@@ -1,11 +1,16 @@
 use crate::style::values::*;
-use cssparser::Color;
+use cssparser::{Color, RGBA};
 
 properties! {
     type Discriminant = u8;
 
     inherited struct font {
         font_size { "font-size", Length, initial = Length { px: 16. } }
+    }
+
+    inherited struct color {
+        // FIXME: support currentColor here
+        color { "color", RGBA, initial = BLACK }
     }
 
     reset struct box_ {
@@ -42,6 +47,10 @@ properties! {
         border_left_width { "border-left-width", LineWidth, initial = LineWidth::MEDIUM }
         border_bottom_width { "border-bottom-width", LineWidth, initial = LineWidth::MEDIUM }
         border_right_width { "border-right-width", LineWidth, initial = LineWidth::MEDIUM }
+    }
+
+    reset struct background {
+        background_color { "background-color", Color, initial = Color::RGBA(RGBA::transparent()) }
     }
 
     reset struct display {

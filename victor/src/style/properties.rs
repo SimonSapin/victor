@@ -4,6 +4,7 @@ use self::definitions::{LonghandId, INITIAL_VALUES};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
+use cssparser::{Color, RGBA};
 use std::rc::Rc;
 
 #[macro_use]
@@ -69,6 +70,13 @@ impl ComputedValues {
             right: self.margin.margin_right,
         }
         .to_flow_relative(self.writing_mode())
+    }
+
+    pub(crate) fn to_rgba(&self, color: Color) -> RGBA {
+        match color {
+            Color::RGBA(rgba) => rgba,
+            Color::CurrentColor => self.color.color,
+        }
     }
 }
 

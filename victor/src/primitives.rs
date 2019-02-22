@@ -20,3 +20,9 @@ pub struct TextRun {
     pub font_size: Length<CssPx>,
     pub origin: Point<CssPx>,
 }
+
+impl From<cssparser::RGBA> for RGBA {
+    fn from(c: cssparser::RGBA) -> Self {
+        RGBA(c.red_f32(), c.green_f32(), c.blue_f32(), c.alpha_f32())
+    }
+}

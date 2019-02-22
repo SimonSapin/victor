@@ -19,8 +19,10 @@ impl crate::dom::Document {
 
 impl Fragment {
     fn paint_onto(&self, page: &mut Page) {
-        let background_color = self.style.background.background_color;
-        if background_color.alpha > 0. {}
+        let background_color = self.style.to_rgba(self.style.background.background_color);
+        if background_color.alpha > 0 {
+            page.set_color(&background_color.into());
+        }
         for child in &self.children {
             child.paint_onto(page)
         }
