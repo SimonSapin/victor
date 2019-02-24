@@ -1,8 +1,8 @@
 use crate::geom::physical::{Rect, Vec2};
+use crate::geom::Length;
 use crate::layout::fragments::Fragment;
 use crate::pdf::Page;
 use crate::primitives::{CssPx, Size};
-use crate::style::values::Length;
 
 impl crate::dom::Document {
     pub fn to_pdf_bytes(&self) -> Vec<u8> {
@@ -38,9 +38,12 @@ impl Fragment {
         let background_color = self.style.to_rgba(self.style.background.background_color);
         if background_color.alpha > 0 {
             page.set_color(&background_color.into());
-            let _ = self
-                .border_rect()
-                .to_physical(self.style.writing_mode(), containing_block);
+            page.paint_rectangle(
+                &self
+                    .border_rect()
+                    .to_physical(self.style.writing_mode(), containing_block)
+                    .into(),
+            );
         }
         for child in &self.children {
             child.paint_onto(page, containing_block)

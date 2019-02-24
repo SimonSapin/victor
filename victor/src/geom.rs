@@ -216,3 +216,12 @@ impl<T> flow_relative::Rect<T> {
         }
     }
 }
+
+impl From<physical::Rect<Length>> for crate::primitives::Rect<crate::primitives::CssPx> {
+    fn from(r: physical::Rect<Length>) -> Self {
+        crate::primitives::Rect {
+            origin: crate::primitives::Point::new(r.top_left.x.px, r.top_left.y.px),
+            size: crate::primitives::Size::new(r.size.x.px, r.size.y.px),
+        }
+    }
+}
