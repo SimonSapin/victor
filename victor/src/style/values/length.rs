@@ -98,27 +98,9 @@ impl ops::Add for Length {
     }
 }
 
-impl ops::Add for &'_ Length {
-    type Output = Length;
-    fn add(self, other: Self) -> Length {
-        Length {
-            px: self.px + other.px,
-        }
-    }
-}
-
 impl ops::Sub for Length {
     type Output = Self;
     fn sub(self, other: Self) -> Self {
-        Length {
-            px: self.px - other.px,
-        }
-    }
-}
-
-impl ops::Sub for &'_ Length {
-    type Output = Length;
-    fn sub(self, other: Self) -> Length {
         Length {
             px: self.px - other.px,
         }

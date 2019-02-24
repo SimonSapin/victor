@@ -130,18 +130,18 @@ impl<T> flow_relative::Sides<T> {
         }
     }
 
-    pub fn inline_sum(&self) -> <&T as Add>::Output
+    pub fn inline_sum(&self) -> T::Output
     where
-        for<'a> &'a T: Add,
+        T: Add + Copy,
     {
-        &self.inline_start + &self.inline_end
+        self.inline_start + self.inline_end
     }
 
-    pub fn block_sum(&self) -> <&T as Add>::Output
+    pub fn block_sum(&self) -> T::Output
     where
-        for<'a> &'a T: Add,
+        T: Add + Copy,
     {
-        &self.block_start + &self.block_end
+        self.block_start + self.block_end
     }
 
     pub fn start_corner(&self) -> flow_relative::Vec2<T>
@@ -155,14 +155,14 @@ impl<T> flow_relative::Sides<T> {
     }
 }
 
-impl<'a, 'b, T, U> Add<&'b flow_relative::Sides<U>> for &'a flow_relative::Sides<T>
+impl<T, U> Add<&'_ flow_relative::Sides<U>> for &'_ flow_relative::Sides<T>
 where
     T: Add<U> + Copy,
     U: Copy,
 {
     type Output = flow_relative::Sides<T::Output>;
 
-    fn add(self, other: &'b flow_relative::Sides<U>) -> Self::Output {
+    fn add(self, other: &'_ flow_relative::Sides<U>) -> Self::Output {
         flow_relative::Sides {
             inline_start: self.inline_start + other.inline_start,
             inline_end: self.inline_end + other.inline_end,
@@ -175,17 +175,17 @@ where
 impl<T> flow_relative::Rect<T> {
     pub fn inflate(&self, sides: &flow_relative::Sides<T>) -> Self
     where
-        for<'a> &'a T: Add<Output = T>,
-        for<'a> &'a T: Sub<Output = T>,
+        T: Add<Output = T> + Copy,
+        T: Sub<Output = T> + Copy,
     {
         flow_relative::Rect {
             start_corner: flow_relative::Vec2 {
-                inline: &self.start_corner.inline - &sides.inline_start,
-                block: &self.start_corner.block - &sides.block_start,
+                inline: self.start_corner.inline - sides.inline_start,
+                block: self.start_corner.block - sides.block_start,
             },
             size: flow_relative::Vec2 {
-                inline: &self.size.inline + &sides.inline_sum(),
-                block: &self.size.block + &sides.block_sum(),
+                inline: self.size.inline + sides.inline_sum(),
+                block: self.size.block + sides.block_sum(),
             },
         }
     }
