@@ -1,10 +1,11 @@
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
 use crate::style::values::{FromSpecified, Parse};
 use cssparser::{Parser, Token};
+use std::fmt;
 use std::ops;
 
 #[repr(transparent)]
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, PartialEq, PartialOrd)]
 pub(crate) struct Length {
     pub px: f32,
 }
@@ -28,7 +29,7 @@ pub(in crate::style) enum SpecifiedLengthOrPercentage {
     Percentage(Percentage),
 }
 
-#[derive(Copy, Clone, FromSpecified, FromVariants)]
+#[derive(Debug, Copy, Clone, FromSpecified, FromVariants)]
 pub(crate) enum LengthOrPercentage {
     Length(Length),
     Percentage(Percentage),
@@ -41,7 +42,7 @@ pub(in crate::style) enum SpecifiedLengthOrPercentageOrAuto {
     Auto,
 }
 
-#[derive(Copy, Clone, FromSpecified, FromVariants)]
+#[derive(Debug, Copy, Clone, FromSpecified, FromVariants)]
 pub(crate) enum LengthOrPercentageOrAuto {
     Length(Length),
     Percentage(Percentage),
@@ -130,6 +131,20 @@ impl ops::Div<f32> for Length {
         Length {
             px: self.px / other,
         }
+    }
+}
+
+impl fmt::Debug for Length {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.px.fmt(f)?;
+        fmt::Write::write_str(f, "px")
+    }
+}
+
+impl fmt::Debug for Percentage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (self.unit_value * 100.).fmt(f)?;
+        fmt::Write::write_str(f, "%")
     }
 }
 

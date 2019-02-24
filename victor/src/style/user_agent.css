@@ -1,2 +1,3 @@
 head { display: none; }
 html, body, div, p { display: block }
+:root { margin: 8px }

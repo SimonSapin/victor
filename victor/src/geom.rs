@@ -47,6 +47,19 @@ pub(crate) mod flow_relative {
 use crate::style::values::{Direction, WritingMode};
 use std::ops::{Add, Sub};
 
+impl<T> Add<&'_ physical::Vec2<T>> for &'_ physical::Vec2<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = physical::Vec2<T>;
+
+    fn add(self, other: &'_ physical::Vec2<T>) -> Self::Output {
+        physical::Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
 impl<T: Clone> physical::Vec2<T> {
     pub fn size_to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
@@ -155,14 +168,13 @@ impl<T> flow_relative::Sides<T> {
     }
 }
 
-impl<T, U> Add<&'_ flow_relative::Sides<U>> for &'_ flow_relative::Sides<T>
+impl<T> Add<&'_ flow_relative::Sides<T>> for &'_ flow_relative::Sides<T>
 where
-    T: Add<U> + Copy,
-    U: Copy,
+    T: Add<Output = T> + Copy,
 {
-    type Output = flow_relative::Sides<T::Output>;
+    type Output = flow_relative::Sides<T>;
 
-    fn add(self, other: &'_ flow_relative::Sides<U>) -> Self::Output {
+    fn add(self, other: &'_ flow_relative::Sides<T>) -> Self::Output {
         flow_relative::Sides {
             inline_start: self.inline_start + other.inline_start,
             inline_end: self.inline_end + other.inline_end,
@@ -213,6 +225,18 @@ impl<T> flow_relative::Rect<T> {
                 y: tl_y.clone(),
             },
             size: self.size.size_to_physical(mode),
+        }
+    }
+}
+
+impl<T> physical::Rect<T> {
+    pub fn translate(&self, by: &physical::Vec2<T>) -> Self
+    where
+        T: Add<Output = T> + Copy,
+    {
+        physical::Rect {
+            top_left: &self.top_left + by,
+            size: self.size.clone(),
         }
     }
 }

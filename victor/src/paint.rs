@@ -38,15 +38,19 @@ impl Fragment {
         let background_color = self.style.to_rgba(self.style.background.background_color);
         if background_color.alpha > 0 {
             page.set_color(&background_color.into());
-            page.paint_rectangle(
-                &self
-                    .border_rect()
-                    .to_physical(self.style.writing_mode(), containing_block)
-                    .into(),
-            );
+            let rect = self
+                .border_rect()
+                .to_physical(self.style.writing_mode(), containing_block)
+                .translate(&containing_block.top_left)
+                .into();
+            page.paint_rectangle(&rect);
         }
+        let content_rect = self
+            .content_rect
+            .to_physical(self.style.writing_mode(), containing_block)
+            .translate(&containing_block.top_left);
         for child in &self.children {
-            child.paint_onto(page, containing_block)
+            child.paint_onto(page, &content_rect)
         }
     }
 }
