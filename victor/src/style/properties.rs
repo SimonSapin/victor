@@ -14,11 +14,21 @@ mod definitions;
 
 impl ComputedValues {
     pub(crate) fn initial() -> Rc<Self> {
-        INITIAL_VALUES.with(|initial| initial.clone())
+        thread_local! {
+            static INITIAL_COMPUTED: Rc<ComputedValues> = INITIAL_VALUES.with(|initial| {
+                let mut style = initial.clone();
+                Rc::make_mut(&mut style).post_cascade_fixups();
+                style
+            });
+        }
+        INITIAL_COMPUTED.with(|computed| computed.clone())
     }
 
     pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-        INITIAL_VALUES.with(|initial| Rc::new(Self::new_inheriting_from(parent_style, initial)))
+        let mut style =
+            INITIAL_VALUES.with(|initial| Self::new_inheriting_from(parent_style, initial));
+        style.post_cascade_fixups();
+        Rc::new(style)
     }
 
     pub(super) fn post_cascade_fixups(&mut self) {
