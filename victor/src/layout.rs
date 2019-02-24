@@ -1,7 +1,7 @@
 mod boxes;
 pub(crate) mod fragments;
 
-use crate::geom::flow_relative::Vec2;
+use crate::geom::flow_relative::{Rect, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 use crate::style::ComputedValues;
@@ -142,21 +142,24 @@ fn same_formatting_context_block(
         block_size,
         mode: style.writing_mode(),
     };
+    // https://drafts.csswg.org/css-writing-modes/#orthogonal-flows
     assert_eq!(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
     let (children, content_block_size) = contents.layout(&containing_block_for_children);
     let block_size = block_size.unwrap_or(content_block_size);
-    let content_size = Vec2 {
-        block: block_size,
-        inline: inline_size,
+    let content_rect = Rect {
+        start_corner: content_start_corner,
+        size: Vec2 {
+            block: block_size,
+            inline: inline_size,
+        },
     };
     let block = fragments::Fragment {
         style: style.clone(),
         children,
-        content_start_corner,
-        content_size,
+        content_rect,
         padding,
         border,
         margin,

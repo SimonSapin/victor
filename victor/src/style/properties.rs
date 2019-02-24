@@ -39,7 +39,7 @@ impl ComputedValues {
             x: self.box_.width,
             y: self.box_.height,
         }
-        .to_flow_relative(self.writing_mode())
+        .size_to_flow_relative(self.writing_mode())
     }
 
     pub(crate) fn padding(&self) -> flow_relative::Sides<values::LengthOrPercentage> {

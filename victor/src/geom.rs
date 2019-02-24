@@ -8,6 +8,12 @@ pub(crate) mod physical {
     }
 
     #[derive(Debug, Clone)]
+    pub(crate) struct Rect<T> {
+        pub top_left: Vec2<T>,
+        pub size: Vec2<T>,
+    }
+
+    #[derive(Debug, Clone)]
     pub(crate) struct Sides<T> {
         pub top: T,
         pub left: T,
@@ -24,6 +30,12 @@ pub(crate) mod flow_relative {
     }
 
     #[derive(Debug, Clone)]
+    pub(crate) struct Rect<T> {
+        pub start_corner: Vec2<T>,
+        pub size: Vec2<T>,
+    }
+
+    #[derive(Debug, Clone)]
     pub(crate) struct Sides<T> {
         pub inline_start: T,
         pub inline_end: T,
@@ -33,10 +45,10 @@ pub(crate) mod flow_relative {
 }
 
 use crate::style::values::{Direction, WritingMode};
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 impl<T: Clone> physical::Vec2<T> {
-    pub fn to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Vec2<T> {
+    pub fn size_to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
         let (i, b) = if let (WritingMode::HorizontalTb, _) = mode {
             (&self.x, &self.y)
@@ -46,6 +58,21 @@ impl<T: Clone> physical::Vec2<T> {
         flow_relative::Vec2 {
             inline: i.clone(),
             block: b.clone(),
+        }
+    }
+}
+
+impl<T: Clone> flow_relative::Vec2<T> {
+    pub fn size_to_physical(&self, mode: (WritingMode, Direction)) -> physical::Vec2<T> {
+        // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
+        let (x, y) = if let (WritingMode::HorizontalTb, _) = mode {
+            (&self.inline, &self.block)
+        } else {
+            (&self.block, &self.inline)
+        };
+        physical::Vec2 {
+            x: x.clone(),
+            y: y.clone(),
         }
     }
 }
@@ -141,6 +168,51 @@ where
             inline_end: self.inline_end + other.inline_end,
             block_start: self.block_start + other.block_start,
             block_end: self.block_end + other.block_end,
+        }
+    }
+}
+
+impl<T> flow_relative::Rect<T> {
+    pub fn inflate(&self, sides: &flow_relative::Sides<T>) -> Self
+    where
+        for<'a> &'a T: Add<Output = T>,
+        for<'a> &'a T: Sub<Output = T>,
+    {
+        flow_relative::Rect {
+            start_corner: flow_relative::Vec2 {
+                inline: &self.start_corner.inline - &sides.inline_start,
+                block: &self.start_corner.block - &sides.block_start,
+            },
+            size: flow_relative::Vec2 {
+                inline: &self.size.inline + &sides.inline_sum(),
+                block: &self.size.block + &sides.block_sum(),
+            },
+        }
+    }
+
+    pub fn to_physical(
+        &self,
+        mode: (WritingMode, Direction),
+        // Will be needed for other writing modes
+        // FIXME: what if the containing block has a different mode?
+        // https://drafts.csswg.org/css-writing-modes/#orthogonal-flows
+        _containing_block: &physical::Rect<T>,
+    ) -> physical::Rect<T>
+    where
+        T: Clone,
+    {
+        // Top-left corner
+        let (tl_x, tl_y) = if let (WritingMode::HorizontalTb, Direction::Ltr) = mode {
+            (&self.start_corner.inline, &self.start_corner.block)
+        } else {
+            unimplemented!()
+        };
+        physical::Rect {
+            top_left: physical::Vec2 {
+                x: tl_x.clone(),
+                y: tl_y.clone(),
+            },
+            size: self.size.size_to_physical(mode),
         }
     }
 }
