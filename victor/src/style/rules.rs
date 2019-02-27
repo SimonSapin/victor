@@ -39,26 +39,9 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
         _location: SourceLocation,
         parser: &mut Parser<'i, 't>,
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
-        let mut iter = DeclarationListParser::new(
-            parser,
-            LonghandDeclarationParser {
-                declarations: Vec::new(),
-            },
-        );
-        while let Some(result) = iter.next() {
-            let previous_len = iter.parser.declarations.len();
-            match result {
-                Ok(()) => {}
-                Err(_) => {
-                    iter.parser.declarations.truncate(previous_len);
-                    // FIXME error reporting
-                }
-            }
-        }
-
         Ok(CssRule::StyleRule {
             selectors: prelude,
-            declarations: Rc::new(iter.parser.declarations),
+            declarations: Rc::new(parse_declaration_block(parser)),
         })
     }
 }
@@ -70,7 +53,27 @@ impl<'i> AtRuleParser<'i> for RulesParser {
     type Error = RuleParseErrorKind<'i>;
 }
 
-pub(super) struct LonghandDeclarationParser {
+pub(super) fn parse_declaration_block(parser: &mut Parser) -> Vec<LonghandDeclaration> {
+    let mut iter = DeclarationListParser::new(
+        parser,
+        LonghandDeclarationParser {
+            declarations: Vec::new(),
+        },
+    );
+    while let Some(result) = iter.next() {
+        let previous_len = iter.parser.declarations.len();
+        match result {
+            Ok(()) => {}
+            Err(_) => {
+                iter.parser.declarations.truncate(previous_len);
+                // FIXME error reporting
+            }
+        }
+    }
+    iter.parser.declarations
+}
+
+struct LonghandDeclarationParser {
     declarations: Vec<LonghandDeclaration>,
 }
 

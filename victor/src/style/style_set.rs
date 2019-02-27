@@ -1,6 +1,6 @@
 use crate::dom;
 use crate::style::properties::{ComputedValues, LonghandDeclaration};
-use crate::style::rules::{CssRule, RulesParser};
+use crate::style::rules::{parse_declaration_block, CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
 use std::rc::Rc;
@@ -73,18 +73,38 @@ impl StyleSet {
     }
 }
 
+fn parse_and_apply_style_attribute(
+    attr: &str,
+    computed: &mut ComputedValues,
+    inherited: &ComputedValues,
+) {
+    let mut input = ParserInput::new(attr);
+    let mut parser = Parser::new(&mut input);
+    for declaration in parse_declaration_block(&mut parser) {
+        declaration.cascade_into(computed, inherited)
+    }
+}
+
 pub(crate) fn cascade(
     author: &StyleSet,
     document: &dom::Document,
     node: dom::NodeId,
     parent_style: Option<&ComputedValues>,
 ) -> Rc<ComputedValues> {
-    assert!(document[node].as_element().is_some());
+    let element = document[node].as_element().unwrap();
     let initial = ComputedValues::initial();
     let inherited = parent_style.unwrap_or(&*initial);
     let mut computed = ComputedValues::new_inheriting_from(inherited, &*initial);
     USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, &mut computed, inherited));
     author.cascade_into(document, node, &mut computed, inherited);
+    if let Some(style_attr) = element.get_attr(&local_name!("style")) {
+        match element.name.ns {
+            ns!(html) | ns!(svg) | ns!(mathml) => {
+                parse_and_apply_style_attribute(style_attr, &mut computed, inherited)
+            }
+            _ => {}
+        }
+    }
     computed.post_cascade_fixups();
     Rc::new(computed)
 }
