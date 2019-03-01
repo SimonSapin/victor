@@ -95,12 +95,9 @@ pub(crate) fn cascade(
     ComputedValues::new(parent_style, |computed, context| {
         USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, computed, context));
         author.cascade_into(document, node, computed, context);
-        if let Some(style_attr) = element.get_attr(&local_name!("style")) {
-            match element.name.ns {
-                ns!(html) | ns!(svg) | ns!(mathml) => {
-                    parse_and_apply_style_attribute(style_attr, computed, context)
-                }
-                _ => {}
+        if let ns!(html) | ns!(svg) | ns!(mathml) = element.name.ns {
+            if let Some(style_attr) = element.get_attr(&local_name!("style")) {
+                parse_and_apply_style_attribute(style_attr, computed, context)
             }
         }
     })
