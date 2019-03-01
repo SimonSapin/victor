@@ -16,19 +16,17 @@ impl FromSpecified for Color {
     }
 }
 
-impl Parse for RGBA {
-    fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
-        match Color::parse(parser)? {
-            Color::RGBA(rgba) => Ok(rgba),
-            Color::CurrentColor => Err(parser.new_error_for_next_token()),
-        }
-    }
-}
-
+// Only used for the 'color' property
 impl FromSpecified for RGBA {
-    type SpecifiedValue = Self;
-    fn from_specified(specified: &Self, _: &CascadeContext) -> Self {
-        specified.clone()
+    type SpecifiedValue = Color;
+    fn from_specified(specified: &Color, context: &CascadeContext) -> Self {
+        match specified {
+            Color::RGBA(rgba) => *rgba,
+            // https://drafts.csswg.org/css-color/#resolve-color-values
+            // “If `currentcolor` is the specified value of the 'color' property,
+            //  it is treated as if the specified value was `inherit`.”
+            Color::CurrentColor => context.inherited.color.color,
+        }
     }
 }
 
