@@ -1,4 +1,5 @@
 use crate::style::errors::PropertyParseError;
+use crate::style::properties::CascadeContext;
 use cssparser::Parser;
 
 mod border;
@@ -17,7 +18,7 @@ pub(super) trait Parse: Sized {
 
 pub(super) trait FromSpecified {
     type SpecifiedValue;
-    fn from_specified(specified: &Self::SpecifiedValue) -> Self;
+    fn from_specified(specified: &Self::SpecifiedValue, context: &CascadeContext) -> Self;
 }
 #[derive(Copy, Clone, Parse)]
 pub(super) enum CssWideKeyword {

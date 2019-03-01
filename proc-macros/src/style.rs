@@ -7,7 +7,10 @@ pub fn derive_specified_as_computed(input: TokenStream) -> TokenStream {
     quote!(
         impl crate::style::values::FromSpecified for #name {
             type SpecifiedValue = Self;
-            fn from_specified(specified: &Self) -> Self {
+            fn from_specified(
+                specified: &Self,
+                _context: &crate::style::properties::CascadeContext,
+            ) -> Self {
                 std::clone::Clone::clone(specified)
             }
         }
@@ -44,7 +47,7 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
             quote! {
                 #specified_name #variant ( #( #fields ),* ) => #name #variant (
                     #(
-                        FromSpecified::from_specified(#fields),
+                        FromSpecified::from_specified(#fields, context),
                     )*
                 ),
             }
@@ -58,7 +61,7 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
             quote! {
                 #specified_name #variant { #( #fields ),* } => #name #variant {
                     #(
-                        #fields: FromSpecified::from_specified(#fields2),
+                        #fields: FromSpecified::from_specified(#fields2, context),
                     )*
                 },
             }
@@ -81,7 +84,10 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
         quote!(crate::style::values::FromSpecified),
         quote! {
             type SpecifiedValue = #specified_type;
-            fn from_specified(specified: &Self::SpecifiedValue) -> Self {
+            fn from_specified(
+                specified: &Self::SpecifiedValue,
+                context: &crate::style::properties::CascadeContext,
+            ) -> Self {
                 use crate::style::values::FromSpecified;
                 match specified {
                     #( #variants )*

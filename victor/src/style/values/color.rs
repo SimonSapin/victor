@@ -1,5 +1,6 @@
 use super::{FromSpecified, Parse};
 use crate::style::errors::PropertyParseError;
+use crate::style::properties::CascadeContext;
 use cssparser::{Color, Parser, RGBA};
 
 impl Parse for Color {
@@ -10,7 +11,7 @@ impl Parse for Color {
 
 impl FromSpecified for Color {
     type SpecifiedValue = Self;
-    fn from_specified(specified: &Self) -> Self {
+    fn from_specified(specified: &Self, _: &CascadeContext) -> Self {
         specified.clone()
     }
 }
@@ -26,7 +27,7 @@ impl Parse for RGBA {
 
 impl FromSpecified for RGBA {
     type SpecifiedValue = Self;
-    fn from_specified(specified: &Self) -> Self {
+    fn from_specified(specified: &Self, _: &CascadeContext) -> Self {
         specified.clone()
     }
 }

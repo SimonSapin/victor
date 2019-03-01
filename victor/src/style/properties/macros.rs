@@ -85,7 +85,7 @@ macro_rules! properties {
                     $($(
                         LonghandDeclaration::$ident(ref value) => {
                             Rc::make_mut(&mut computed.$struct_name).$ident =
-                                crate::style::values::FromSpecified::from_specified(value)
+                                crate::style::values::FromSpecified::from_specified(value, context)
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {

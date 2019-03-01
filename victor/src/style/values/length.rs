@@ -1,4 +1,5 @@
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
+use crate::style::properties::CascadeContext;
 use crate::style::values::{FromSpecified, Parse};
 use cssparser::{Parser, Token};
 use std::fmt;
@@ -69,7 +70,7 @@ impl Parse for SpecifiedLength {
 
 impl FromSpecified for Length {
     type SpecifiedValue = SpecifiedLength;
-    fn from_specified(s: &SpecifiedLength) -> Self {
+    fn from_specified(s: &SpecifiedLength, _: &CascadeContext) -> Self {
         match s {
             SpecifiedLength::Absolute(px) => *px,
         }
