@@ -1,6 +1,6 @@
 pub(crate) use self::definitions::ComputedValues;
+use self::definitions::LonghandId;
 pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
-use self::definitions::{LonghandId, INITIAL_VALUES};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
@@ -14,21 +14,11 @@ mod definitions;
 
 impl ComputedValues {
     pub(crate) fn initial() -> Rc<Self> {
-        thread_local! {
-            static INITIAL_COMPUTED: Rc<ComputedValues> = INITIAL_VALUES.with(|initial| {
-                let mut style = initial.clone();
-                Rc::make_mut(&mut style).post_cascade_fixups();
-                style
-            });
-        }
-        INITIAL_COMPUTED.with(|computed| computed.clone())
+        Self::new(None, |_, _| {})
     }
 
     pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-        let mut style =
-            INITIAL_VALUES.with(|initial| Self::new_inheriting_from(parent_style, initial));
-        style.post_cascade_fixups();
-        Rc::new(style)
+        Self::new(Some(parent_style), |_, _| {})
     }
 
     pub(super) fn post_cascade_fixups(&mut self) {
@@ -125,4 +115,8 @@ impl<T> ValueOrInitial<T> for Option<T> {
             None => LonghandDeclaration::CssWide(id, CssWideKeyword::Initial),
         }
     }
+}
+
+pub(super) struct CascadeContext<'a> {
+    pub inherited: &'a ComputedValues,
 }

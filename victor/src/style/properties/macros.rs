@@ -23,6 +23,7 @@ macro_rules! properties {
         }
     ) => {
         use std::rc::Rc;
+        use crate::style::properties::CascadeContext;
 
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
@@ -38,7 +39,7 @@ macro_rules! properties {
                 &self,
                 keyword: crate::style::values::CssWideKeyword,
                 computed: &mut ComputedValues,
-                inherited: &ComputedValues,
+                context: &CascadeContext,
             ) {
                 match *self {
                     $($(
@@ -57,7 +58,7 @@ macro_rules! properties {
                             if is_initial {
                                 From::from($initial_value)
                             } else {
-                                inherited.$struct_name.$ident.clone()
+                                context.inherited.$struct_name.$ident.clone()
                             };
                         }
                     )+)+
@@ -78,7 +79,7 @@ macro_rules! properties {
             pub(in crate::style) fn cascade_into(
                 &self,
                 computed: &mut ComputedValues,
-                inherited: &ComputedValues,
+                context: &CascadeContext,
             ) {
                 match *self {
                     $($(
@@ -88,7 +89,7 @@ macro_rules! properties {
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
-                        longhand.cascade_css_wide_keyword_into(*keyword, computed, inherited)
+                        longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
                     }
                 }
             }
@@ -114,33 +115,44 @@ macro_rules! properties {
             )+
         }
 
-        // XXX: if we ever replace Rc with Arc for style structs,
-        // replace thread_local! with lazy_static! here.
-        thread_local! {
-            pub(super) static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
-                $(
-                    $struct_name: Rc::new(
-                        style_structs::$struct_name {
-                            $(
-                                $ident: From::from($initial_value),
-                            )+
-                        }
-                    ),
-                )+
-            });
-        }
-
         impl ComputedValues {
-            pub(crate) fn new_inheriting_from(inherited: &Self, initial: &Self) -> Self {
-                macro_rules! select {
-                    (inherited) => { inherited };
-                    (reset) => { initial };
+            pub(in crate::style) fn new(
+                inherited: Option<&Self>,
+                cascade: impl FnOnce(&mut Self, &CascadeContext),
+            ) -> Rc<Self> {
+                // XXX: if we ever replace Rc with Arc for style structs,
+                // replace thread_local! with lazy_static! here.
+                thread_local! {
+                    static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
+                        $(
+                            $struct_name: Rc::new(
+                                style_structs::$struct_name {
+                                    $(
+                                        $ident: From::from($initial_value),
+                                    )+
+                                }
+                            ),
+                        )+
+                    });
                 }
-                ComputedValues {
-                    $(
-                        $struct_name: Rc::clone(&select!($inherited).$struct_name),
-                    )+
-                }
+                INITIAL_VALUES.with(|initial| {
+                    let initial = &**initial;
+                    let inherited = inherited.unwrap_or(initial);
+                    macro_rules! select {
+                        (inherited) => { inherited };
+                        (reset) => { initial };
+                    }
+                    let mut computed = ComputedValues {
+                        $(
+                            $struct_name: Rc::clone(&select!($inherited).$struct_name),
+                        )+
+                    };
+                    cascade(&mut computed, &CascadeContext {
+                        inherited,
+                    });
+                    computed.post_cascade_fixups();
+                    Rc::new(computed)
+                })
             }
         }
 
