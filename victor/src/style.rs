@@ -1,3 +1,4 @@
+mod declaration_block;
 mod errors;
 mod properties;
 mod rules;

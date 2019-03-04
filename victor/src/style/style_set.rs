@@ -1,6 +1,7 @@
 use crate::dom;
-use crate::style::properties::{CascadeContext, ComputedValues, LonghandDeclaration};
-use crate::style::rules::{parse_declaration_block, CssRule, RulesParser};
+use crate::style::declaration_block::DeclarationBlock;
+use crate::style::properties::{CascadeContext, ComputedValues};
+use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
 use std::rc::Rc;
@@ -8,7 +9,7 @@ use std::rc::Rc;
 pub struct StyleSetBuilder(StyleSet);
 
 pub struct StyleSet {
-    rules: Vec<(Selector, Rc<Vec<LonghandDeclaration>>)>,
+    rules: Vec<(Selector, Rc<DeclarationBlock>)>,
 }
 
 // XXX: if we ever replace Rc with Arc for style structs,
@@ -31,12 +32,9 @@ impl StyleSetBuilder {
         let mut parser = Parser::new(&mut input);
         for result in RuleListParser::new_for_stylesheet(&mut parser, RulesParser) {
             match result {
-                Ok(CssRule::StyleRule {
-                    selectors,
-                    declarations,
-                }) => {
+                Ok(CssRule::StyleRule { selectors, block }) => {
                     for selector in selectors.0 {
-                        self.0.rules.push((selector, declarations.clone()));
+                        self.0.rules.push((selector, block.clone()));
                     }
                 }
                 Err(_) => {
@@ -63,9 +61,9 @@ impl StyleSet {
         computed: &mut ComputedValues,
         context: &CascadeContext,
     ) {
-        for &(ref selector, ref declarations) in &self.rules {
+        for &(ref selector, ref block) in &self.rules {
             if selectors::matches(selector, document, node) {
-                for declaration in declarations.iter() {
+                for declaration in block.declarations.iter() {
                     declaration.cascade_into(computed, context)
                 }
             }
@@ -80,7 +78,7 @@ fn parse_and_apply_style_attribute(
 ) {
     let mut input = ParserInput::new(attr);
     let mut parser = Parser::new(&mut input);
-    for declaration in parse_declaration_block(&mut parser) {
+    for declaration in DeclarationBlock::parse(&mut parser).declarations {
         declaration.cascade_into(computed, context)
     }
 }
