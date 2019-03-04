@@ -118,7 +118,7 @@ macro_rules! properties {
         impl ComputedValues {
             pub(in crate::style) fn new(
                 inherited: Option<&Self>,
-                matching_declaration_blocks: &[&crate::style::declaration_block::DeclarationBlock]
+                matching: Option<&crate::style::style_set::MatchingDeclarations>,
             ) -> Rc<Self> {
                 // XXX: if we ever replace Rc with Arc for style structs,
                 // replace thread_local! with lazy_static! here.
@@ -149,10 +149,8 @@ macro_rules! properties {
                     let context = CascadeContext {
                         inherited,
                     };
-                    for block in matching_declaration_blocks {
-                        for declaration in &block.declarations {
-                            declaration.cascade_into(&mut computed, &context)
-                        }
+                    if let Some(matching) = matching {
+                        matching.for_each(&mut |decl| decl.cascade_into(&mut computed, &context))
                     }
                     computed.post_cascade_fixups();
                     Rc::new(computed)

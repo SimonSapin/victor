@@ -14,11 +14,11 @@ mod definitions;
 
 impl ComputedValues {
     pub(crate) fn initial() -> Rc<Self> {
-        Self::new(None, &[])
+        Self::new(None, None)
     }
 
     pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
-        Self::new(Some(parent_style), &[])
+        Self::new(Some(parent_style), None)
     }
 
     pub(super) fn post_cascade_fixups(&mut self) {
