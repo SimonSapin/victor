@@ -1,9 +1,10 @@
 use crate::dom;
 use crate::style::declaration_block::DeclarationBlock;
-use crate::style::properties::{CascadeContext, ComputedValues};
+use crate::style::properties::ComputedValues;
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
+use smallvec::SmallVec;
 use std::rc::Rc;
 
 pub struct StyleSetBuilder(StyleSet);
@@ -54,32 +55,17 @@ impl StyleSetBuilder {
 }
 
 impl StyleSet {
-    fn cascade_into(
-        &self,
+    fn push_matching<'a>(
+        &'a self,
         document: &dom::Document,
         node: dom::NodeId,
-        computed: &mut ComputedValues,
-        context: &CascadeContext,
+        mut push: impl FnMut(&'a DeclarationBlock),
     ) {
         for &(ref selector, ref block) in &self.rules {
             if selectors::matches(selector, document, node) {
-                for declaration in block.declarations.iter() {
-                    declaration.cascade_into(computed, context)
-                }
+                push(block)
             }
         }
-    }
-}
-
-fn parse_and_apply_style_attribute(
-    attr: &str,
-    computed: &mut ComputedValues,
-    context: &CascadeContext,
-) {
-    let mut input = ParserInput::new(attr);
-    let mut parser = Parser::new(&mut input);
-    for declaration in DeclarationBlock::parse(&mut parser).declarations {
-        declaration.cascade_into(computed, context)
     }
 }
 
@@ -90,13 +76,19 @@ pub(crate) fn cascade(
     parent_style: Option<&ComputedValues>,
 ) -> Rc<ComputedValues> {
     let element = document[node].as_element().unwrap();
-    ComputedValues::new(parent_style, |computed, context| {
-        USER_AGENT_STYLESHEET.with(|ua| ua.cascade_into(document, node, computed, context));
-        author.cascade_into(document, node, computed, context);
+    USER_AGENT_STYLESHEET.with(|ua| {
+        let style_attr_block;
+        let mut matching = SmallVec::<[&DeclarationBlock; 32]>::new();
+        ua.push_matching(document, node, |declaration| matching.push(declaration));
+        author.push_matching(document, node, |declaration| matching.push(declaration));
         if let ns!(html) | ns!(svg) | ns!(mathml) = element.name.ns {
             if let Some(style_attr) = element.get_attr(&local_name!("style")) {
-                parse_and_apply_style_attribute(style_attr, computed, context)
+                let mut input = ParserInput::new(style_attr);
+                let mut parser = Parser::new(&mut input);
+                style_attr_block = DeclarationBlock::parse(&mut parser);
+                matching.push(&style_attr_block);
             }
         }
+        ComputedValues::new(parent_style, &matching)
     })
 }

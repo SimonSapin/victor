@@ -118,12 +118,12 @@ macro_rules! properties {
         impl ComputedValues {
             pub(in crate::style) fn new(
                 inherited: Option<&Self>,
-                cascade: impl FnOnce(&mut Self, &CascadeContext),
+                matching_declaration_blocks: &[&crate::style::declaration_block::DeclarationBlock]
             ) -> Rc<Self> {
                 // XXX: if we ever replace Rc with Arc for style structs,
                 // replace thread_local! with lazy_static! here.
                 thread_local! {
-                    static INITIAL_VALUES: Rc<ComputedValues> = Rc::new(ComputedValues {
+                    static INITIAL_VALUES: ComputedValues = ComputedValues {
                         $(
                             $struct_name: Rc::new(
                                 style_structs::$struct_name {
@@ -133,10 +133,9 @@ macro_rules! properties {
                                 }
                             ),
                         )+
-                    });
+                    };
                 }
                 INITIAL_VALUES.with(|initial| {
-                    let initial = &**initial;
                     let inherited = inherited.unwrap_or(initial);
                     macro_rules! select {
                         (inherited) => { inherited };
@@ -147,9 +146,14 @@ macro_rules! properties {
                             $struct_name: Rc::clone(&select!($inherited).$struct_name),
                         )+
                     };
-                    cascade(&mut computed, &CascadeContext {
+                    let context = CascadeContext {
                         inherited,
-                    });
+                    };
+                    for block in matching_declaration_blocks {
+                        for declaration in &block.declarations {
+                            declaration.cascade_into(&mut computed, &context)
+                        }
+                    }
                     computed.post_cascade_fixups();
                     Rc::new(computed)
                 })
