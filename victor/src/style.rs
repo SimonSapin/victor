@@ -3,8 +3,8 @@ mod errors;
 mod properties;
 mod rules;
 mod selectors;
-mod style_set;
+#[path = "style/cascade.rs"] mod cascade_module;
 pub(crate) mod values;
 
 pub(crate) use self::properties::ComputedValues;
-pub(crate) use self::style_set::{cascade, StyleSet, StyleSetBuilder};
+pub(crate) use self::cascade_module::{cascade, StyleSet, StyleSetBuilder};
