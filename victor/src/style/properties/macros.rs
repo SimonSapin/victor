@@ -65,12 +65,13 @@ macro_rules! properties {
             }
         }
 
+        macro_rules! is_early {
+            (early) => { true };
+            () => { false };
+        }
+
         impl LonghandId {
-            fn is_early(self) -> bool {
-                macro_rules! is_early {
-                    (early) => { true };
-                    () => { false };
-                }
+            pub(in crate::style) fn is_early(self) -> bool {
                 [
                     $($(
                         is_early!($( $early )?),
@@ -202,14 +203,14 @@ macro_rules! properties {
                         let context = crate::style::values::EarlyCascadeContext {
                             inherited,
                         };
-                        matching.for_each(&mut |decl| {
+                        matching.for_each(super::Early, &mut |decl| {
                             decl.if_early_cascade_into(&mut computed, &context)
                         });
                         let mut context = crate::style::values::CascadeContext {
                             inherited,
                             this: ComputedValuesForLateCascade(&mut computed)
                         };
-                        matching.for_each(&mut |decl| {
+                        matching.for_each(super::Late, &mut |decl| {
                             decl.if_late_cascade_into(&mut context)
                         });
                     }
@@ -245,7 +246,10 @@ macro_rules! properties {
                         parse: |parser, declarations| {
                             let v = crate::style::values::Parse::parse(parser)?;
                             declarations.push(LonghandDeclaration::$ident(v));
-                            Ok(())
+                            Ok(crate::style::properties::Phases {
+                                any_early: is_early!($($early)?),
+                                any_late: !is_early!($($early)?),
+                            })
                         },
                     },
                 )+)+
@@ -271,7 +275,10 @@ macro_rules! properties {
                                     )
                                 );
                             )+
-                            Ok(())
+                            Ok(crate::style::properties::Phases {
+                                any_early: $( LonghandId::$longhand_ident.is_early() )||+,
+                                any_late: $( !LonghandId::$longhand_ident.is_early() )||+,
+                            })
                         },
                     },
                 )+

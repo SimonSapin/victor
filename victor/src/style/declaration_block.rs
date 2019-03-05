@@ -1,15 +1,16 @@
 use crate::style::errors::PropertyParseErrorKind;
-use crate::style::properties::{property_data_by_name, LonghandDeclaration};
+use crate::style::properties::{property_data_by_name, LonghandDeclaration, Phase, Phases};
 use crate::style::values::{CssWideKeyword, Parse};
 use cssparser::{AtRuleParser, ParseError, Parser};
 use cssparser::{CowRcStr, DeclarationListParser, DeclarationParser};
 use std::iter::repeat;
 
+#[derive(Default)]
 pub(super) struct DeclarationBlock {
     declarations: Vec<LonghandDeclaration>,
     important: smallbitvec::SmallBitVec,
-    any_normal: bool,
-    any_important: bool,
+    any_important: Phases,
+    any_normal: Phases,
 }
 
 impl DeclarationBlock {
@@ -17,12 +18,7 @@ impl DeclarationBlock {
         let mut iter = DeclarationListParser::new(
             parser,
             LonghandDeclarationParser {
-                block: DeclarationBlock {
-                    declarations: Vec::new(),
-                    important: smallbitvec::SmallBitVec::new(),
-                    any_normal: false,
-                    any_important: false,
-                },
+                block: DeclarationBlock::default(),
             },
         );
         loop {
@@ -40,33 +36,38 @@ impl DeclarationBlock {
                 iter.parser.block.important.len()
             );
         }
-        {
-            let block = &iter.parser.block;
-            debug_assert_eq!(block.any_normal, !block.important.all_true());
-            debug_assert_eq!(block.any_important, !block.important.all_false());
-        }
+        debug_assert_eq!(
+            iter.parser.block.any_normal.any(),
+            !iter.parser.block.important.all_true()
+        );
+        debug_assert_eq!(
+            iter.parser.block.any_important.any(),
+            !iter.parser.block.important.all_false()
+        );
         iter.parser.block
     }
 
-    pub fn for_each_normal(&self, f: &mut impl FnMut(&LonghandDeclaration)) {
-        self.for_each(false, self.any_normal, f)
-    }
-
-    pub fn for_each_important(&self, f: &mut impl FnMut(&LonghandDeclaration)) {
-        self.for_each(true, self.any_important, f)
-    }
-
-    fn for_each(&self, important: bool, any: bool, f: &mut impl FnMut(&LonghandDeclaration)) {
-        if any {
-            self.declarations
-                .iter()
-                .zip(&self.important)
-                .for_each(move |(d, i)| {
-                    if i == important {
-                        f(d)
-                    }
-                })
+    pub fn for_each_normal(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
+        if p.any(self.any_normal) {
+            self.for_each(false, f)
         }
+    }
+
+    pub fn for_each_important(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
+        if p.any(self.any_important) {
+            self.for_each(true, f)
+        }
+    }
+
+    fn for_each(&self, important: bool, f: &mut impl FnMut(&LonghandDeclaration)) {
+        self.declarations
+            .iter()
+            .zip(&self.important)
+            .for_each(move |(d, i)| {
+                if i == important {
+                    f(d)
+                }
+            })
     }
 }
 
@@ -85,21 +86,31 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
     ) -> Result<Self::Declaration, ParseError<'i, Self::Error>> {
         if let Some(data) = property_data_by_name(&name) {
             let previous_len = self.block.declarations.len();
+            let mut parsed;
             if let Ok(keyword) = parser.r#try(CssWideKeyword::parse) {
+                parsed = crate::style::properties::Phases::default();
                 for &longhand in data.longhands {
                     self.block
                         .declarations
-                        .push(LonghandDeclaration::CssWide(longhand, keyword))
+                        .push(LonghandDeclaration::CssWide(longhand, keyword));
+                    if longhand.is_early() {
+                        parsed.any_early = true
+                    } else {
+                        parsed.any_late = true
+                    }
                 }
             } else {
-                (data.parse)(parser, &mut self.block.declarations)?
+                parsed = (data.parse)(parser, &mut self.block.declarations)?
             }
             let important = cssparser::parse_important(parser).is_ok();
             let count = self.block.declarations.len() - previous_len;
             assert!(count > 0);
-            self.block.any_normal |= !important;
-            self.block.any_important |= important;
             self.block.important.extend(repeat(important).take(count));
+            *if important {
+                &mut self.block.any_important
+            } else {
+                &mut self.block.any_normal
+            } |= parsed;
             Ok(())
         } else {
             Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))

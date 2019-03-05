@@ -1,6 +1,6 @@
 use crate::dom;
 use crate::style::declaration_block::DeclarationBlock;
-use crate::style::properties::{ComputedValues, LonghandDeclaration};
+use crate::style::properties::{ComputedValues, LonghandDeclaration, Phase};
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
@@ -70,17 +70,17 @@ impl StyleSet {
 }
 
 pub(super) struct MatchingDeclarations<'a> {
-    user_agent: SmallVec<[&'a DeclarationBlock; 8]>,
+    ua: SmallVec<[&'a DeclarationBlock; 8]>,
     author: SmallVec<[&'a DeclarationBlock; 32]>,
 }
 
 impl MatchingDeclarations<'_> {
-    pub fn for_each(&self, f: &mut impl FnMut(&LonghandDeclaration)) {
+    pub fn for_each(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
         // https://drafts.csswg.org/css-cascade-4/#cascade-origin
-        self.user_agent.iter().for_each(|b| b.for_each_normal(f));
-        self.author.iter().for_each(|b| b.for_each_normal(f));
-        self.author.iter().for_each(|b| b.for_each_important(f));
-        self.user_agent.iter().for_each(|b| b.for_each_important(f));
+        self.ua.iter().for_each(|b| b.for_each_normal(p, f));
+        self.author.iter().for_each(|b| b.for_each_normal(p, f));
+        self.author.iter().for_each(|b| b.for_each_important(p, f));
+        self.ua.iter().for_each(|b| b.for_each_important(p, f));
     }
 }
 
@@ -94,10 +94,10 @@ pub(crate) fn cascade(
         let element = document[node].as_element().unwrap();
         let style_attr_block;
         let mut matching = MatchingDeclarations {
-            user_agent: SmallVec::new(),
+            ua: SmallVec::new(),
             author: SmallVec::new(),
         };
-        ua.push_matching(document, node, &mut matching.user_agent);
+        ua.push_matching(document, node, &mut matching.ua);
         author.push_matching(document, node, &mut matching.author);
         if let ns!(html) | ns!(svg) | ns!(mathml) = element.name.ns {
             if let Some(style_attr) = element.get_attr(&local_name!("style")) {

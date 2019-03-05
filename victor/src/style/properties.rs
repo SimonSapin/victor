@@ -1,7 +1,7 @@
 pub(crate) use self::definitions::ComputedValues;
-use self::definitions::LonghandId;
-pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration,};
 pub(super) use self::definitions::ComputedValuesForLateCascade;
+use self::definitions::LonghandId;
+pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
@@ -81,10 +81,51 @@ impl ComputedValues {
     }
 }
 
+#[derive(Copy, Clone)]
+pub(super) struct Early;
+
+#[derive(Copy, Clone)]
+pub(super) struct Late;
+
+pub(super) trait Phase: Copy {
+    fn any(self, p: Phases) -> bool;
+}
+
+impl Phase for Early {
+    fn any(self, p: Phases) -> bool {
+        p.any_early
+    }
+}
+
+impl Phase for Late {
+    fn any(self, p: Phases) -> bool {
+        p.any_late
+    }
+}
+
+#[derive(Default, Copy, Clone)]
+pub(super) struct Phases {
+    pub any_early: bool,
+    pub any_late: bool,
+}
+
+impl Phases {
+    pub fn any(self) -> bool {
+        self.any_early || self.any_late
+    }
+}
+
+impl std::ops::BitOrAssign for Phases {
+    fn bitor_assign(&mut self, other: Self) {
+        self.any_early |= other.any_early;
+        self.any_late |= other.any_late;
+    }
+}
+
 type FnParseProperty = for<'i, 't> fn(
     &mut cssparser::Parser<'i, 't>,
     &mut Vec<LonghandDeclaration>,
-) -> Result<(), PropertyParseError<'i>>;
+) -> Result<Phases, PropertyParseError<'i>>;
 
 pub struct PropertyData {
     pub(in crate::style) longhands: &'static [LonghandId],
