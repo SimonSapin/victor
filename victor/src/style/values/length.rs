@@ -21,6 +21,7 @@ pub(crate) struct Percentage {
 #[derive(Clone, FromVariants)]
 pub(in crate::style) enum SpecifiedLength {
     Absolute(Length),
+    Em(f32),
 }
 
 #[derive(Clone, Parse, FromVariants)]
@@ -54,6 +55,7 @@ impl Parse for SpecifiedLength {
         match parser.next()? {
             Token::Dimension { value, unit, .. } => match_ignore_ascii_case!(unit,
                 "px" => Ok(SpecifiedLength::Absolute(Length { px: *value })),
+                "em" => Ok(SpecifiedLength::Em(*value)),
                 _ => {
                     let u = unit.clone();
                     Err(parser.new_custom_error(PropertyParseErrorKind::UnknownUnit(u)))
@@ -72,9 +74,10 @@ impl SpecifiedValue for Length {
 }
 
 impl FromSpecified for Length {
-    fn from_specified(s: &SpecifiedLength, _: &CascadeContext) -> Self {
+    fn from_specified(s: &SpecifiedLength, context: &CascadeContext) -> Self {
         match s {
             SpecifiedLength::Absolute(px) => *px,
+            SpecifiedLength::Em(value) => context.this.font_size().0 * *value,
         }
     }
 }
@@ -117,13 +120,21 @@ impl ops::AddAssign for Length {
     }
 }
 
+impl ops::Mul<f32> for Length {
+    type Output = Self;
+
+    fn mul(self, other: f32) -> Self {
+        Length {
+            px: self.px * other,
+        }
+    }
+}
+
 impl ops::Mul<Percentage> for Length {
     type Output = Self;
 
     fn mul(self, other: Percentage) -> Self {
-        Length {
-            px: self.px * other.unit_value,
-        }
+        self * other.unit_value
     }
 }
 
