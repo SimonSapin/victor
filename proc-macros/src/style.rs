@@ -5,8 +5,18 @@ pub fn derive_specified_as_computed(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse(input).unwrap();
     let name = input.ident;
     quote!(
-        impl crate::style::values::FromSpecified for #name {
+        impl crate::style::values::SpecifiedValue for #name {
             type SpecifiedValue = Self;
+        }
+        impl crate::style::values::EarlyFromSpecified for #name {
+            fn early_from_specified(
+                specified: &Self,
+                _context: &crate::style::values::EarlyCascadeContext,
+            ) -> Self {
+                std::clone::Clone::clone(specified)
+            }
+        }
+        impl crate::style::values::FromSpecified for #name {
             fn from_specified(
                 specified: &Self,
                 _context: &crate::style::values::CascadeContext,
@@ -79,11 +89,15 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
             .collect(),
         syn::Data::Union(_) => unimplemented!(),
     };
-    derive_trait(
+    let a = derive_trait(
+        &input,
+        quote!(crate::style::values::SpecifiedValue),
+        quote!(type SpecifiedValue = #specified_type;),
+    );
+    let b = derive_trait(
         &input,
         quote!(crate::style::values::FromSpecified),
         quote! {
-            type SpecifiedValue = #specified_type;
             fn from_specified(
                 specified: &Self::SpecifiedValue,
                 context: &crate::style::values::CascadeContext,
@@ -94,7 +108,8 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
                 }
             }
         },
-    )
+    );
+    quote!(#a #b).into()
 }
 
 #[proc_macro_derive(Parse)]
@@ -166,6 +181,7 @@ pub fn derive_parse(input: TokenStream) -> TokenStream {
             }
         },
     )
+    .into()
 }
 
 fn camel_case_to_kebab_case(s: &str) -> String {
@@ -192,7 +208,7 @@ fn derive_trait(
     input: &syn::DeriveInput,
     trait_: proc_macro2::TokenStream,
     items: proc_macro2::TokenStream,
-) -> TokenStream {
+) -> proc_macro2::TokenStream {
     let type_ = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let predicates = where_clause.map(|w| &w.predicates);
@@ -202,7 +218,7 @@ fn derive_trait(
         .map(|p| &p.ident)
         .map(|p| quote! { #p: #trait_, })
         .collect::<Vec<_>>();
-    quote!(
+    quote! {
         impl #impl_generics #trait_ for #type_ #ty_generics
             where
                 #( #additional_predicates )*
@@ -210,6 +226,5 @@ fn derive_trait(
         {
             #items
         }
-    )
-    .into()
+    }
 }

@@ -38,7 +38,7 @@ macro_rules! properties {
                 &self,
                 keyword: crate::style::values::CssWideKeyword,
                 computed: &mut ComputedValues,
-                context: &crate::style::values::CascadeContext,
+                inherited: &ComputedValues,
             ) {
                 match *self {
                     $($(
@@ -57,7 +57,7 @@ macro_rules! properties {
                             if is_initial {
                                 From::from($initial_value)
                             } else {
-                                context.inherited.$struct_name.$ident.clone()
+                                inherited.$struct_name.$ident.clone()
                             };
                         }
                     )+)+
@@ -94,7 +94,7 @@ macro_rules! properties {
             #[allow(non_camel_case_types)]
             pub(in crate::style) enum LonghandDeclaration {
                 $($(
-                    $ident(<$ValueType as crate::style::values::FromSpecified>::SpecifiedValue),
+                    $ident(<$ValueType as crate::style::values::SpecifiedValue>::SpecifiedValue),
                 )+)+
                 CssWide(LonghandId, crate::style::values::CssWideKeyword)
             }
@@ -102,7 +102,7 @@ macro_rules! properties {
             pub(in crate::style) fn if_early_cascade_into(
                 &self,
                 computed: &mut ComputedValues,
-                context: &crate::style::values::CascadeContext,
+                context: &crate::style::values::EarlyCascadeContext,
             ) {
                 match *self {
                     $($(
@@ -110,14 +110,14 @@ macro_rules! properties {
                             if_early! {
                                 $( $early )? {
                                     Rc::make_mut(&mut computed.$struct_name).$ident =
-                                        crate::style::values::FromSpecified::from_specified(_value, context)
+                                        crate::style::values::EarlyFromSpecified::early_from_specified(_value, context)
                                 }
                             }
                         }
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
                         if longhand.is_early() {
-                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
+                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context.inherited)
                         }
                     }
                 }
@@ -141,7 +141,7 @@ macro_rules! properties {
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
                         if !longhand.is_early() {
-                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context)
+                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context.inherited)
                         }
                     }
                 }
@@ -199,13 +199,16 @@ macro_rules! properties {
                             $struct_name: Rc::clone(&select!($inherited).$struct_name),
                         )+
                     };
-                    let context = crate::style::values::CascadeContext {
-                        inherited,
-                    };
                     if let Some(matching) = matching {
+                        let context = crate::style::values::EarlyCascadeContext {
+                            inherited,
+                        };
                         matching.for_each(&mut |decl| {
                             decl.if_early_cascade_into(&mut computed, &context)
                         });
+                        let context = crate::style::values::CascadeContext {
+                            inherited,
+                        };
                         matching.for_each(&mut |decl| {
                             decl.if_late_cascade_into(&mut computed, &context)
                         });
