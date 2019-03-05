@@ -28,16 +28,19 @@ impl DeclarationBlock {
         while let Some(result) = iter.next() {
             let previous_len = iter.parser.block.declarations.len();
             match result {
-                Ok(()) => {}
+                Ok(()) => debug_assert_eq!(
+                    iter.parser.block.declarations.len(),
+                    iter.parser.block.important.len()
+                ),
                 Err(_) => {
                     iter.parser.block.declarations.truncate(previous_len);
+                    iter.parser.block.important.truncate(previous_len);
                     // FIXME error reporting
                 }
             }
         }
         {
             let block = &iter.parser.block;
-            debug_assert_eq!(block.declarations.len(), block.important.len());
             debug_assert_eq!(block.any_normal, !block.important.all_true());
             debug_assert_eq!(block.any_important, !block.important.all_false());
         }
