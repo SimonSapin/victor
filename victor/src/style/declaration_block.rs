@@ -47,27 +47,24 @@ impl DeclarationBlock {
         iter.parser.block
     }
 
-    pub fn for_each_normal(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
-        if p.any(self.any_normal) {
-            self.for_each(false, f)
-        }
+    pub fn cascade_normal(&self, phase: &mut impl Phase) {
+        self.cascade(false, self.any_normal, phase)
     }
 
-    pub fn for_each_important(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
-        if p.any(self.any_important) {
-            self.for_each(true, f)
-        }
+    pub fn cascade_important(&self, phase: &mut impl Phase) {
+        self.cascade(true, self.any_important, phase)
     }
 
-    fn for_each(&self, important: bool, f: &mut impl FnMut(&LonghandDeclaration)) {
-        self.declarations
-            .iter()
-            .zip(&self.important)
-            .for_each(move |(d, i)| {
-                if i == important {
-                    f(d)
-                }
-            })
+    fn cascade(&self, important: bool, any: Phases, phase: &mut impl Phase) {
+        if phase.any(any) {
+            self.declarations.iter().zip(&self.important).for_each(
+                move |(declaration, declaration_important)| {
+                    if declaration_important == important {
+                        phase.cascade(declaration)
+                    }
+                },
+            )
+        }
     }
 }
 

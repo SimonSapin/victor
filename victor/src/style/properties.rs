@@ -1,10 +1,11 @@
 pub(crate) use self::definitions::ComputedValues;
-pub(super) use self::definitions::ComputedValuesForLateCascade;
 use self::definitions::LonghandId;
 pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
+pub(super) use self::definitions::{ComputedValuesForEarlyCascade, ComputedValuesForLateCascade};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
+use crate::style::values::{CascadeContext, EarlyCascadeContext};
 use cssparser::{Color, RGBA};
 use std::rc::Rc;
 
@@ -81,25 +82,28 @@ impl ComputedValues {
     }
 }
 
-#[derive(Copy, Clone)]
-pub(super) struct Early;
-
-#[derive(Copy, Clone)]
-pub(super) struct Late;
-
-pub(super) trait Phase: Copy {
-    fn any(self, p: Phases) -> bool;
+pub(super) trait Phase {
+    fn any(&self, p: Phases) -> bool;
+    fn cascade(&mut self, declaration: &LonghandDeclaration);
 }
 
-impl Phase for Early {
-    fn any(self, p: Phases) -> bool {
+impl Phase for EarlyCascadeContext<'_> {
+    fn any(&self, p: Phases) -> bool {
         p.any_early
+    }
+
+    fn cascade(&mut self, declaration: &LonghandDeclaration) {
+        declaration.if_early_cascade_into(self)
     }
 }
 
-impl Phase for Late {
-    fn any(self, p: Phases) -> bool {
+impl Phase for CascadeContext<'_> {
+    fn any(&self, p: Phases) -> bool {
         p.any_late
+    }
+
+    fn cascade(&mut self, declaration: &LonghandDeclaration) {
+        declaration.if_late_cascade_into(self)
     }
 }
 

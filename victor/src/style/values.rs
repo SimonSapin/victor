@@ -1,5 +1,6 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::properties::{ComputedValues, ComputedValuesForLateCascade};
+use crate::style::properties::ComputedValues;
+use crate::style::properties::{ComputedValuesForEarlyCascade, ComputedValuesForLateCascade};
 use cssparser::Parser;
 
 mod border;
@@ -24,6 +25,7 @@ pub(super) struct CascadeContext<'a> {
 
 pub(super) struct EarlyCascadeContext<'a> {
     pub inherited: &'a ComputedValues,
+    pub this: ComputedValuesForEarlyCascade<'a>,
 }
 
 pub(super) trait SpecifiedValue {

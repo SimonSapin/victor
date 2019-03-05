@@ -1,6 +1,6 @@
 use crate::dom;
 use crate::style::declaration_block::DeclarationBlock;
-use crate::style::properties::{ComputedValues, LonghandDeclaration, Phase};
+use crate::style::properties::{ComputedValues, Phase};
 use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
@@ -75,12 +75,12 @@ pub(super) struct MatchingDeclarations<'a> {
 }
 
 impl MatchingDeclarations<'_> {
-    pub fn for_each(&self, p: impl Phase, f: &mut impl FnMut(&LonghandDeclaration)) {
+    pub fn cascade(&self, p: &mut impl Phase) {
         // https://drafts.csswg.org/css-cascade-4/#cascade-origin
-        self.ua.iter().for_each(|b| b.for_each_normal(p, f));
-        self.author.iter().for_each(|b| b.for_each_normal(p, f));
-        self.author.iter().for_each(|b| b.for_each_important(p, f));
-        self.ua.iter().for_each(|b| b.for_each_important(p, f));
+        self.ua.iter().for_each(|b| b.cascade_normal(p));
+        self.author.iter().for_each(|b| b.cascade_normal(p));
+        self.author.iter().for_each(|b| b.cascade_important(p));
+        self.ua.iter().for_each(|b| b.cascade_important(p));
     }
 }
 
