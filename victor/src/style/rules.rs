@@ -1,5 +1,5 @@
 use crate::style::declaration_block::DeclarationBlock;
-use crate::style::errors::{ RuleParseErrorKind};
+use crate::style::errors::RuleParseErrorKind;
 use crate::style::selectors::{self, SelectorList};
 use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
 use std::rc::Rc;
