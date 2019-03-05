@@ -1,5 +1,5 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::properties::CascadeContext;
+use crate::style::properties::ComputedValues;
 use cssparser::Parser;
 
 mod border;
@@ -14,6 +14,10 @@ pub(crate) use self::{border::*, color::*, display::*, length::*, writing_modes:
 
 pub(super) trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;
+}
+
+pub(super) struct CascadeContext<'a> {
+    pub inherited: &'a ComputedValues,
 }
 
 pub(super) trait FromSpecified {

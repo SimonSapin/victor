@@ -9,7 +9,7 @@ pub fn derive_specified_as_computed(input: TokenStream) -> TokenStream {
             type SpecifiedValue = Self;
             fn from_specified(
                 specified: &Self,
-                _context: &crate::style::properties::CascadeContext,
+                _context: &crate::style::values::CascadeContext,
             ) -> Self {
                 std::clone::Clone::clone(specified)
             }
@@ -86,7 +86,7 @@ pub fn derive_from_specified(input: TokenStream) -> TokenStream {
             type SpecifiedValue = #specified_type;
             fn from_specified(
                 specified: &Self::SpecifiedValue,
-                context: &crate::style::properties::CascadeContext,
+                context: &crate::style::values::CascadeContext,
             ) -> Self {
                 use crate::style::values::FromSpecified;
                 match specified {

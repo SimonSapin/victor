@@ -23,7 +23,6 @@ macro_rules! properties {
         }
     ) => {
         use std::rc::Rc;
-        use crate::style::properties::CascadeContext;
 
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
@@ -39,7 +38,7 @@ macro_rules! properties {
                 &self,
                 keyword: crate::style::values::CssWideKeyword,
                 computed: &mut ComputedValues,
-                context: &CascadeContext,
+                context: &crate::style::values::CascadeContext,
             ) {
                 match *self {
                     $($(
@@ -103,7 +102,7 @@ macro_rules! properties {
             pub(in crate::style) fn if_early_cascade_into(
                 &self,
                 computed: &mut ComputedValues,
-                context: &CascadeContext,
+                context: &crate::style::values::CascadeContext,
             ) {
                 match *self {
                     $($(
@@ -127,7 +126,7 @@ macro_rules! properties {
             pub(in crate::style) fn if_late_cascade_into(
                 &self,
                 computed: &mut ComputedValues,
-                context: &CascadeContext,
+                context: &crate::style::values::CascadeContext,
             ) {
                 match *self {
                     $($(
@@ -200,7 +199,7 @@ macro_rules! properties {
                             $struct_name: Rc::clone(&select!($inherited).$struct_name),
                         )+
                     };
-                    let context = CascadeContext {
+                    let context = crate::style::values::CascadeContext {
                         inherited,
                     };
                     if let Some(matching) = matching {

@@ -1,6 +1,6 @@
 use super::{FromSpecified, Parse};
 use crate::style::errors::PropertyParseError;
-use crate::style::properties::CascadeContext;
+use crate::style::values::CascadeContext;
 use cssparser::{Color, Parser, RGBA};
 
 impl Parse for Color {

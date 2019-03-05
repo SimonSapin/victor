@@ -116,7 +116,3 @@ impl<T> ValueOrInitial<T> for Option<T> {
         }
     }
 }
-
-pub(super) struct CascadeContext<'a> {
-    pub inherited: &'a ComputedValues,
-}

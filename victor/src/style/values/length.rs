@@ -1,6 +1,5 @@
 use crate::style::errors::{PropertyParseError, PropertyParseErrorKind};
-use crate::style::properties::CascadeContext;
-use crate::style::values::{FromSpecified, Parse};
+use crate::style::values::{CascadeContext, FromSpecified, Parse};
 use cssparser::{Parser, Token};
 use std::fmt;
 use std::ops;
