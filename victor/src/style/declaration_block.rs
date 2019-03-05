@@ -25,8 +25,9 @@ impl DeclarationBlock {
                 },
             },
         );
-        while let Some(result) = iter.next() {
+        loop {
             let previous_len = iter.parser.block.declarations.len();
+            let result = if let Some(r) = iter.next() { r } else { break };
             match result {
                 Ok(()) => debug_assert_eq!(
                     iter.parser.block.declarations.len(),
