@@ -1,6 +1,7 @@
 pub(crate) use self::definitions::ComputedValues;
 use self::definitions::LonghandId;
-pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
+pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration,};
+pub(super) use self::definitions::ComputedValuesForLateCascade;
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};

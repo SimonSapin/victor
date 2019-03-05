@@ -125,15 +125,14 @@ macro_rules! properties {
 
             pub(in crate::style) fn if_late_cascade_into(
                 &self,
-                computed: &mut ComputedValues,
-                context: &crate::style::values::CascadeContext,
+                context: &mut crate::style::values::CascadeContext,
             ) {
                 match *self {
                     $($(
                         LonghandDeclaration::$ident(ref _value) => {
                             if_late! {
                                 $( $early )? {
-                                    Rc::make_mut(&mut computed.$struct_name).$ident =
+                                    Rc::make_mut(&mut context.this.0 .$struct_name).$ident =
                                         crate::style::values::FromSpecified::from_specified(_value, context)
                                 }
                             }
@@ -141,7 +140,7 @@ macro_rules! properties {
                     )+)+
                     LonghandDeclaration::CssWide(ref longhand, ref keyword) => {
                         if !longhand.is_early() {
-                            longhand.cascade_css_wide_keyword_into(*keyword, computed, context.inherited)
+                            longhand.cascade_css_wide_keyword_into(*keyword, context.this.0, context.inherited)
                         }
                     }
                 }
@@ -206,11 +205,12 @@ macro_rules! properties {
                         matching.for_each(&mut |decl| {
                             decl.if_early_cascade_into(&mut computed, &context)
                         });
-                        let context = crate::style::values::CascadeContext {
+                        let mut context = crate::style::values::CascadeContext {
                             inherited,
+                            this: ComputedValuesForLateCascade(&mut computed)
                         };
                         matching.for_each(&mut |decl| {
-                            decl.if_late_cascade_into(&mut computed, &context)
+                            decl.if_late_cascade_into(&mut context)
                         });
                     }
                     computed.post_cascade_fixups();
@@ -218,6 +218,24 @@ macro_rules! properties {
                 })
             }
         }
+
+        pub(in crate::style) struct ComputedValuesForLateCascade<'a>(&'a mut ComputedValues);
+
+        macro_rules! if_early {
+            (early $then: item) => { $then };
+            ($then: item) => {};
+        }
+
+        $($(
+            if_early! {
+                $( $early )?
+                impl ComputedValuesForLateCascade<'_> {
+                    pub fn $ident(&self) -> &$ValueType {
+                        &self.0 .$struct_name.$ident
+                    }
+                }
+            }
+        )+)+
 
         ascii_case_insensitive_phf_map! {
             property_data_by_name -> crate::style::properties::PropertyData = {
