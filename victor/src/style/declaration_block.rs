@@ -85,7 +85,7 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
             let previous_len = self.block.declarations.len();
             let mut parsed;
             if let Ok(keyword) = parser.r#try(CssWideKeyword::parse) {
-                parsed = crate::style::properties::PerPhase::default();
+                parsed = PerPhase::default();
                 for &longhand in data.longhands {
                     self.block
                         .declarations
@@ -103,11 +103,13 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
             let count = self.block.declarations.len() - previous_len;
             assert!(count > 0);
             self.block.important.extend(repeat(important).take(count));
-            *if important {
+            let any = if important {
                 &mut self.block.any_important
             } else {
                 &mut self.block.any_normal
-            } |= parsed;
+            };
+            any.early |= parsed.early;
+            any.late |= parsed.late;
             Ok(())
         } else {
             Err(parser.new_custom_error(PropertyParseErrorKind::UnknownProperty(name)))

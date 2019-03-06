@@ -113,13 +113,6 @@ pub(super) struct PerPhase<T> {
     pub late: T,
 }
 
-impl std::ops::BitOrAssign for PerPhase<bool> {
-    fn bitor_assign(&mut self, other: Self) {
-        self.early |= other.early;
-        self.late |= other.late;
-    }
-}
-
 type FnParseProperty = for<'i, 't> fn(
     &mut cssparser::Parser<'i, 't>,
     &mut Vec<LonghandDeclaration>,
