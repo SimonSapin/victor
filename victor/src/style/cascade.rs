@@ -84,7 +84,7 @@ impl MatchingDeclarations<'_> {
     }
 }
 
-pub(crate) fn cascade(
+pub(crate) fn style_for_element(
     author: &StyleSet,
     document: &dom::Document,
     node: dom::NodeId,

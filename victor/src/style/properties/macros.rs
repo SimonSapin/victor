@@ -184,7 +184,7 @@ macro_rules! properties {
         impl ComputedValues {
             pub(in crate::style) fn new(
                 inherited: Option<&Self>,
-                matching: Option<&crate::style::cascade_module::MatchingDeclarations>,
+                matching: Option<&crate::style::cascade::MatchingDeclarations>,
             ) -> Rc<Self> {
                 // XXX: if we ever replace Rc with Arc for style structs,
                 // replace thread_local! with lazy_static! here.

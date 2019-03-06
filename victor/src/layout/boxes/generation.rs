@@ -1,7 +1,7 @@
 use super::*;
 use crate::dom;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
-use crate::style::*;
+use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 
 impl dom::Document {
     pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
@@ -14,7 +14,7 @@ impl dom::Document {
         };
 
         let root_element = self.root_element();
-        let root_element_style = cascade(&author_styles, self, root_element, None);
+        let root_element_style = style_for_element(&author_styles, self, root_element, None);
         // If any, anonymous blocks wrapping inlines at the root level get initial styles,
         // they don’t have a parent element to inherit from.
         let initial_values = ComputedValues::initial();
@@ -55,7 +55,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                     | dom::NodeData::ProcessingInstruction { .. } => {}
                     dom::NodeData::Text { contents } => self.push_text(contents),
                     dom::NodeData::Element(_) => {
-                        let style = cascade(
+                        let style = style_for_element(
                             context.author_styles,
                             context.document,
                             child,
