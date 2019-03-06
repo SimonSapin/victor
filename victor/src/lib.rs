@@ -2,8 +2,6 @@ pub use euclid;
 
 pub mod dom;
 pub mod fonts;
-#[doc(hidden)]
-pub mod lazy_arc; // Only public for `include_font!`
 pub mod pdf;
 pub mod primitives;
 pub mod text;

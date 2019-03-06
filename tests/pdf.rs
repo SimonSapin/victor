@@ -2,18 +2,20 @@ use lester::{Backdrop, PdfDocument, RenderOptions};
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use victor::fonts::{FontError, LazyStaticFont, BITSTREAM_VERA_SANS};
+use victor::fonts::{FontError, BITSTREAM_VERA_SANS};
 use victor::pdf::Document;
 use victor::primitives::{point, rect, Length, Size, TextRun, RGBA};
 use victor::text::ShapedSegment;
 
-static AHEM: LazyStaticFont = include_font!("fonts/ahem/ahem.ttf");
-static NOTO: LazyStaticFont = include_font!("fonts/noto/NotoSansLinearB-Regular.ttf");
+include_fonts! {
+    AHEM: "fonts/ahem/ahem.ttf",
+    NOTO: "fonts/noto/NotoSansLinearB-Regular.ttf",
+}
 
 fn doc() -> Result<Vec<u8>, FontError> {
-    let vera = BITSTREAM_VERA_SANS.get()?;
-    let noto = NOTO.get()?;
-    let ahem = AHEM.get()?;
+    let vera = BITSTREAM_VERA_SANS.clone();
+    let noto = NOTO.clone();
+    let ahem = AHEM.clone();
     let mut doc = Document::new();
     doc.add_page(Size::new(140., 50.))
         .show_text(&TextRun {

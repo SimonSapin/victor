@@ -12,7 +12,7 @@ fn render() {
     let style = text_plain::Style {
         page_size: Size::new(210., 297.),
         page_margin: Length::new(20.),
-        font: BITSTREAM_VERA_SANS.get().unwrap(),
+        font: BITSTREAM_VERA_SANS.clone(),
         font_size: Length::new(16.),
         line_height: 1.5,
         justify: true,

@@ -1,6 +1,5 @@
 mod cmap;
 mod parsing;
-mod static_;
 mod tables;
 mod types;
 
@@ -11,8 +10,6 @@ use crate::fonts::types::Tag;
 use std::borrow::Cow;
 use std::cmp;
 use std::sync::Arc;
-
-pub use crate::fonts::static_::*;
 
 /// The EM square unit
 pub(crate) struct Em;
@@ -270,4 +267,31 @@ impl Slice<TableDirectoryEntry> {
         let offset = entry.table_offset().read_from(bytes)?;
         Ok(Position::<OffsetSubtable>::initial().offset_bytes(offset))
     }
+}
+
+#[doc(hidden)]
+pub mod _reexports_for_macros {
+    pub use lazy_static::*;
+    pub use std::sync::Arc;
+}
+
+#[macro_export]
+macro_rules! include_fonts {
+    ( $( $NAME: ident: $filename: expr, )+ ) => {
+        $(
+            $crate::fonts::_reexports_for_macros::lazy_static! {
+                pub static ref $NAME:
+                    $crate::fonts::_reexports_for_macros::Arc<$crate::fonts::Font> =
+                {
+                    $crate::fonts::Font::parse(
+                        include_bytes!($filename) as &'static [u8]
+                    ).unwrap()
+                };
+            }
+        )+
+    };
+}
+
+include_fonts! {
+    BITSTREAM_VERA_SANS: "../fonts/vera/Vera.ttf",
 }
