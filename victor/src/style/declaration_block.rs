@@ -99,7 +99,7 @@ impl<'i> DeclarationParser<'i> for LonghandDeclarationParser {
             } else {
                 parsed = (data.parse)(parser, &mut self.block.declarations)?
             }
-            let important = cssparser::parse_important(parser).is_ok();
+            let important = parser.r#try(cssparser::parse_important).is_ok();
             let count = self.block.declarations.len() - previous_len;
             assert!(count > 0);
             self.block.important.extend(repeat(important).take(count));
