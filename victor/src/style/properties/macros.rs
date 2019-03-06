@@ -255,9 +255,9 @@ macro_rules! properties {
                         parse: |parser, declarations| {
                             let v = crate::style::values::Parse::parse(parser)?;
                             declarations.push(LonghandDeclaration::$ident(v));
-                            Ok(crate::style::properties::Phases {
-                                any_early: is_early!($($early)?),
-                                any_late: !is_early!($($early)?),
+                            Ok(crate::style::properties::PerPhase {
+                                early: is_early!($($early)?),
+                                late: !is_early!($($early)?),
                             })
                         },
                     },
@@ -284,9 +284,9 @@ macro_rules! properties {
                                     )
                                 );
                             )+
-                            Ok(crate::style::properties::Phases {
-                                any_early: $( LonghandId::$longhand_ident.is_early() )||+,
-                                any_late: $( !LonghandId::$longhand_ident.is_early() )||+,
+                            Ok(crate::style::properties::PerPhase {
+                                early: $( LonghandId::$longhand_ident.is_early() )||+,
+                                late: $( !LonghandId::$longhand_ident.is_early() )||+,
                             })
                         },
                     },

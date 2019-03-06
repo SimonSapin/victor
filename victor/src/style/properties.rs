@@ -83,13 +83,13 @@ impl ComputedValues {
 }
 
 pub(super) trait Phase {
-    fn any(&self, p: Phases) -> bool;
+    fn select(&self, p: PerPhase<bool>) -> bool;
     fn cascade(&mut self, declaration: &LonghandDeclaration);
 }
 
 impl Phase for EarlyCascadeContext<'_> {
-    fn any(&self, p: Phases) -> bool {
-        p.any_early
+    fn select(&self, p: PerPhase<bool>) -> bool {
+        p.early
     }
 
     fn cascade(&mut self, declaration: &LonghandDeclaration) {
@@ -98,8 +98,8 @@ impl Phase for EarlyCascadeContext<'_> {
 }
 
 impl Phase for CascadeContext<'_> {
-    fn any(&self, p: Phases) -> bool {
-        p.any_late
+    fn select(&self, p: PerPhase<bool>) -> bool {
+        p.late
     }
 
     fn cascade(&mut self, declaration: &LonghandDeclaration) {
@@ -108,28 +108,22 @@ impl Phase for CascadeContext<'_> {
 }
 
 #[derive(Default, Copy, Clone)]
-pub(super) struct Phases {
-    pub any_early: bool,
-    pub any_late: bool,
+pub(super) struct PerPhase<T> {
+    pub early: T,
+    pub late: T,
 }
 
-impl Phases {
-    pub fn any(self) -> bool {
-        self.any_early || self.any_late
-    }
-}
-
-impl std::ops::BitOrAssign for Phases {
+impl std::ops::BitOrAssign for PerPhase<bool> {
     fn bitor_assign(&mut self, other: Self) {
-        self.any_early |= other.any_early;
-        self.any_late |= other.any_late;
+        self.early |= other.early;
+        self.late |= other.late;
     }
 }
 
 type FnParseProperty = for<'i, 't> fn(
     &mut cssparser::Parser<'i, 't>,
     &mut Vec<LonghandDeclaration>,
-) -> Result<Phases, PropertyParseError<'i>>;
+) -> Result<PerPhase<bool>, PropertyParseError<'i>>;
 
 pub struct PropertyData {
     pub(in crate::style) longhands: &'static [LonghandId],
