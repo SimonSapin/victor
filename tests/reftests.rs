@@ -6,12 +6,17 @@ fn main() {
     for_each_file_in(reftests_dir(), &mut |path| TestFile::load(path).test())
 }
 
-fn reftests_dir() -> PathBuf {
+fn target_dir() -> PathBuf {
     let current = env::current_dir().unwrap();
     let exe = current.join(env::current_exe().unwrap());
     let deps = exe.parent().unwrap();
     let debug = deps.parent().unwrap();
     let target = debug.parent().unwrap();
+    target.to_owned()
+}
+
+fn reftests_dir() -> PathBuf {
+    let target = target_dir();
     let repo = target.parent().unwrap();
     repo.join("tests").join("reftests")
 }
@@ -81,6 +86,10 @@ impl TestFile {
         pages[0].pixels()
     }
 
+    fn write_png(&mut self, path: &Path) {
+        self.pages_pixels()[0].write_to_png_file(path).unwrap()
+    }
+
     fn test(&mut self) {
         let base = self.path.parent().unwrap();
         let references = self.doc.as_ref().map_or(Vec::new(), |doc| {
@@ -95,9 +104,30 @@ impl TestFile {
         let page = self.expect_single_page();
         for (expect_equal, reference_path) in references {
             let mut reference = Self::load(reference_path);
-            assert_eq!(page == reference.expect_single_page(), expect_equal);
+            let reference_page = reference.expect_single_page();
+            if (page == reference_page) != expect_equal {
+                let test_png = target_dir().join("test.png");
+                let reference_png = target_dir().join("reference.png");
+                self.write_png(&test_png);
+                reference.write_png(&reference_png);
+                std::fs::write(target_dir().join("test.pdf"), self.pdf_bytes()).unwrap();
+                panic!(
+                    "Failed {} {} ↔ {}\n{}\n{}",
+                    if expect_equal { "match" } else { "mismatch" },
+                    show(&self.path),
+                    show(&reference.path),
+                    show(&test_png),
+                    show(&reference_png),
+                )
+            }
         }
     }
+}
+
+fn show(path: &Path) -> std::path::Display {
+    path.strip_prefix(env::current_dir().unwrap())
+        .unwrap_or(path)
+        .display()
 }
 
 fn resolve_href(base: &Path, href: &str) -> PathBuf {
