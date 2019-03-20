@@ -70,6 +70,11 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
     }
 
     fn push_text(&mut self, text: &str) {
+        // FIXME: implement https://drafts.csswg.org/css2/text.html#white-space-model
+        if text.as_bytes().iter().all(u8::is_ascii_whitespace) {
+            return
+        }
+
         let mut segment = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
         segment.append(text.chars()).unwrap();
         self.consecutive_inline_levels.push(InlineLevel::Text {
