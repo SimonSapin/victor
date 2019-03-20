@@ -5,6 +5,7 @@ use crate::geom::flow_relative::{Rect, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 use crate::style::ComputedValues;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::sync::Arc;
 
 impl crate::dom::Document {
@@ -51,7 +52,7 @@ impl boxes::BlockContainer {
         match self {
             boxes::BlockContainer::BlockLevels(child_boxes) => {
                 let mut child_fragments = child_boxes
-                    .iter()
+                    .par_iter()
                     .map(|child| child.layout(containing_block))
                     .collect::<Vec<_>>();
 
