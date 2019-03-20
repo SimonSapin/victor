@@ -23,7 +23,6 @@ pub(super) enum BlockContainer {
 }
 
 pub(super) enum BlockLevel {
-    #[allow(unused)]
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
         contents: BlockContainer,
@@ -35,7 +34,11 @@ pub(super) enum BlockLevel {
 }
 
 pub(super) enum InlineLevel {
-    Text(ShapedSegment),
+    #[allow(unused)]
+    Text {
+        parent_style: Arc<ComputedValues>,
+        segment: ShapedSegment,
+    },
     #[allow(unused)]
     Inline {
         style: Arc<ComputedValues>,

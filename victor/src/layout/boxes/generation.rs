@@ -70,20 +70,12 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
     }
 
     fn push_text(&mut self, text: &str) {
-        let segment =
-            if let Some(InlineLevel::Text(last)) = self.consecutive_inline_levels.last_mut() {
-                last
-            } else {
-                self.consecutive_inline_levels.push(InlineLevel::Text(
-                    ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone()),
-                ));
-                if let Some(InlineLevel::Text(last)) = self.consecutive_inline_levels.last_mut() {
-                    last
-                } else {
-                    unreachable!()
-                }
-            };
-        segment.append(text.chars()).unwrap()
+        let mut segment = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
+        segment.append(text.chars()).unwrap();
+        self.consecutive_inline_levels.push(InlineLevel::Text {
+            parent_style: self.style.clone(),
+            segment,
+        });
     }
 
     fn push_element(&mut self, context: &Context, element: dom::NodeId, style: Arc<ComputedValues>) {
