@@ -50,14 +50,21 @@ impl boxes::BlockContainer {
     fn layout(&self, containing_block: &ContainingBlock) -> (Vec<fragments::Fragment>, Length) {
         match self {
             boxes::BlockContainer::BlockLevels(child_boxes) => {
+                let mut child_fragments = child_boxes
+                    .iter()
+                    .map(|child| child.layout(containing_block))
+                    .collect::<Vec<_>>();
+
                 let mut block_size = Length::zero();
-                let mut child_fragments = Vec::new();
-                for child in child_boxes {
-                    let (fragment, margin_height) = child.layout(containing_block, block_size);
+                for child in &mut child_fragments {
                     // FIXME: margin collapsing
-                    block_size += margin_height;
-                    child_fragments.push(fragment);
+                    child.content_rect.start_corner.block += block_size;
+                    block_size += child.padding.block_sum()
+                        + child.border.block_sum()
+                        + child.margin.block_sum()
+                        + child.content_rect.size.block;
                 }
+
                 (child_fragments, block_size)
             }
             boxes::BlockContainer::InlineFormattingContext(_children) => {
@@ -69,14 +76,10 @@ impl boxes::BlockContainer {
 }
 
 impl boxes::BlockLevel {
-    fn layout(
-        &self,
-        containing_block: &ContainingBlock,
-        block_size_before: Length,
-    ) -> (fragments::Fragment, Length) {
+    fn layout(&self, containing_block: &ContainingBlock) -> fragments::Fragment {
         match self {
             boxes::BlockLevel::SameFormattingContextBlock { style, contents } => {
-                same_formatting_context_block(style, contents, containing_block, block_size_before)
+                same_formatting_context_block(style, contents, containing_block)
             }
         }
     }
@@ -86,8 +89,7 @@ fn same_formatting_context_block(
     style: &Arc<ComputedValues>,
     contents: &boxes::BlockContainer,
     containing_block: &ContainingBlock,
-    block_size_before: Length,
-) -> (fragments::Fragment, Length) {
+) -> fragments::Fragment {
     let cbis = containing_block.inline_size;
     let zero = Length::zero();
     let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
@@ -131,8 +133,6 @@ fn same_formatting_context_block(
     let margin = margin.map(|v| v.percentage_relative_to(cbis));
     let pbm = &pb + &margin;
     let inline_size = inline_size.unwrap_or_else(|| cbis - pbm.inline_sum());
-    let mut content_start_corner = pbm.start_corner();
-    content_start_corner.block += block_size_before;
     let block_size = box_size.block.non_auto().and_then(|b| match b {
         LengthOrPercentage::Length(l) => Some(l),
         LengthOrPercentage::Percentage(p) => containing_block.block_size.map(|cbbs| cbbs * p),
@@ -150,20 +150,18 @@ fn same_formatting_context_block(
     let (children, content_block_size) = contents.layout(&containing_block_for_children);
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
-        start_corner: content_start_corner,
+        start_corner: pbm.start_corner(),
         size: Vec2 {
             block: block_size,
             inline: inline_size,
         },
     };
-    let block = fragments::Fragment {
+    fragments::Fragment {
         style: style.clone(),
         children,
         content_rect,
         padding,
         border,
         margin,
-    };
-    let margin_height = pbm.block_sum() + block_size;
-    (block, margin_height)
+    }
 }
