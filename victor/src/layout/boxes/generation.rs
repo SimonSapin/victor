@@ -1,5 +1,6 @@
 use super::*;
 use crate::dom;
+use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 
@@ -69,12 +70,20 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
     }
 
     fn push_text(&mut self, text: &str) {
-        if let Some(InlineLevel::Text(last_text)) = self.consecutive_inline_levels.last_mut() {
-            last_text.push_str(&text)
-        } else {
-            self.consecutive_inline_levels
-                .push(InlineLevel::Text(text.to_owned()))
-        }
+        let segment =
+            if let Some(InlineLevel::Text(last)) = self.consecutive_inline_levels.last_mut() {
+                last
+            } else {
+                self.consecutive_inline_levels.push(InlineLevel::Text(
+                    ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone()),
+                ));
+                if let Some(InlineLevel::Text(last)) = self.consecutive_inline_levels.last_mut() {
+                    last
+                } else {
+                    unreachable!()
+                }
+            };
+        segment.append(text.chars()).unwrap()
     }
 
     fn push_element(&mut self, context: &Context, element: dom::NodeId, style: Arc<ComputedValues>) {

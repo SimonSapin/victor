@@ -1,4 +1,5 @@
 use crate::style::ComputedValues;
+use crate::text::ShapedSegment;
 use std::sync::Arc;
 
 mod generation;
@@ -34,7 +35,7 @@ pub(super) enum BlockLevel {
 }
 
 pub(super) enum InlineLevel {
-    Text(String),
+    Text(ShapedSegment),
     #[allow(unused)]
     Inline {
         style: Arc<ComputedValues>,

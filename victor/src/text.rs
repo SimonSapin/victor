@@ -2,6 +2,7 @@ use crate::fonts::{Em, Font, FontError, GlyphId};
 use crate::primitives::Length;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct ShapedSegment {
     pub(crate) font: Arc<Font>,
     pub(crate) glyphs: Vec<GlyphId>,
@@ -16,17 +17,25 @@ impl ShapedSegment {
     /// * No ligatures
     /// * No kerning
     pub fn naive_shape(text: &str, font: Arc<Font>) -> Result<Self, FontError> {
-        let mut glyphs = Vec::new();
-        let mut advance_width = Length::new(0.);
-        for ch in text.chars() {
-            let id = font.glyph_id(ch)?;
-            advance_width += font.glyph_width(id)?;
-            glyphs.push(id);
-        }
-        Ok(ShapedSegment {
+        let mut s = Self::new_with_naive_shaping(font);
+        s.append(text.chars())?;
+        Ok(s)
+    }
+
+    pub fn new_with_naive_shaping(font: Arc<Font>) -> Self {
+        Self {
             font,
-            glyphs,
-            advance_width,
-        })
+            glyphs: Vec::new(),
+            advance_width: Length::new(0.),
+        }
+    }
+
+    pub fn append(&mut self, text: impl Iterator<Item = char>) -> Result<(), FontError> {
+        for ch in text {
+            let id = self.font.glyph_id(ch)?;
+            self.advance_width += self.font.glyph_width(id)?;
+            self.glyphs.push(id);
+        }
+        Ok(())
     }
 }
