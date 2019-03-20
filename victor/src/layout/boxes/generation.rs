@@ -31,13 +31,13 @@ struct Context<'a> {
 }
 
 struct Builder<Extra> {
-    style: Rc<ComputedValues>,
+    style: Arc<ComputedValues>,
     consecutive_inline_levels: Vec<InlineLevel>,
     extra: Extra,
 }
 
 impl<Extra: Default + PushBlock> Builder<Extra> {
-    fn new(style: Rc<ComputedValues>) -> Self {
+    fn new(style: Arc<ComputedValues>) -> Self {
         Self {
             style,
             consecutive_inline_levels: Vec::new(),
@@ -77,7 +77,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
         }
     }
 
-    fn push_element(&mut self, context: &Context, element: dom::NodeId, style: Rc<ComputedValues>) {
+    fn push_element(&mut self, context: &Context, element: dom::NodeId, style: Arc<ComputedValues>) {
         match style.display.display {
             Display::None => {}
             Display::Other {
@@ -91,7 +91,7 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
                     builder.extra.self_fragments_split_by_block_levels
                 {
                     self.consecutive_inline_levels.push(InlineLevel::Inline {
-                        style: Rc::clone(&builder.style),
+                        style: Arc::clone(&builder.style),
                         first_fragment: first,
                         last_fragment: false,
                         children: previous_grand_children,
@@ -170,7 +170,7 @@ impl Builder<BlockContainerBuilderExtra> {
             });
     }
 
-    fn build(mut self) -> (Rc<ComputedValues>, BlockContainer) {
+    fn build(mut self) -> (Arc<ComputedValues>, BlockContainer) {
         if !self.consecutive_inline_levels.is_empty() {
             if self.extra.block_levels.is_empty() {
                 return (

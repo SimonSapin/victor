@@ -1,6 +1,6 @@
 use crate::style::ComputedValues;
 use html5ever::tendril::StrTendril;
-use std::rc::Rc;
+use std::sync::Arc;
 
 mod generation;
 
@@ -25,11 +25,11 @@ pub(super) enum BlockContainer {
 pub(super) enum BlockLevel {
     #[allow(unused)]
     SameFormattingContextBlock {
-        style: Rc<ComputedValues>,
+        style: Arc<ComputedValues>,
         contents: BlockContainer,
     },
     // Other {
-    //     style: Rc<ComputedValues>,
+    //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,
     // },
 }
@@ -38,13 +38,13 @@ pub(super) enum InlineLevel {
     Text(StrTendril),
     #[allow(unused)]
     Inline {
-        style: Rc<ComputedValues>,
+        style: Arc<ComputedValues>,
         first_fragment: bool,
         last_fragment: bool,
         children: Vec<InlineLevel>,
     },
     // Atomic {
-    //     style: Rc<ComputedValues>,
+    //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,
     // },
 }

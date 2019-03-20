@@ -7,7 +7,7 @@ use crate::style::errors::PropertyParseError;
 use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
 use crate::style::values::{CascadeContext, EarlyCascadeContext};
 use cssparser::{Color, RGBA};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod macros;
@@ -15,16 +15,16 @@ mod macros;
 mod definitions;
 
 impl ComputedValues {
-    pub(crate) fn initial() -> Rc<Self> {
+    pub(crate) fn initial() -> Arc<Self> {
         Self::new(None, None)
     }
 
-    pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Rc<Self> {
+    pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Arc<Self> {
         Self::new(Some(parent_style), None)
     }
 
     pub(super) fn post_cascade_fixups(&mut self) {
-        let b = Rc::make_mut(&mut self.border);
+        let b = Arc::make_mut(&mut self.border);
         b.border_top_width.fixup(b.border_top_style);
         b.border_left_width.fixup(b.border_left_style);
         b.border_bottom_width.fixup(b.border_bottom_style);

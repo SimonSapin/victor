@@ -1,10 +1,10 @@
 use crate::geom::flow_relative::{Rect, Sides};
 use crate::geom::Length;
 use crate::style::ComputedValues;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(crate) struct Fragment {
-    pub style: Rc<ComputedValues>,
+    pub style: Arc<ComputedValues>,
     pub children: Vec<Fragment>,
 
     /// From the containing block’s start corner…?

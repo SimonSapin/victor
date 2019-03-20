@@ -5,18 +5,16 @@ use crate::style::rules::{CssRule, RulesParser};
 use crate::style::selectors::{self, Selector};
 use cssparser::{Parser, ParserInput, RuleListParser};
 use smallvec::SmallVec;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct StyleSetBuilder(StyleSet);
 
 pub struct StyleSet {
-    rules: Vec<(Selector, Rc<DeclarationBlock>)>,
+    rules: Vec<(Selector, Arc<DeclarationBlock>)>,
 }
 
-// XXX: if we ever replace Rc with Arc for style structs,
-// replace thread_local! with lazy_static! here.
-thread_local! {
-    static USER_AGENT_STYLESHEET: StyleSet = {
+lazy_static::lazy_static! {
+    static ref USER_AGENT_STYLESHEET: StyleSet = {
         let mut builder = StyleSetBuilder::new();
         builder.add_stylesheet(include_str!("user_agent.css"));
         builder.finish()
@@ -89,24 +87,22 @@ pub(crate) fn style_for_element(
     document: &dom::Document,
     node: dom::NodeId,
     parent_style: Option<&ComputedValues>,
-) -> Rc<ComputedValues> {
-    USER_AGENT_STYLESHEET.with(|ua| {
-        let element = document[node].as_element().unwrap();
-        let style_attr_block;
-        let mut matching = MatchingDeclarations {
-            ua: SmallVec::new(),
-            author: SmallVec::new(),
-        };
-        ua.push_matching(document, node, &mut matching.ua);
-        author.push_matching(document, node, &mut matching.author);
-        if let ns!(html) | ns!(svg) | ns!(mathml) = element.name.ns {
-            if let Some(style_attr) = element.get_attr(&local_name!("style")) {
-                let mut input = ParserInput::new(style_attr);
-                let mut parser = Parser::new(&mut input);
-                style_attr_block = DeclarationBlock::parse(&mut parser);
-                matching.author.push(&style_attr_block);
-            }
+) -> Arc<ComputedValues> {
+    let element = document[node].as_element().unwrap();
+    let style_attr_block;
+    let mut matching = MatchingDeclarations {
+        ua: SmallVec::new(),
+        author: SmallVec::new(),
+    };
+    USER_AGENT_STYLESHEET.push_matching(document, node, &mut matching.ua);
+    author.push_matching(document, node, &mut matching.author);
+    if let ns!(html) | ns!(svg) | ns!(mathml) = element.name.ns {
+        if let Some(style_attr) = element.get_attr(&local_name!("style")) {
+            let mut input = ParserInput::new(style_attr);
+            let mut parser = Parser::new(&mut input);
+            style_attr_block = DeclarationBlock::parse(&mut parser);
+            matching.author.push(&style_attr_block);
         }
-        ComputedValues::new(parent_style, Some(&matching))
-    })
+    }
+    ComputedValues::new(parent_style, Some(&matching))
 }

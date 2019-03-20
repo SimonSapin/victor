@@ -22,7 +22,7 @@ macro_rules! properties {
             )+
         }
     ) => {
-        use std::rc::Rc;
+        use std::sync::Arc;
 
         tagged_union_with_jump_tables! {
             #[repr($DiscriminantType)]
@@ -53,7 +53,7 @@ macro_rules! properties {
                                 CssWideKeyword::Inherit => false,
                                 CssWideKeyword::Unset => unset_is_initial!($inherited),
                             };
-                            Rc::make_mut(&mut computed.$struct_name).$ident =
+                            Arc::make_mut(&mut computed.$struct_name).$ident =
                             if is_initial {
                                 From::from($initial_value)
                             } else {
@@ -109,7 +109,7 @@ macro_rules! properties {
                         LonghandDeclaration::$ident(ref _value) => {
                             if_early! {
                                 $( $early )? {
-                                    Rc::make_mut(&mut context.this.0 .$struct_name).$ident =
+                                    Arc::make_mut(&mut context.this.0 .$struct_name).$ident =
                                         crate::style::values::EarlyFromSpecified::early_from_specified(
                                             _value,
                                             context,
@@ -139,7 +139,7 @@ macro_rules! properties {
                         LonghandDeclaration::$ident(ref _value) => {
                             if_late! {
                                 $( $early )? {
-                                    Rc::make_mut(&mut context.this.0 .$struct_name).$ident =
+                                    Arc::make_mut(&mut context.this.0 .$struct_name).$ident =
                                         crate::style::values::FromSpecified::from_specified(
                                             _value,
                                             context,
@@ -164,7 +164,7 @@ macro_rules! properties {
         #[derive(Clone)]
         pub(crate) struct ComputedValues {
             $(
-                pub(crate) $struct_name: Rc<style_structs::$struct_name>,
+                pub(crate) $struct_name: Arc<style_structs::$struct_name>,
             )+
         }
 
@@ -185,13 +185,11 @@ macro_rules! properties {
             pub(in crate::style) fn new(
                 inherited: Option<&Self>,
                 matching: Option<&crate::style::cascade::MatchingDeclarations>,
-            ) -> Rc<Self> {
-                // XXX: if we ever replace Rc with Arc for style structs,
-                // replace thread_local! with lazy_static! here.
-                thread_local! {
-                    static INITIAL_VALUES: ComputedValues = ComputedValues {
+            ) -> Arc<Self> {
+                lazy_static::lazy_static! {
+                    static ref INITIAL_VALUES: ComputedValues = ComputedValues {
                         $(
-                            $struct_name: Rc::new(
+                            $struct_name: Arc::new(
                                 style_structs::$struct_name {
                                     $(
                                         $ident: From::from($initial_value),
@@ -201,30 +199,28 @@ macro_rules! properties {
                         )+
                     };
                 }
-                INITIAL_VALUES.with(|initial| {
-                    let inherited = inherited.unwrap_or(initial);
-                    macro_rules! select {
-                        (inherited) => { inherited };
-                        (reset) => { initial };
-                    }
-                    let mut computed = ComputedValues {
-                        $(
-                            $struct_name: Rc::clone(&select!($inherited).$struct_name),
-                        )+
-                    };
-                    if let Some(matching) = matching {
-                        matching.cascade(&mut crate::style::values::EarlyCascadeContext {
-                            inherited,
-                            this: ComputedValuesForEarlyCascade(&mut computed)
-                        });
-                        matching.cascade(&mut crate::style::values::CascadeContext {
-                            inherited,
-                            this: ComputedValuesForLateCascade(&mut computed)
-                        });
-                    }
-                    computed.post_cascade_fixups();
-                    Rc::new(computed)
-                })
+                let inherited = inherited.unwrap_or(&*INITIAL_VALUES);
+                macro_rules! select {
+                    (inherited) => { inherited };
+                    (reset) => { INITIAL_VALUES };
+                }
+                let mut computed = ComputedValues {
+                    $(
+                        $struct_name: Arc::clone(&select!($inherited).$struct_name),
+                    )+
+                };
+                if let Some(matching) = matching {
+                    matching.cascade(&mut crate::style::values::EarlyCascadeContext {
+                        inherited,
+                        this: ComputedValuesForEarlyCascade(&mut computed)
+                    });
+                    matching.cascade(&mut crate::style::values::CascadeContext {
+                        inherited,
+                        this: ComputedValuesForLateCascade(&mut computed)
+                    });
+                }
+                computed.post_cascade_fixups();
+                Arc::new(computed)
             }
         }
 

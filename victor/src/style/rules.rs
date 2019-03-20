@@ -2,7 +2,7 @@ use crate::style::declaration_block::DeclarationBlock;
 use crate::style::errors::RuleParseErrorKind;
 use crate::style::selectors::{self, SelectorList};
 use cssparser::{AtRuleParser, ParseError, Parser, QualifiedRuleParser, SourceLocation};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(super) enum CssRule {
     StyleRule {
@@ -12,8 +12,8 @@ pub(super) enum CssRule {
         // StyleSet will want to store this declaration list as many times
         // (as positions based on the selector’s specificity)
         //
-        // Use `Rc` to enable having multiple references to the `Vec` without cloning it.
-        block: Rc<DeclarationBlock>,
+        // Use `Arc` to enable having multiple references to the `Vec` without cloning it.
+        block: Arc<DeclarationBlock>,
     },
 }
 
@@ -39,7 +39,7 @@ impl<'i> QualifiedRuleParser<'i> for RulesParser {
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         Ok(CssRule::StyleRule {
             selectors: prelude,
-            block: Rc::new(DeclarationBlock::parse(parser)),
+            block: Arc::new(DeclarationBlock::parse(parser)),
         })
     }
 }

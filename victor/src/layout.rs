@@ -5,7 +5,7 @@ use crate::geom::flow_relative::{Rect, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 use crate::style::ComputedValues;
-use std::rc::Rc;
+use std::sync::Arc;
 
 impl crate::dom::Document {
     pub(crate) fn layout(
@@ -83,7 +83,7 @@ impl boxes::BlockLevel {
 }
 
 fn same_formatting_context_block(
-    style: &Rc<ComputedValues>,
+    style: &Arc<ComputedValues>,
     contents: &boxes::BlockContainer,
     containing_block: &ContainingBlock,
     block_size_before: Length,
