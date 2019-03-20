@@ -1,5 +1,4 @@
 use crate::style::ComputedValues;
-use html5ever::tendril::StrTendril;
 use std::sync::Arc;
 
 mod generation;
@@ -35,7 +34,7 @@ pub(super) enum BlockLevel {
 }
 
 pub(super) enum InlineLevel {
-    Text(StrTendril),
+    Text(String),
     #[allow(unused)]
     Inline {
         style: Arc<ComputedValues>,

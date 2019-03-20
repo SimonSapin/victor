@@ -68,12 +68,12 @@ impl<Extra: Default + PushBlock> Builder<Extra> {
         }
     }
 
-    fn push_text(&mut self, text: &StrTendril) {
+    fn push_text(&mut self, text: &str) {
         if let Some(InlineLevel::Text(last_text)) = self.consecutive_inline_levels.last_mut() {
-            last_text.push_tendril(&text)
+            last_text.push_str(&text)
         } else {
             self.consecutive_inline_levels
-                .push(InlineLevel::Text(text.clone()))
+                .push(InlineLevel::Text(text.to_owned()))
         }
     }
 
