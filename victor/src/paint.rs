@@ -40,10 +40,10 @@ impl Fragment {
             Fragment::Text(t) => {
                 page.show_text(&TextRun {
                     segment: &t.text,
-                    font_size: t.style.font.font_size.0.into(),
+                    font_size: t.parent_style.font.font_size.0.into(),
                     origin: t
                         .content_rect
-                        .to_physical(t.style.writing_mode(), containing_block)
+                        .to_physical(t.parent_style.writing_mode(), containing_block)
                         .translate(&containing_block.top_left)
                         .top_left
                         .into(),

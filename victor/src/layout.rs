@@ -74,10 +74,7 @@ impl BlockContainer {
 
                 (child_fragments, block_size)
             }
-            BlockContainer::InlineFormattingContext(_children) => {
-                eprintln!("Unimplemented: inline formatting context");
-                (Vec::new(), Length::zero())
-            }
+            BlockContainer::InlineFormattingContext(ifc) => ifc.layout(containing_block),
         }
     }
 }
@@ -171,4 +168,136 @@ fn same_formatting_context_block(
         border,
         margin,
     })
+}
+
+impl InlineFormattingContext {
+    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
+        self.layout_inline_level_boxes(
+            containing_block,
+            &self.inline_level_boxes,
+            &mut Length::zero(),
+        )
+    }
+
+    fn layout_inline_level_boxes(
+        &self,
+        containing_block: &ContainingBlock,
+        children: &[InlineLevelBox],
+        inline_position: &mut Length,
+    ) -> (Vec<Fragment>, Length) {
+        let mut block_size = Length::zero();
+        let mut fragments = Vec::new();
+        for child in children {
+            let (fragment, child_block_size) =
+                child.layout(containing_block, self, inline_position);
+            fragments.push(fragment);
+            block_size = block_size.max(child_block_size);
+        }
+        (fragments, block_size)
+    }
+}
+
+impl InlineLevelBox {
+    fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+        formatting_context: &InlineFormattingContext,
+        inline_position: &mut Length,
+    ) -> (Fragment, Length) {
+        match self {
+            InlineLevelBox::InlineBox(inline) => {
+                inline.layout(containing_block, formatting_context, inline_position)
+            }
+            InlineLevelBox::TextRun(id) => {
+                formatting_context.text_runs[id.0].layout(inline_position)
+            }
+        }
+    }
+}
+
+impl InlineBox {
+    fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+        formatting_context: &InlineFormattingContext,
+        inline_position: &mut Length,
+    ) -> (Fragment, Length) {
+        let style = self.style.clone();
+        let cbis = containing_block.inline_size;
+        let mut padding = style.padding().map(|v| v.percentage_relative_to(cbis));
+        let mut border = style.border_width().map(|v| v.percentage_relative_to(cbis));
+        let mut margin = style
+            .margin()
+            .map(|v| v.auto_is(Length::zero).percentage_relative_to(cbis));
+        if self.first_fragment {
+            *inline_position += padding.inline_start + border.inline_start + margin.inline_start;
+        } else {
+            padding.inline_start = Length::zero();
+            border.inline_start = Length::zero();
+            margin.inline_start = Length::zero();
+        }
+        let content_inline_start = *inline_position;
+        let (children, mut block_size) = formatting_context.layout_inline_level_boxes(
+            containing_block,
+            &self.children,
+            inline_position,
+        );
+        let content_rect = Rect {
+            start_corner: Vec2 {
+                block: padding.block_start + border.block_start + margin.block_start,
+                inline: content_inline_start,
+            },
+            size: Vec2 {
+                block: block_size,
+                inline: *inline_position - content_inline_start,
+            },
+        };
+        block_size += padding.block_sum() + border.block_sum() + margin.block_sum();
+        if self.last_fragment {
+            *inline_position += padding.inline_end + border.inline_end + margin.inline_end;
+        } else {
+            padding.inline_end = Length::zero();
+            border.inline_end = Length::zero();
+            margin.inline_end = Length::zero();
+        }
+        let fragment = Fragment::Box(BoxFragment {
+            style,
+            children,
+            content_rect,
+            padding,
+            border,
+            margin,
+        });
+        (fragment, block_size)
+    }
+}
+
+impl TextRun {
+    fn layout(&self, inline_position: &mut Length) -> (Fragment, Length) {
+        let parent_style = self.parent_style.clone();
+        let inline_size = parent_style.font.font_size * self.segment.advance_width;
+        // https://www.w3.org/TR/CSS2/visudet.html#propdef-line-height
+        // 'normal':
+        // “set the used value to a "reasonable" value based on the font of the element.”
+        let line_height = parent_style.font.font_size.0 * 1.2;
+        let content_rect = Rect {
+            start_corner: Vec2 {
+                block: Length::zero(),
+                inline: *inline_position,
+            },
+            size: Vec2 {
+                block: line_height,
+                inline: inline_size,
+            },
+        };
+        *inline_position += inline_size;
+        let fragment = Fragment::Text(TextFragment {
+            parent_style,
+            content_rect,
+            // FIXME: keep Arc<ShapedSegment> instead of ShapedSegment,
+            // to make this clone cheaper?
+            text: self.segment.clone(),
+        });
+        (fragment, line_height)
+    }
 }

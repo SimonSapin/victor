@@ -1,3 +1,21 @@
-head { display: none; }
-html, body, div, p { display: block }
-:root { margin: 8px }
+/* https://html.spec.whatwg.org/multipage/rendering.html */
+
+@namespace url(http://www.w3.org/1999/xhtml);
+
+[hidden], area, base, basefont, datalist, head, link, meta, noembed,
+noframes, param, rp, script, source, style, template, track, title {
+    display: none;
+}
+
+embed[hidden] { display: inline; height: 0; width: 0; }
+
+input[type=hidden i] { display: none !important; }
+
+html, body { display: block; }
+
+body { margin: 8px }
+
+address, blockquote, center, dialog, div, figure, figcaption, footer, form,
+header, hr, legend, listing, main, p, plaintext, pre, xmp {
+  display: block;
+}

@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 pub(crate) enum Fragment {
     Box(BoxFragment),
-    #[allow(unused)]
     Text(TextFragment),
 }
 
@@ -25,7 +24,7 @@ pub(crate) struct BoxFragment {
 }
 
 pub(crate) struct TextFragment {
-    pub style: Arc<ComputedValues>,
+    pub parent_style: Arc<ComputedValues>,
     pub content_rect: Rect<Length>,
     pub text: ShapedSegment,
 }

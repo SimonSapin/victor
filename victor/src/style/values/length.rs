@@ -94,6 +94,12 @@ impl Length {
     pub fn zero() -> Self {
         Length { px: 0. }
     }
+
+    pub fn max(self, other: Self) -> Self {
+        Length {
+            px: self.px.max(other.px),
+        }
+    }
 }
 
 impl ops::Add for Length {
