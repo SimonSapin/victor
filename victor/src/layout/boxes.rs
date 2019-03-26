@@ -21,12 +21,12 @@ pub(super) struct BlockFormattingContext(pub BlockContainer);
 
 #[derive(Debug)]
 pub(super) enum BlockContainer {
-    BlockLevels(Vec<BlockLevel>),
+    BlockLevelBoxes(Vec<BlockLevelBox>),
     InlineFormattingContext(InlineFormattingContext),
 }
 
 #[derive(Debug)]
-pub(super) enum BlockLevel {
+pub(super) enum BlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
         contents: BlockContainer,

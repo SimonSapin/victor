@@ -29,10 +29,10 @@ struct Context<'a> {
 
 enum IntermediateBlockFormattingContext {
     InlineFormattingContext(IntermediateInlineFormattingContext),
-    BlockLevels(Vec<IntermediateBlockLevel>),
+    BlockLevelBoxes(Vec<IntermediateBlockLevelBox>),
 }
 
-enum IntermediateBlockLevel {
+enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
         contents: IntermediateBlockContainer,
@@ -59,7 +59,7 @@ struct IntermediateBlockFormattingContextBuilder<'a> {
     context: &'a Context<'a>,
     first_child: Option<dom::NodeId>,
     parent_style: Option<Arc<ComputedValues>>,
-    block_level_boxes: Vec<IntermediateBlockLevel>,
+    block_level_boxes: Vec<IntermediateBlockLevelBox>,
     ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
     ongoing_inline_level_box_stack: Vec<InlineBox>,
     anonymous_style: Option<Arc<ComputedValues>>,
@@ -133,7 +133,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
             self.end_ongoing_inline_formatting_context();
         }
 
-        IntermediateBlockFormattingContext::BlockLevels(self.block_level_boxes.take())
+        IntermediateBlockFormattingContext::BlockLevelBoxes(self.block_level_boxes.take())
     }
 
     fn handle_text(&mut self, descendant: dom::NodeId, contents: &str) -> Option<dom::NodeId> {
@@ -173,7 +173,9 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         let parent_style = self
             .ongoing_inline_level_box_stack
             .last()
-            .map_or(self.parent_style.as_ref().map(|style| &**style), |last| Some(&last.style));
+            .map_or(self.parent_style.as_ref().map(|style| &**style), |last| {
+                Some(&last.style)
+            });
         let descendant_style = style_for_element(
             self.context.author_styles,
             self.context.document,
@@ -272,7 +274,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         self.end_ongoing_inline_formatting_context();
 
         self.block_level_boxes
-            .push(IntermediateBlockLevel::SameFormattingContextBlock {
+            .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: descendant_style,
                 contents: IntermediateBlockContainer::Block(descendant),
             });
@@ -329,7 +331,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         });
 
         self.block_level_boxes
-            .push(IntermediateBlockLevel::SameFormattingContextBlock {
+            .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: anonymous_style.clone(),
                 contents: IntermediateBlockContainer::InlineFormattingContext(
                     self.ongoing_inline_formatting_context.take(),
@@ -365,8 +367,8 @@ impl IntermediateBlockFormattingContext {
             ) => BlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context.finish(context),
             ),
-            IntermediateBlockFormattingContext::BlockLevels(intermediate_block_levels) => {
-                BlockContainer::BlockLevels(
+            IntermediateBlockFormattingContext::BlockLevelBoxes(intermediate_block_levels) => {
+                BlockContainer::BlockLevelBoxes(
                     intermediate_block_levels
                         .into_par_iter()
                         .map(|block_level| block_level.finish(context))
@@ -377,11 +379,11 @@ impl IntermediateBlockFormattingContext {
     }
 }
 
-impl IntermediateBlockLevel {
-    fn finish(self, context: &Context) -> BlockLevel {
+impl IntermediateBlockLevelBox {
+    fn finish(self, context: &Context) -> BlockLevelBox {
         match self {
-            IntermediateBlockLevel::SameFormattingContextBlock { style, contents } => {
-                BlockLevel::SameFormattingContextBlock {
+            IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
+                BlockLevelBox::SameFormattingContextBlock {
                     contents: contents.finish(context, &style),
                     style,
                 }

@@ -45,7 +45,9 @@ impl Sink {
                         return
                     }
                 }
-                self.new_node(NodeData::Text { contents: text.into() })
+                self.new_node(NodeData::Text {
+                    contents: text.into(),
+                })
             }
             NodeOrText::AppendNode(node) => node,
         };
@@ -117,7 +119,9 @@ impl TreeSink for Sink {
     }
 
     fn create_comment(&mut self, text: StrTendril) -> NodeId {
-        self.new_node(NodeData::Comment { _contents: text.into() })
+        self.new_node(NodeData::Comment {
+            _contents: text.into(),
+        })
     }
 
     fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> NodeId {

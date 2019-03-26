@@ -50,7 +50,7 @@ impl boxes::BlockFormattingContext {
 impl boxes::BlockContainer {
     fn layout(&self, containing_block: &ContainingBlock) -> (Vec<fragments::Fragment>, Length) {
         match self {
-            boxes::BlockContainer::BlockLevels(child_boxes) => {
+            boxes::BlockContainer::BlockLevelBoxes(child_boxes) => {
                 let mut child_fragments = child_boxes
                     .par_iter()
                     .map(|child| child.layout(containing_block))
@@ -76,10 +76,10 @@ impl boxes::BlockContainer {
     }
 }
 
-impl boxes::BlockLevel {
+impl boxes::BlockLevelBox {
     fn layout(&self, containing_block: &ContainingBlock) -> fragments::Fragment {
         match self {
-            boxes::BlockLevel::SameFormattingContextBlock { style, contents } => {
+            boxes::BlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 same_formatting_context_block(style, contents, containing_block)
             }
         }
