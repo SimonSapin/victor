@@ -46,7 +46,7 @@ enum IntermediateBlockContainer {
 
 #[derive(Default)]
 struct IntermediateInlineFormattingContext {
-    inline_level_boxes: Vec<InlineLevel>,
+    inline_level_boxes: Vec<InlineLevelBox>,
     text: Vec<IntermediateText>,
 }
 
@@ -161,7 +161,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
                     parent_style: parent_style.clone(),
                     node: descendant,
                 });
-            inline_level_boxes.push(InlineLevel::Text(text_id));
+            inline_level_boxes.push(InlineLevelBox::Text(text_id));
         }
 
         // Let .build continue the traversal from the next sibling of
@@ -256,12 +256,12 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
             // the block, we accumulate them as a single inline level box
             // to be pushed to the ongoing inline formatting context.
 
-            let mut fragmented_inline_level = InlineLevel::Box(last);
+            let mut fragmented_inline_level = InlineLevelBox::InlineBox(last);
             for mut fragmented_parent_inline_level_box in fragmented_inline_level_boxes {
                 fragmented_parent_inline_level_box
                     .children
                     .push(fragmented_inline_level);
-                fragmented_inline_level = InlineLevel::Box(fragmented_parent_inline_level_box);
+                fragmented_inline_level = InlineLevelBox::InlineBox(fragmented_parent_inline_level_box);
             }
 
             self.ongoing_inline_formatting_context
@@ -355,7 +355,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
             |last| &mut last.children,
         );
 
-        inline_level_boxes.push(InlineLevel::Box(last_ongoing_inline_level_box));
+        inline_level_boxes.push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
     }
 }
 

@@ -39,14 +39,14 @@ pub(super) enum BlockLevelBox {
 
 #[derive(Debug)]
 pub(super) struct InlineFormattingContext {
-    inline_level_boxes: Vec<InlineLevel>,
+    inline_level_boxes: Vec<InlineLevelBox>,
     text: Vec<Text>,
 }
 
 #[derive(Debug)]
-pub(super) enum InlineLevel {
+pub(super) enum InlineLevelBox {
     #[allow(unused)]
-    Box(InlineBox),
+    InlineBox(InlineBox),
     #[allow(unused)]
     Text(TextId),
     // Atomic {
@@ -60,7 +60,7 @@ pub(super) struct InlineBox {
     style: Arc<ComputedValues>,
     first_fragment: bool,
     last_fragment: bool,
-    children: Vec<InlineLevel>,
+    children: Vec<InlineLevelBox>,
 }
 
 #[derive(Debug)]
