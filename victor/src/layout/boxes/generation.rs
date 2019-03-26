@@ -446,13 +446,10 @@ trait Take {
     fn take(&mut self) -> Self;
 }
 
-impl<T> Take for Vec<T> {
-    fn take(&mut self) -> Self {
-        std::mem::replace(self, Vec::new())
-    }
-}
-
-impl Take for IntermediateInlineFormattingContext {
+impl<T> Take for T
+where
+    T: Default,
+{
     fn take(&mut self) -> Self {
         std::mem::replace(self, Default::default())
     }
