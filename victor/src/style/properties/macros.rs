@@ -168,6 +168,12 @@ macro_rules! properties {
             )+
         }
 
+        impl std::fmt::Debug for ComputedValues {
+            fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fmt.write_str("ComputedValues")
+            }
+        }
+
         pub(crate) mod style_structs {
             use super::*;
             $(

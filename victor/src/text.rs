@@ -9,6 +9,12 @@ pub struct ShapedSegment {
     pub(crate) advance_width: Length<Em>,
 }
 
+impl std::fmt::Debug for ShapedSegment {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.write_str("ShapedSegment")
+    }
+}
+
 impl ShapedSegment {
     /// Simplistic text shaping:
     ///
