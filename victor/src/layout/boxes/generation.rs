@@ -40,7 +40,7 @@ enum IntermediateBlockLevelBox {
 }
 
 enum IntermediateBlockContainer {
-    Block(dom::NodeId),
+    BlockBox(dom::NodeId),
     InlineFormattingContext(IntermediateInlineFormattingContext),
 }
 
@@ -276,7 +276,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         self.block_level_boxes
             .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: descendant_style,
-                contents: IntermediateBlockContainer::Block(descendant),
+                contents: IntermediateBlockContainer::BlockBox(descendant),
             });
 
         self.move_to_next_sibling(descendant)
@@ -395,7 +395,7 @@ impl IntermediateBlockLevelBox {
 impl IntermediateBlockContainer {
     fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
-            IntermediateBlockContainer::Block(block) => {
+            IntermediateBlockContainer::BlockBox(block) => {
                 IntermediateBlockFormattingContextBuilder::new_for_descendant(
                     context,
                     block,
