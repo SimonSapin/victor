@@ -46,7 +46,7 @@ pub(super) struct InlineFormattingContext {
 #[derive(Debug)]
 pub(super) enum InlineLevel {
     #[allow(unused)]
-    Box(InlineLevelBox),
+    Box(InlineBox),
     #[allow(unused)]
     Text(TextId),
     // Atomic {
@@ -56,7 +56,7 @@ pub(super) enum InlineLevel {
 }
 
 #[derive(Debug)]
-pub(super) struct InlineLevelBox {
+pub(super) struct InlineBox {
     style: Arc<ComputedValues>,
     first_fragment: bool,
     last_fragment: bool,

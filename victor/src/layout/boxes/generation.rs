@@ -61,7 +61,7 @@ struct IntermediateBlockFormattingContextBuilder<'a> {
     parent_style: Option<Arc<ComputedValues>>,
     block_level_boxes: Vec<IntermediateBlockLevel>,
     ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
-    ongoing_inline_level_box_stack: Vec<InlineLevelBox>,
+    ongoing_inline_level_box_stack: Vec<InlineBox>,
     anonymous_style: Option<Arc<ComputedValues>>,
 }
 
@@ -200,7 +200,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
     ) -> Option<dom::NodeId> {
         // Whatever happened before, we just found an inline level element, so
         // all we need to do is to remember this ongoing inline level box.
-        self.ongoing_inline_level_box_stack.push(InlineLevelBox {
+        self.ongoing_inline_level_box_stack.push(InlineBox {
             style: descendant_style,
             first_fragment: true,
             last_fragment: false,
@@ -237,7 +237,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
             .iter_mut()
             .rev()
             .map(|ongoing| {
-                let fragmented = InlineLevelBox {
+                let fragmented = InlineBox {
                     style: ongoing.style.clone(),
                     first_fragment: ongoing.first_fragment,
                     // The fragmented boxes before the block level element
