@@ -3,6 +3,7 @@ use crate::dom;
 use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 impl dom::Document {
     pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
@@ -367,7 +368,7 @@ impl IntermediateBlockFormattingContext {
             IntermediateBlockFormattingContext::BlockLevels(intermediate_block_levels) => {
                 BlockContainer::BlockLevels(
                     intermediate_block_levels
-                        .into_iter()
+                        .into_par_iter()
                         .map(|block_level| block_level.finish(context))
                         .collect(),
                 )
@@ -417,7 +418,7 @@ impl IntermediateInlineFormattingContext {
             inline_level_boxes: self.inline_level_boxes,
             text: self
                 .text
-                .into_iter()
+                .into_par_iter()
                 .map(|text| text.finish(context))
                 .collect(),
         }
