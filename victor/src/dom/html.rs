@@ -1,7 +1,7 @@
 use super::*;
 use html5ever::interface::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
-use html5ever::tendril::TendrilSink;
-use html5ever::{parse_document, ExpandedName};
+use html5ever::tendril::{StrTendril, TendrilSink};
+use html5ever::{self, parse_document, ExpandedName};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -41,11 +41,11 @@ impl Sink {
                         ..
                     } = &mut self.document[id]
                     {
-                        contents.push_tendril(&text);
+                        contents.push_str(&text);
                         return
                     }
                 }
-                self.new_node(NodeData::Text { contents: text })
+                self.new_node(NodeData::Text { contents: text.into() })
             }
             NodeOrText::AppendNode(node) => node,
         };
@@ -98,7 +98,7 @@ impl TreeSink for Sink {
     fn create_element(
         &mut self,
         name: QualName,
-        attrs: Vec<Attribute>,
+        attrs: Vec<html5ever::Attribute>,
         ElementFlags {
             mathml_annotation_xml_integration_point,
             ..
@@ -107,7 +107,7 @@ impl TreeSink for Sink {
         let is_style = name.expanded() == expanded_name!(html "style");
         let element = self.new_node(NodeData::Element(ElementData {
             name,
-            attrs,
+            attrs: attrs.into_iter().map(Attribute::from).collect(),
             mathml_annotation_xml_integration_point,
         }));
         if is_style {
@@ -117,13 +117,13 @@ impl TreeSink for Sink {
     }
 
     fn create_comment(&mut self, text: StrTendril) -> NodeId {
-        self.new_node(NodeData::Comment { _contents: text })
+        self.new_node(NodeData::Comment { _contents: text.into() })
     }
 
     fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> NodeId {
         self.new_node(NodeData::ProcessingInstruction {
-            _target: target,
-            _contents: data,
+            _target: target.into(),
+            _contents: data.into(),
         })
     }
 
@@ -163,14 +163,14 @@ impl TreeSink for Sink {
         system_id: StrTendril,
     ) {
         let node = self.new_node(NodeData::Doctype {
-            _name: name,
-            _public_id: public_id,
-            _system_id: system_id,
+            _name: name.into(),
+            _public_id: public_id.into(),
+            _system_id: system_id.into(),
         });
         self.document.append(Document::document_node_id(), node)
     }
 
-    fn add_attrs_if_missing(&mut self, &target: &NodeId, attrs: Vec<Attribute>) {
+    fn add_attrs_if_missing(&mut self, &target: &NodeId, attrs: Vec<html5ever::Attribute>) {
         let element = if let NodeData::Element(element) = &mut self.document[target].data {
             element
         } else {
@@ -184,6 +184,7 @@ impl TreeSink for Sink {
         element.attrs.extend(
             attrs
                 .into_iter()
+                .map(Attribute::from)
                 .filter(|attr| !existing_names.contains(&attr.name)),
         );
     }
@@ -198,6 +199,15 @@ impl TreeSink for Sink {
             debug_assert_eq!(self.document[child].parent, Some(node));
             self.document.append(new_parent, child);
             next_child = self.document[child].next_sibling
+        }
+    }
+}
+
+impl From<html5ever::Attribute> for Attribute {
+    fn from(attr: html5ever::Attribute) -> Self {
+        Self {
+            name: attr.name,
+            value: attr.value.into(),
         }
     }
 }

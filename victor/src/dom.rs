@@ -4,8 +4,7 @@ mod html;
 mod xml;
 
 use crate::style::StyleSetBuilder;
-use html5ever::tendril::StrTendril;
-use html5ever::{Attribute, LocalName, QualName};
+use html5ever::{LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
 
@@ -40,7 +39,7 @@ impl Document {
         }
     }
 
-    fn document_node_id() -> NodeId {
+    pub(crate) fn document_node_id() -> NodeId {
         NodeId(std::num::NonZeroUsize::new(1).unwrap())
     }
 
@@ -67,7 +66,7 @@ impl Document {
                     e.get_attr(&local_name!("rel")),
                     e.get_attr(&local_name!("href")),
                 ) {
-                    (Some(rel), Some(href)) => Some((&**rel, &**href)),
+                    (Some(rel), Some(href)) => Some((rel, href)),
                     _ => None,
                 }
             })
@@ -132,54 +131,19 @@ impl Document {
     }
 
     /// <https://dom.spec.whatwg.org/#concept-child-text-content>
-    fn child_text_content(&self, node: NodeId) -> Cow<StrTendril> {
+    fn child_text_content(&self, node: NodeId) -> Cow<String> {
         let mut link = self[node].first_child;
         let mut text = None;
         while let Some(child) = link {
             if let NodeData::Text { contents } = &self[child].data {
                 match &mut text {
                     None => text = Some(Cow::Borrowed(contents)),
-                    Some(text) => text.to_mut().push_tendril(&contents),
+                    Some(text) => text.to_mut().push_str(&contents),
                 }
             }
             link = self[child].next_sibling;
         }
-        text.unwrap_or_else(|| Cow::Owned(StrTendril::new()))
-    }
-
-    pub(crate) fn root_element(&self) -> NodeId {
-        let first_child;
-        {
-            let document_node = &self[Document::document_node_id()];
-            assert!(matches!(document_node.data, NodeData::Document));
-            assert!(document_node.parent.is_none());
-            assert!(document_node.next_sibling.is_none());
-            assert!(document_node.previous_sibling.is_none());
-            first_child = document_node.first_child
-        }
-        let mut root = None;
-        for child in self.node_and_next_siblings(first_child.unwrap()) {
-            match &self[child].data {
-                NodeData::Doctype { .. }
-                | NodeData::Comment { .. }
-                | NodeData::ProcessingInstruction { .. } => {}
-                NodeData::Document | NodeData::Text { .. } => {
-                    panic!("Unexpected node type under document node")
-                }
-                NodeData::Element(_) => {
-                    assert!(root.is_none(), "Found two root elements");
-                    root = Some(child)
-                }
-            }
-        }
-        root.unwrap()
-    }
-
-    pub(crate) fn node_and_next_siblings<'a>(
-        &'a self,
-        node: NodeId,
-    ) -> impl Iterator<Item = NodeId> + 'a {
-        successors(Some(node), move |&node| self[node].next_sibling)
+        text.unwrap_or_else(|| Cow::Owned(String::new()))
     }
 
     pub(crate) fn node_and_ancestors<'a>(
@@ -221,20 +185,20 @@ impl std::ops::IndexMut<NodeId> for Document {
 pub(crate) enum NodeData {
     Document,
     Doctype {
-        _name: StrTendril,
-        _public_id: StrTendril,
-        _system_id: StrTendril,
+        _name: String,
+        _public_id: String,
+        _system_id: String,
     },
     Text {
-        contents: StrTendril,
+        contents: String,
     },
     Comment {
-        _contents: StrTendril,
+        _contents: String,
     },
     Element(ElementData),
     ProcessingInstruction {
-        _target: StrTendril,
-        _contents: StrTendril,
+        _target: String,
+        _contents: String,
     },
 }
 
@@ -244,12 +208,19 @@ pub(crate) struct ElementData {
     pub(crate) mathml_annotation_xml_integration_point: bool,
 }
 
+pub(crate) struct Attribute {
+    /// The name of the attribute (e.g. the `class` in `<div class="test">`)
+    pub name: QualName,
+    /// The value of the attribute (e.g. the `"test"` in `<div class="test">`)
+    pub value: String,
+}
+
 impl ElementData {
-    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<&StrTendril> {
+    pub(crate) fn get_attr(&self, name: &LocalName) -> Option<&str> {
         self.attrs
             .iter()
             .find(|attr| attr.name.ns == ns!() && attr.name.local == *name)
-            .map(|attr| &attr.value)
+            .map(|attr| &*attr.value)
     }
 }
 
@@ -257,8 +228,8 @@ impl ElementData {
 #[cfg(target_pointer_width = "64")]
 fn size_of() {
     use std::mem::size_of;
-    assert_eq!(size_of::<Node>(), 112);
-    assert_eq!(size_of::<NodeData>(), 72);
+    assert_eq!(size_of::<Node>(), 120);
+    assert_eq!(size_of::<NodeData>(), 80);
     assert_eq!(size_of::<ElementData>(), 64);
 }
 
@@ -275,7 +246,7 @@ impl Node {
         }
     }
 
-    pub(crate) fn as_text(&self) -> Option<&StrTendril> {
+    pub(crate) fn as_text(&self) -> Option<&String> {
         match self.data {
             NodeData::Text { ref contents } => Some(contents),
             _ => None,

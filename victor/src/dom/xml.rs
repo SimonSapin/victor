@@ -36,7 +36,7 @@ impl Document {
                             ..
                         } = &mut document[last_child]
                         {
-                            contents.push_slice(&s);
+                            contents.push_str(&s);
                             continue
                         }
                     }
