@@ -40,7 +40,7 @@ pub(super) enum BlockLevelBox {
 #[derive(Debug)]
 pub(super) struct InlineFormattingContext {
     inline_level_boxes: Vec<InlineLevelBox>,
-    text: Vec<Text>,
+    text_runs: Vec<TextRun>,
 }
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ pub(super) enum InlineLevelBox {
     #[allow(unused)]
     InlineBox(InlineBox),
     #[allow(unused)]
-    Text(TextId),
+    TextRun(TextRunId),
     // Atomic {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,
@@ -64,10 +64,14 @@ pub(super) struct InlineBox {
 }
 
 #[derive(Debug)]
-pub(super) struct TextId(usize);
+pub(super) struct TextRunId(usize);
 
+/// https://www.w3.org/TR/css-display-3/#css-text-run
+///
+/// Contiguous sequence of sibling text nodes generates multiple text runs,
+/// as opposed as in the specification.
 #[derive(Debug)]
-pub(super) struct Text {
+pub(super) struct TextRun {
     parent_style: Arc<ComputedValues>,
     segment: ShapedSegment,
 }

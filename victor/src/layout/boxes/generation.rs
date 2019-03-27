@@ -47,10 +47,10 @@ enum IntermediateBlockContainer {
 #[derive(Default)]
 struct IntermediateInlineFormattingContext {
     inline_level_boxes: Vec<InlineLevelBox>,
-    text: Vec<IntermediateText>,
+    text_runs: Vec<IntermediateTextRun>,
 }
 
-struct IntermediateText {
+struct IntermediateTextRun {
     parent_style: Arc<ComputedValues>,
     node: dom::NodeId,
 }
@@ -139,7 +139,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
     fn handle_text(&mut self, descendant: dom::NodeId, contents: &str) -> Option<dom::NodeId> {
         // FIXME: implement https://drafts.csswg.org/css2/text.html#white-space-model
         if !contents.as_bytes().iter().all(u8::is_ascii_whitespace) {
-            let text_id = TextId(self.ongoing_inline_formatting_context.text.len());
+            let run_id = TextRunId(self.ongoing_inline_formatting_context.text_runs.len());
 
             // This text node should be pushed either to the next ongoing
             // inline level box with the parent style of that inline level box
@@ -156,12 +156,12 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
                     |last| (&last.style, &mut last.children),
                 );
             self.ongoing_inline_formatting_context
-                .text
-                .push(IntermediateText {
+                .text_runs
+                .push(IntermediateTextRun {
                     parent_style: parent_style.clone(),
                     node: descendant,
                 });
-            inline_level_boxes.push(InlineLevelBox::Text(text_id));
+            inline_level_boxes.push(InlineLevelBox::TextRun(run_id));
         }
 
         // Let .build continue the traversal from the next sibling of
@@ -261,7 +261,8 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
                 fragmented_parent_inline_level_box
                     .children
                     .push(fragmented_inline_level);
-                fragmented_inline_level = InlineLevelBox::InlineBox(fragmented_parent_inline_level_box);
+                fragmented_inline_level =
+                    InlineLevelBox::InlineBox(fragmented_parent_inline_level_box);
             }
 
             self.ongoing_inline_formatting_context
@@ -418,8 +419,8 @@ impl IntermediateInlineFormattingContext {
     fn finish(self, context: &Context) -> InlineFormattingContext {
         InlineFormattingContext {
             inline_level_boxes: self.inline_level_boxes,
-            text: self
-                .text
+            text_runs: self
+                .text_runs
                 .into_par_iter()
                 .map(|text| text.finish(context))
                 .collect(),
@@ -427,8 +428,8 @@ impl IntermediateInlineFormattingContext {
     }
 }
 
-impl IntermediateText {
-    fn finish(self, context: &Context) -> Text {
+impl IntermediateTextRun {
+    fn finish(self, context: &Context) -> TextRun {
         let contents = match &context.document[self.node].data {
             dom::NodeData::Text { contents } => contents,
             _ => panic!("node should be a text node"),
@@ -437,7 +438,7 @@ impl IntermediateText {
         let mut segment = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
         segment.append(contents.chars()).unwrap();
 
-        Text {
+        TextRun {
             parent_style: self.parent_style,
             segment,
         }
