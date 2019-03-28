@@ -382,14 +382,12 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
             return
         }
 
-        let parent_style = self.parent_style;
+        let parent_style = self.parent_style.map(|s| &**s);
         let anonymous_style = self.anonymous_style.get_or_insert_with(|| {
             // If parent_style is None, the parent is the document node,
             // in which case anonymous inline boxes should inherit their
             // styles from initial values.
-            parent_style
-                .map(|style| ComputedValues::anonymous_inheriting_from(style))
-                .unwrap_or_else(ComputedValues::initial)
+            ComputedValues::anonymous_inheriting_from(parent_style)
         });
 
         self.block_level_boxes

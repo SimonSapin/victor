@@ -15,12 +15,8 @@ mod macros;
 mod definitions;
 
 impl ComputedValues {
-    pub(crate) fn initial() -> Arc<Self> {
-        Self::new(None, None)
-    }
-
-    pub(crate) fn anonymous_inheriting_from(parent_style: &Self) -> Arc<Self> {
-        Self::new(Some(parent_style), None)
+    pub(crate) fn anonymous_inheriting_from(parent_style: Option<&Self>) -> Arc<Self> {
+        Self::new(parent_style, None)
     }
 
     pub(super) fn post_cascade_fixups(&mut self) {
