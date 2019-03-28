@@ -14,6 +14,14 @@ properties! {
     }
 
     reset struct box_ {
+        display {
+            "display",
+            Display,
+            initial = Display::Other {
+                outside: DisplayOutside::Inline,
+                inside: DisplayInside::Flow,
+            }
+        }
         width { "width", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
         height { "height", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
     }
@@ -51,17 +59,6 @@ properties! {
 
     reset struct background {
         background_color { "background-color", Color, initial = Color::RGBA(RGBA::transparent()) }
-    }
-
-    reset struct display {
-        display {
-            "display",
-            Display,
-            initial = Display::Other {
-                outside: DisplayOutside::Inline,
-                inside: DisplayInside::Flow,
-            }
-        }
     }
 
     @shorthands {

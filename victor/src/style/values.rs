@@ -4,15 +4,16 @@ use crate::style::properties::{ComputedValuesForEarlyCascade, ComputedValuesForL
 use cssparser::Parser;
 
 mod border;
+#[path = "values/box.rs"]
+mod box_;
 mod color;
-mod display;
 mod fonts;
 mod generic;
 mod length;
 mod writing_modes;
 
 pub(super) use self::generic::*;
-pub(crate) use self::{border::*, color::*, display::*, fonts::*, length::*, writing_modes::*};
+pub(crate) use self::{border::*, box_::*, color::*, fonts::*, length::*, writing_modes::*};
 
 pub(super) trait Parse: Sized {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>>;

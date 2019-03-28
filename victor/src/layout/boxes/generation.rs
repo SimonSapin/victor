@@ -238,7 +238,7 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
             descendant,
             parent_style.map(|style| &**style),
         );
-        match descendant_style.display.display {
+        match descendant_style.box_.display {
             Display::None => self.move_to_next_sibling(descendant),
             Display::Other {
                 outside: DisplayOutside::Inline,
