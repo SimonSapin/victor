@@ -150,7 +150,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
                     (
                         self.parent_style
                             .as_ref()
-                            .expect("text node in a document always has a parent"),
+                            .expect("found a text node without a parent"),
                         &mut self.ongoing_inline_formatting_context.inline_level_boxes,
                     ),
                     |last| (&last.style, &mut last.children),
@@ -297,8 +297,9 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         while !self.ongoing_inline_level_box_stack.is_empty() {
             self.end_ongoing_inline_level_box();
 
-            descendant_node =
-                &self.context.document[descendant_node.parent.expect("descendant has a parent")];
+            descendant_node = &self.context.document[descendant_node
+                .parent
+                .expect("found a descendant without a parent")];
             if let Some(next_sibling) = descendant_node.next_sibling {
                 return Some(next_sibling)
             }
@@ -344,7 +345,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         let mut last_ongoing_inline_level_box = self
             .ongoing_inline_level_box_stack
             .pop()
-            .expect("there is an ongoing inline level box");
+            .expect("no ongoing inline level box found");
 
         last_ongoing_inline_level_box.last_fragment = true;
 
