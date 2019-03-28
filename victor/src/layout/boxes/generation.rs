@@ -34,27 +34,25 @@ struct Context<'a> {
 }
 
 enum IntermediateBlockContainer {
-    InlineFormattingContext(IntermediateInlineFormattingContext),
     BlockLevelBoxes(Vec<IntermediateBlockLevelBox>),
+    InlineFormattingContext(IntermediateInlineFormattingContext),
 }
 
 enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
         contents: DeferredNestedBlockContainer,
-    },
+    }
 }
 
 /// A deferred nested block container.
 ///
-/// At this point, we know whether the block container introduces a new
-/// inline formatting context or if it will contain block-level boxes.
-///
-/// In the latter case, the block-level boxes are not yet computed and are
-/// represented by their parent DOM node.
+/// Represents either the inline formatting context of an anonymous block
+/// box or the yet-to-be-computed block container generated from the children
+/// of a given element.
 enum DeferredNestedBlockContainer {
+    FromChildrenOf(dom::NodeId),
     InlineFormattingContext(IntermediateInlineFormattingContext),
-    BlockLevelBoxes { children_of: dom::NodeId },
 }
 
 /// An intermediate inline formatting context.
@@ -332,9 +330,7 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
         self.block_level_boxes
             .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: descendant_style,
-                contents: DeferredNestedBlockContainer::BlockLevelBoxes {
-                    children_of: descendant,
-                },
+                contents: DeferredNestedBlockContainer::FromChildrenOf(descendant),
             });
 
         self.move_to_next_sibling(descendant)
@@ -455,7 +451,7 @@ impl IntermediateBlockLevelBox {
 impl DeferredNestedBlockContainer {
     fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
-            DeferredNestedBlockContainer::BlockLevelBoxes { children_of: block } => {
+            DeferredNestedBlockContainer::FromChildrenOf(block) => {
                 IntermediateBlockContainerBuilder::new_for_descendant(context, block, style)
                     .build()
                     .finish(context)
