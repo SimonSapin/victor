@@ -389,8 +389,9 @@ impl IntermediateBlockLevelBox {
     fn finish(self, context: &Context) -> BlockLevelBox {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
+                let (block_container, style) = contents.finish(context, style);
                 BlockLevelBox::SameFormattingContextBlock {
-                    contents: contents.finish(context, &style),
+                    contents: block_container,
                     style,
                 }
             }
@@ -399,18 +400,31 @@ impl IntermediateBlockLevelBox {
 }
 
 impl DeferredNestedBlockContainer {
-    fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
+    fn finish(
+        self,
+        context: &Context,
+        style: Arc<ComputedValues>,
+    ) -> (BlockContainer, Arc<ComputedValues>) {
         match self {
             DeferredNestedBlockContainer::BlockLevelBoxes { children_of: block } => {
-                IntermediateBlockContainerBuilder::new_for_descendant(context, block, style.clone())
-                    .build()
-                    .finish(context)
+                let mut block_container_builder =
+                    IntermediateBlockContainerBuilder::new_for_descendant(context, block, style);
+                let block_container = block_container_builder.build().finish(context);
+                (
+                    block_container,
+                    block_container_builder
+                        .parent_style
+                        .expect("parent style not found"),
+                )
             }
             DeferredNestedBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
-            ) => BlockContainer::InlineFormattingContext(
-                intermediate_inline_formatting_context.finish(context),
-            ),
+            ) => {
+                let block_container = BlockContainer::InlineFormattingContext(
+                    intermediate_inline_formatting_context.finish(context),
+                );
+                (block_container, style)
+            }
         }
     }
 }
