@@ -16,9 +16,11 @@ impl dom::Document {
             author_styles: &author_styles,
         };
 
-        IntermediateBlockFormattingContextBuilder::new_for_root(&context)
+        let block_container = IntermediateBlockContainerBuilder::new_for_root(&context)
             .build()
-            .finish(&context)
+            .finish(&context);
+
+        BlockFormattingContext(block_container)
     }
 }
 
@@ -27,7 +29,7 @@ struct Context<'a> {
     author_styles: &'a StyleSet,
 }
 
-enum IntermediateBlockFormattingContext {
+enum IntermediateBlockContainer {
     InlineFormattingContext(IntermediateInlineFormattingContext),
     BlockLevelBoxes(Vec<IntermediateBlockLevelBox>),
 }
@@ -35,13 +37,13 @@ enum IntermediateBlockFormattingContext {
 enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
-        contents: IntermediateBlockContainer,
+        contents: DeferredNestedBlockContainer,
     },
 }
 
-enum IntermediateBlockContainer {
-    BlockBox(dom::NodeId),
+enum DeferredNestedBlockContainer {
     InlineFormattingContext(IntermediateInlineFormattingContext),
+    BlockLevelBoxes { children_of: dom::NodeId },
 }
 
 #[derive(Default)]
@@ -55,7 +57,7 @@ struct IntermediateTextRun {
     node: dom::NodeId,
 }
 
-struct IntermediateBlockFormattingContextBuilder<'a> {
+struct IntermediateBlockContainerBuilder<'a> {
     context: &'a Context<'a>,
     first_child: Option<dom::NodeId>,
     parent_style: Option<Arc<ComputedValues>>,
@@ -66,7 +68,7 @@ struct IntermediateBlockFormattingContextBuilder<'a> {
 }
 
 #[allow(dead_code)]
-impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
+impl<'a> IntermediateBlockContainerBuilder<'a> {
     fn new_for_root(context: &'a Context<'a>) -> Self {
         Self {
             context,
@@ -97,7 +99,7 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         }
     }
 
-    fn build(&mut self) -> IntermediateBlockFormattingContext {
+    fn build(&mut self) -> IntermediateBlockContainer {
         let mut next_descendant = self.first_child;
         while let Some(descendant) = next_descendant.take() {
             match &self.context.document[descendant].data {
@@ -126,14 +128,14 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
             .is_empty()
         {
             if self.block_level_boxes.is_empty() {
-                return IntermediateBlockFormattingContext::InlineFormattingContext(
+                return IntermediateBlockContainer::InlineFormattingContext(
                     self.ongoing_inline_formatting_context.take(),
                 )
             }
             self.end_ongoing_inline_formatting_context();
         }
 
-        IntermediateBlockFormattingContext::BlockLevelBoxes(self.block_level_boxes.take())
+        IntermediateBlockContainer::BlockLevelBoxes(self.block_level_boxes.take())
     }
 
     fn handle_text(&mut self, descendant: dom::NodeId, contents: &str) -> Option<dom::NodeId> {
@@ -277,7 +279,9 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         self.block_level_boxes
             .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: descendant_style,
-                contents: IntermediateBlockContainer::BlockBox(descendant),
+                contents: DeferredNestedBlockContainer::BlockLevelBoxes {
+                    children_of: descendant,
+                },
             });
 
         self.move_to_next_sibling(descendant)
@@ -328,14 +332,14 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
         let parent_style = self.parent_style.as_ref();
         let anonymous_style = self.anonymous_style.get_or_insert_with(|| {
             ComputedValues::anonymous_inheriting_from(
-                parent_style.expect("anonymous style is never None when parent style is"),
+                parent_style.expect("anonymous style should never be None when parent style is"),
             )
         });
 
         self.block_level_boxes
             .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: anonymous_style.clone(),
-                contents: IntermediateBlockContainer::InlineFormattingContext(
+                contents: DeferredNestedBlockContainer::InlineFormattingContext(
                     self.ongoing_inline_formatting_context.take(),
                 ),
             });
@@ -361,15 +365,15 @@ impl<'a> IntermediateBlockFormattingContextBuilder<'a> {
     }
 }
 
-impl IntermediateBlockFormattingContext {
-    fn finish(self, context: &Context) -> BlockFormattingContext {
-        BlockFormattingContext(match self {
-            IntermediateBlockFormattingContext::InlineFormattingContext(
+impl IntermediateBlockContainer {
+    fn finish(self, context: &Context) -> BlockContainer {
+        match self {
+            IntermediateBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
             ) => BlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context.finish(context),
             ),
-            IntermediateBlockFormattingContext::BlockLevelBoxes(intermediate_block_levels) => {
+            IntermediateBlockContainer::BlockLevelBoxes(intermediate_block_levels) => {
                 BlockContainer::BlockLevelBoxes(
                     intermediate_block_levels
                         .into_par_iter()
@@ -377,7 +381,7 @@ impl IntermediateBlockFormattingContext {
                         .collect(),
                 )
             }
-        })
+        }
     }
 }
 
@@ -394,20 +398,15 @@ impl IntermediateBlockLevelBox {
     }
 }
 
-impl IntermediateBlockContainer {
+impl DeferredNestedBlockContainer {
     fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
-            IntermediateBlockContainer::BlockBox(block) => {
-                IntermediateBlockFormattingContextBuilder::new_for_descendant(
-                    context,
-                    block,
-                    style.clone(),
-                )
-                .build()
-                .finish(context)
-                .0
+            DeferredNestedBlockContainer::BlockLevelBoxes { children_of: block } => {
+                IntermediateBlockContainerBuilder::new_for_descendant(context, block, style.clone())
+                    .build()
+                    .finish(context)
             }
-            IntermediateBlockContainer::InlineFormattingContext(
+            DeferredNestedBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
             ) => BlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context.finish(context),
