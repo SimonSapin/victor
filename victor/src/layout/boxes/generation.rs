@@ -77,9 +77,7 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
             ongoing_inline_level_box_stack: Default::default(),
-            // If any, anonymous blocks wrapping inlines at the root level get
-            // initial styles, they don’t have a parent element to inherit from.
-            anonymous_style: Some(ComputedValues::initial()),
+            anonymous_style: None,
         }
     }
 
@@ -327,11 +325,14 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
             return
         }
 
-        let parent_style = self.parent_style.as_ref();
+        let parent_style = self.parent_style;
         let anonymous_style = self.anonymous_style.get_or_insert_with(|| {
-            ComputedValues::anonymous_inheriting_from(
-                parent_style.expect("anonymous style should never be None when parent style is"),
-            )
+            // If parent_style is None, the parent is the document node,
+            // in which case anonymous inline boxes should inherit their
+            // styles from initial values.
+            parent_style
+                .map(|style| ComputedValues::anonymous_inheriting_from(style))
+                .unwrap_or_else(ComputedValues::initial)
         });
 
         self.block_level_boxes
