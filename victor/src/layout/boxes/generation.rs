@@ -60,7 +60,7 @@ struct IntermediateTextRun {
 struct IntermediateBlockContainerBuilder<'a> {
     context: &'a Context<'a>,
     first_child: Option<dom::NodeId>,
-    parent_style: Option<Arc<ComputedValues>>,
+    parent_style: Option<&'a Arc<ComputedValues>>,
     block_level_boxes: Vec<IntermediateBlockLevelBox>,
     ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
     ongoing_inline_level_box_stack: Vec<InlineBox>,
@@ -86,7 +86,7 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
     fn new_for_descendant(
         context: &'a Context<'a>,
         element: dom::NodeId,
-        style: Arc<ComputedValues>,
+        style: &'a Arc<ComputedValues>,
     ) -> Self {
         Self {
             context,
@@ -151,7 +151,6 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
                 self.ongoing_inline_level_box_stack.last_mut().map_or(
                     (
                         self.parent_style
-                            .as_ref()
                             .expect("found a text node without a parent"),
                         &mut self.ongoing_inline_formatting_context.inline_level_boxes,
                     ),
@@ -175,14 +174,13 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
         let parent_style = self
             .ongoing_inline_level_box_stack
             .last()
-            .map_or(self.parent_style.as_ref().map(|style| &**style), |last| {
-                Some(&last.style)
-            });
+            .map(|last| &last.style)
+            .or(self.parent_style);
         let descendant_style = style_for_element(
             self.context.author_styles,
             self.context.document,
             descendant,
-            parent_style,
+            parent_style.map(|style| &**style),
         );
         match descendant_style.display.display {
             Display::None => self.move_to_next_sibling(descendant),
@@ -389,9 +387,8 @@ impl IntermediateBlockLevelBox {
     fn finish(self, context: &Context) -> BlockLevelBox {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                let (block_container, style) = contents.finish(context, style);
                 BlockLevelBox::SameFormattingContextBlock {
-                    contents: block_container,
+                    contents: contents.finish(context, &style),
                     style,
                 }
             }
@@ -400,31 +397,18 @@ impl IntermediateBlockLevelBox {
 }
 
 impl DeferredNestedBlockContainer {
-    fn finish(
-        self,
-        context: &Context,
-        style: Arc<ComputedValues>,
-    ) -> (BlockContainer, Arc<ComputedValues>) {
+    fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
             DeferredNestedBlockContainer::BlockLevelBoxes { children_of: block } => {
-                let mut block_container_builder =
-                    IntermediateBlockContainerBuilder::new_for_descendant(context, block, style);
-                let block_container = block_container_builder.build().finish(context);
-                (
-                    block_container,
-                    block_container_builder
-                        .parent_style
-                        .expect("parent style not found"),
-                )
+                IntermediateBlockContainerBuilder::new_for_descendant(context, block, style)
+                    .build()
+                    .finish(context)
             }
             DeferredNestedBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
-            ) => {
-                let block_container = BlockContainer::InlineFormattingContext(
-                    intermediate_inline_formatting_context.finish(context),
-                );
-                (block_container, style)
-            }
+            ) => BlockContainer::InlineFormattingContext(
+                intermediate_inline_formatting_context.finish(context),
+            ),
         }
     }
 }
