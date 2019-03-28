@@ -24,6 +24,10 @@ impl dom::Document {
     }
 }
 
+/// The context.
+///
+/// Used by both the intermediate block container builder and
+/// `IntermediateBlockContainer::finish`.
 struct Context<'a> {
     document: &'a dom::Document,
     author_styles: &'a StyleSet,
@@ -41,33 +45,87 @@ enum IntermediateBlockLevelBox {
     },
 }
 
+/// A deferred nested block container.
+///
+/// At this point, we know whether the block container introduces a new
+/// inline formatting context or if it will contain block-level boxes.
+///
+/// In the latter case, the block-level boxes are not yet computed and are
+/// represented by their parent DOM node.
 enum DeferredNestedBlockContainer {
     InlineFormattingContext(IntermediateInlineFormattingContext),
     BlockLevelBoxes { children_of: dom::NodeId },
 }
 
+/// An intermediate inline formatting context.
+///
+/// Text runs are not shaped yet at this point.
 #[derive(Default)]
 struct IntermediateInlineFormattingContext {
     inline_level_boxes: Vec<InlineLevelBox>,
     text_runs: Vec<IntermediateTextRun>,
 }
 
+/// An intermediate text run, ready to be shaped.
 struct IntermediateTextRun {
     parent_style: Arc<ComputedValues>,
     node: dom::NodeId,
 }
 
+/// A builder for an intermediate block container.
+///
+/// This builder starts from the first child of a given DOM node
+/// and does a preorder traversal of all of its inclusive siblings.
 struct IntermediateBlockContainerBuilder<'a> {
     context: &'a Context<'a>,
+    /// The first child of the DOM node whose block container we are building.
+    ///
+    /// In the rest of the comments, the DOM node whose block container we
+    /// are building is called the container root.
     first_child: Option<dom::NodeId>,
+    /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
+    /// The list of block-level boxes of the final block container.
+    ///
+    /// Contains all the complete block level boxes we found traversing the tree
+    /// so far, if this is empty at the end of the traversal and the ongoing
+    /// inline formatting context is not empty, the block container establishes
+    /// an inline formatting context (see end of `build`).
+    ///
+    /// DOM nodes which represent block-level boxes are immediately pushed
+    /// to this list with their style without ever being traversed at this
+    /// point, instead we just move to their next sibling. If the DOM node
+    /// doesn't have a next sibling, we either reached the end of the container
+    /// root or there are ongoing inline-level boxes
+    /// (see `handle_block_level_element`).
     block_level_boxes: Vec<IntermediateBlockLevelBox>,
+    /// The ongoing inline formatting context of the builder.
+    ///
+    /// Contains all the complete inline level boxes we found traversing the
+    /// tree so far. If a block-level box is found during traversal,
+    /// this inline formatting context is pushed as a block level box to
+    /// the list of block-level boxes of the builder
+    /// (see `end_ongoing_inline_formatting_context`).
     ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
+    /// The ongoing inline-level box stack of the builder.
+    ///
+    /// Contains all the currently ongoing inline-level boxes we entered so far.
+    /// The traversal is at all times as deep in the tree as this stack is,
+    /// which is why the code doesn't need to keep track of the actual
+    /// container root (see `handle_inline_level_element`).
+    ///
+    /// Whenever the end of a DOM element that represents an inline-level box is
+    /// reached, the inline box at the top of this stack is complete and ready
+    /// to be pushed to the children of the next last ongoing inline
+    /// level box or the ongoing inline formatting context if the stack is
+    /// now empty, which means we reached the end of a child of the actual
+    /// container root (see `move_to_next_sibling`).
     ongoing_inline_level_box_stack: Vec<InlineBox>,
+    /// The style of the anonymous block boxes pushed to the list of block-level
+    /// boxes, if any (see `end_ongoing_inline_formatting_context`).
     anonymous_style: Option<Arc<ComputedValues>>,
 }
 
-#[allow(dead_code)]
 impl<'a> IntermediateBlockContainerBuilder<'a> {
     fn new_for_root(context: &'a Context<'a>) -> Self {
         Self {
@@ -84,12 +142,12 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
     fn new_for_descendant(
         context: &'a Context<'a>,
         element: dom::NodeId,
-        style: &'a Arc<ComputedValues>,
+        parent_style: &'a Arc<ComputedValues>,
     ) -> Self {
         Self {
             context,
             first_child: context.document[element].first_child,
-            parent_style: Some(style),
+            parent_style: Some(parent_style),
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
             ongoing_inline_level_box_stack: Default::default(),
@@ -253,7 +311,6 @@ impl<'a> IntermediateBlockContainerBuilder<'a> {
             // There were indeed some ongoing inline level boxes before
             // the block, we accumulate them as a single inline level box
             // to be pushed to the ongoing inline formatting context.
-
             let mut fragmented_inline_level = InlineLevelBox::InlineBox(last);
             for mut fragmented_parent_inline_level_box in fragmented_inline_level_boxes {
                 fragmented_parent_inline_level_box
