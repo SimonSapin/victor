@@ -16,9 +16,9 @@ impl dom::Document {
             author_styles: &author_styles,
         };
 
-        let block_container = BlockContainerBuilder::new_for_root(&context).build();
-
-        BlockFormattingContext(block_container)
+        BlockFormattingContext(
+            BlockContainerBuilder::new_for_root(&context, &mut Default::default()).build(),
+        )
     }
 }
 
@@ -97,6 +97,18 @@ struct BlockContainerBuilder<'a> {
     /// the list of block-level boxes of the builder
     /// (see `end_ongoing_inline_formatting_context`).
     ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
+    /// The style of the anonymous block boxes pushed to the list of block-level
+    /// boxes, if any (see `end_ongoing_inline_formatting_context`).
+    anonymous_style: Option<Arc<ComputedValues>>,
+    /// The reusable part of the builder state.
+    ///
+    /// Contains values that are allocated on the heap and which can be reused
+    /// from this container root to the next one.
+    reusable_state: &'a mut BlockContainerBuilderReusableState,
+}
+
+#[derive(Default)]
+struct BlockContainerBuilderReusableState {
     /// The ongoing inline-level box stack of the builder.
     ///
     /// Contains all the currently ongoing inline-level boxes we entered so far.
@@ -111,21 +123,21 @@ struct BlockContainerBuilder<'a> {
     /// now empty, which means we reached the end of a child of the actual
     /// container root (see `move_to_next_sibling`).
     ongoing_inline_level_box_stack: Vec<InlineBox>,
-    /// The style of the anonymous block boxes pushed to the list of block-level
-    /// boxes, if any (see `end_ongoing_inline_formatting_context`).
-    anonymous_style: Option<Arc<ComputedValues>>,
 }
 
 impl<'a> BlockContainerBuilder<'a> {
-    fn new_for_root(context: &'a Context<'a>) -> Self {
+    fn new_for_root(
+        context: &'a Context<'a>,
+        reusable_state: &'a mut BlockContainerBuilderReusableState,
+    ) -> Self {
         Self {
             context,
             first_child: context.document[dom::Document::document_node_id()].first_child,
             parent_style: None,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
-            ongoing_inline_level_box_stack: Default::default(),
-            anonymous_style: None,
+            anonymous_style: Default::default(),
+            reusable_state,
         }
     }
 
@@ -133,6 +145,7 @@ impl<'a> BlockContainerBuilder<'a> {
         context: &'a Context<'a>,
         element: dom::NodeId,
         parent_style: &'a Arc<ComputedValues>,
+        reusable_state: &'a mut BlockContainerBuilderReusableState,
     ) -> Self {
         Self {
             context,
@@ -140,8 +153,8 @@ impl<'a> BlockContainerBuilder<'a> {
             parent_style: Some(parent_style),
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
-            ongoing_inline_level_box_stack: Default::default(),
             anonymous_style: Default::default(),
+            reusable_state,
         }
     }
 
@@ -164,7 +177,11 @@ impl<'a> BlockContainerBuilder<'a> {
             }
         }
 
-        while !self.ongoing_inline_level_box_stack.is_empty() {
+        while !self
+            .reusable_state
+            .ongoing_inline_level_box_stack
+            .is_empty()
+        {
             self.end_ongoing_inline_level_box();
         }
 
@@ -201,8 +218,11 @@ impl<'a> BlockContainerBuilder<'a> {
             // inline level box with the parent style of that inline level box
             // that will be ended, or directly to the ongoing inline formatting
             // context with the parent style of that builder.
-            let (parent_style, inline_level_boxes) =
-                self.ongoing_inline_level_box_stack.last_mut().map_or(
+            let (parent_style, inline_level_boxes) = self
+                .reusable_state
+                .ongoing_inline_level_box_stack
+                .last_mut()
+                .map_or(
                     (
                         self.parent_style
                             .expect("found a text node without a parent"),
@@ -226,6 +246,7 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn handle_element(&mut self, descendant: dom::NodeId) -> Option<dom::NodeId> {
         let parent_style = self
+            .reusable_state
             .ongoing_inline_level_box_stack
             .last()
             .map(|last| &last.style)
@@ -256,12 +277,14 @@ impl<'a> BlockContainerBuilder<'a> {
     ) -> Option<dom::NodeId> {
         // Whatever happened before, we just found an inline level element, so
         // all we need to do is to remember this ongoing inline level box.
-        self.ongoing_inline_level_box_stack.push(InlineBox {
-            style: descendant_style,
-            first_fragment: true,
-            last_fragment: false,
-            children: vec![],
-        });
+        self.reusable_state
+            .ongoing_inline_level_box_stack
+            .push(InlineBox {
+                style: descendant_style,
+                first_fragment: true,
+                last_fragment: false,
+                children: vec![],
+            });
 
         if let Some(first_child) = self.context.document[descendant].first_child {
             // This inline level element has children, let .build continue
@@ -289,6 +312,7 @@ impl<'a> BlockContainerBuilder<'a> {
         // field to false, for the fragmented inline level boxes that will
         // come after the block level element.
         let mut fragmented_inline_level_boxes = self
+            .reusable_state
             .ongoing_inline_level_box_stack
             .iter_mut()
             .rev()
@@ -347,7 +371,11 @@ impl<'a> BlockContainerBuilder<'a> {
         // This descendant has no next sibling, so it was the last child of its
         // parent, we go up the stack of ongoing inline level boxes, ending them
         // until we find one with a next sibling to let .build continue.
-        while !self.ongoing_inline_level_box_stack.is_empty() {
+        while !self
+            .reusable_state
+            .ongoing_inline_level_box_stack
+            .is_empty()
+        {
             self.end_ongoing_inline_level_box();
 
             descendant_node = &self.context.document[descendant_node
@@ -365,7 +393,9 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn end_ongoing_inline_formatting_context(&mut self) {
         assert!(
-            self.ongoing_inline_level_box_stack.is_empty(),
+            self.reusable_state
+                .ongoing_inline_level_box_stack
+                .is_empty(),
             "there should be no ongoing inline level boxes",
         );
 
@@ -397,6 +427,7 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn end_ongoing_inline_level_box(&mut self) {
         let mut last_ongoing_inline_level_box = self
+            .reusable_state
             .ongoing_inline_level_box_stack
             .pop()
             .expect("no ongoing inline level box found");
@@ -406,10 +437,14 @@ impl<'a> BlockContainerBuilder<'a> {
         // The inline level box we just ended should be either pushed to the
         // next ongoing inline level box that will be ended or directly to
         // the ongoing inline formatting context.
-        let inline_level_boxes = self.ongoing_inline_level_box_stack.last_mut().map_or(
-            &mut self.ongoing_inline_formatting_context.inline_level_boxes,
-            |last| &mut last.children,
-        );
+        let inline_level_boxes = self
+            .reusable_state
+            .ongoing_inline_level_box_stack
+            .last_mut()
+            .map_or(
+                &mut self.ongoing_inline_formatting_context.inline_level_boxes,
+                |last| &mut last.children,
+            );
 
         inline_level_boxes.push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
     }
@@ -432,7 +467,13 @@ impl DeferredNestedBlockContainer {
     fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
             DeferredNestedBlockContainer::FromChildrenOf(block) => {
-                BlockContainerBuilder::new_for_descendant(context, block, style).build()
+                BlockContainerBuilder::new_for_descendant(
+                    context,
+                    block,
+                    style,
+                    &mut Default::default(),
+                )
+                .build()
             }
             DeferredNestedBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
