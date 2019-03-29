@@ -204,7 +204,9 @@ impl<'a> BlockContainerBuilder<'a> {
             self.block_level_boxes
                 .take()
                 .into_par_iter()
-                .map(|block_level_box| block_level_box.finish(self.context))
+                .map_init(BlockContainerBuilderReusableState::default, |reusable_state, block_level_box| {
+                    block_level_box.finish(self.context, reusable_state)
+                })
                 .collect(),
         )
     }
@@ -451,11 +453,15 @@ impl<'a> BlockContainerBuilder<'a> {
 }
 
 impl IntermediateBlockLevelBox {
-    fn finish(self, context: &Context) -> BlockLevelBox {
+    fn finish(
+        self,
+        context: &Context,
+        reusable_state: &mut BlockContainerBuilderReusableState,
+    ) -> BlockLevelBox {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 BlockLevelBox::SameFormattingContextBlock {
-                    contents: contents.finish(context, &style),
+                    contents: contents.finish(context, reusable_state, &style),
                     style,
                 }
             }
@@ -464,16 +470,16 @@ impl IntermediateBlockLevelBox {
 }
 
 impl DeferredNestedBlockContainer {
-    fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
+    fn finish(
+        self,
+        context: &Context,
+        reusable_state: &mut BlockContainerBuilderReusableState,
+        style: &Arc<ComputedValues>,
+    ) -> BlockContainer {
         match self {
             DeferredNestedBlockContainer::FromChildrenOf(block) => {
-                BlockContainerBuilder::new_for_descendant(
-                    context,
-                    block,
-                    style,
-                    &mut Default::default(),
-                )
-                .build()
+                BlockContainerBuilder::new_for_descendant(context, block, style, reusable_state)
+                    .build()
             }
             DeferredNestedBlockContainer::InlineFormattingContext(
                 intermediate_inline_formatting_context,
