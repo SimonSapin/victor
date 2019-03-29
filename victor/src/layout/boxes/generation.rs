@@ -16,9 +16,11 @@ impl dom::Document {
             author_styles: &author_styles,
         };
 
-        let block_container = BlockContainerBuilder::new_for_root(&context).build();
-
-        BlockFormattingContext(block_container)
+        BlockFormattingContext(BlockContainerBuilder::build(
+            &context,
+            dom::Document::document_node_id(),
+            None,
+        ))
     }
 }
 
@@ -42,6 +44,8 @@ enum IntermediateBlockLevelBox {
 /// Represents either the inline formatting context of an anonymous block
 /// box or the yet-to-be-computed block container generated from the children
 /// of a given element.
+///
+/// Deferring allows using rayon’s `into_par_iter`.
 enum IntermediateBlockContainer {
     InlineFormattingContext(IntermediateInlineFormattingContext),
     Deferred { from_children_of: dom::NodeId },
@@ -117,77 +121,61 @@ struct BlockContainerBuilder<'a> {
 }
 
 impl<'a> BlockContainerBuilder<'a> {
-    fn new_for_root(context: &'a Context<'a>) -> Self {
-        Self {
-            context,
-            first_child: context.document[dom::Document::document_node_id()].first_child,
-            parent_style: None,
-            block_level_boxes: Default::default(),
-            ongoing_inline_formatting_context: Default::default(),
-            ongoing_inline_level_box_stack: Default::default(),
-            anonymous_style: None,
-        }
-    }
-
-    fn new_for_descendant(
+    fn build(
         context: &'a Context<'a>,
-        element: dom::NodeId,
-        parent_style: &'a Arc<ComputedValues>,
-    ) -> Self {
-        Self {
+        node: dom::NodeId,
+        parent_style: Option<&'a Arc<ComputedValues>>,
+    ) -> BlockContainer {
+        let mut builder = Self {
             context,
-            first_child: context.document[element].first_child,
-            parent_style: Some(parent_style),
+            first_child: context.document[node].first_child,
+            parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
             ongoing_inline_level_box_stack: Default::default(),
             anonymous_style: Default::default(),
-        }
-    }
+        };
 
-    fn build(&mut self) -> BlockContainer {
-        let mut next_descendant = self.first_child;
+        let mut next_descendant = builder.first_child;
         while let Some(descendant) = next_descendant.take() {
-            match &self.context.document[descendant].data {
+            match &builder.context.document[descendant].data {
                 dom::NodeData::Document
                 | dom::NodeData::Doctype { .. }
                 | dom::NodeData::Comment { .. }
                 | dom::NodeData::ProcessingInstruction { .. } => {
-                    next_descendant = self.move_to_next_sibling(descendant);
+                    next_descendant = builder.move_to_next_sibling(descendant);
                 }
                 dom::NodeData::Text { contents } => {
-                    next_descendant = self.handle_text(descendant, contents);
+                    next_descendant = builder.handle_text(descendant, contents);
                 }
                 dom::NodeData::Element(_) => {
-                    next_descendant = self.handle_element(descendant);
+                    next_descendant = builder.handle_element(descendant);
                 }
             }
         }
 
-        while !self.ongoing_inline_level_box_stack.is_empty() {
-            self.end_ongoing_inline_level_box();
+        while !builder.ongoing_inline_level_box_stack.is_empty() {
+            builder.end_ongoing_inline_level_box();
         }
 
-        if !self
+        if !builder
             .ongoing_inline_formatting_context
             .inline_level_boxes
             .is_empty()
         {
-            if self.block_level_boxes.is_empty() {
+            if builder.block_level_boxes.is_empty() {
                 return BlockContainer::InlineFormattingContext(
-                    self.ongoing_inline_formatting_context
-                        .take()
-                        .finish(self.context),
+                    builder.ongoing_inline_formatting_context.finish(context),
                 )
             }
-            self.end_ongoing_inline_formatting_context();
+            builder.end_ongoing_inline_formatting_context();
         }
 
         BlockContainer::BlockLevelBoxes(
-            self.block_level_boxes
-                .take()
+            builder
+                .block_level_boxes
                 .into_par_iter()
-                .map(|block_level_box| block_level_box.finish(self.context))
+                .map(|block_level_box| block_level_box.finish(context))
                 .collect(),
         )
     }
@@ -434,13 +422,11 @@ impl IntermediateBlockContainer {
     fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
         match self {
             IntermediateBlockContainer::Deferred { from_children_of } => {
-                BlockContainerBuilder::new_for_descendant(context, from_children_of, style).build()
+                BlockContainerBuilder::build(context, from_children_of, Some(style))
             }
-            IntermediateBlockContainer::InlineFormattingContext(
-                intermediate_inline_formatting_context,
-            ) => BlockContainer::InlineFormattingContext(
-                intermediate_inline_formatting_context.finish(context),
-            ),
+            IntermediateBlockContainer::InlineFormattingContext(ifc) => {
+                BlockContainer::InlineFormattingContext(ifc.finish(context))
+            }
         }
     }
 }
