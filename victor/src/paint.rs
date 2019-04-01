@@ -38,16 +38,19 @@ impl Fragment {
         match self {
             Fragment::Box(b) => b.paint_onto(page, containing_block),
             Fragment::Text(t) => {
+                let mut origin = t
+                    .content_rect
+                    .to_physical(t.parent_style.writing_mode(), containing_block)
+                    .translate(&containing_block.top_left)
+                    .top_left;
+                // Distance from top edge to baseline
+                let ascender = t.parent_style.font.font_size * t.text.font.ascender();
+                origin.y += ascender;
                 page.set_color(&t.parent_style.color.color.into());
                 page.show_text(&TextRun {
                     segment: &t.text,
                     font_size: t.parent_style.font.font_size.0.into(),
-                    origin: t
-                        .content_rect
-                        .to_physical(t.parent_style.writing_mode(), containing_block)
-                        .translate(&containing_block.top_left)
-                        .top_left
-                        .into(),
+                    origin: origin.into(),
                 })
                 .unwrap();
             }
