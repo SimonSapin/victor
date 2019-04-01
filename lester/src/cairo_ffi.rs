@@ -30,7 +30,6 @@ extern "C" {
     pub fn cairo_set_source_rgb(cr: *mut cairo_t, red: f64, green: f64, blue: f64);
     pub fn cairo_paint(cr: *mut cairo_t);
     pub fn cairo_scale(cr: *mut cairo_t, sx: f64, sy: f64);
-    pub fn cairo_set_antialias(cr: *mut cairo_t, antialias: cairo_antialias_t);
     pub fn cairo_status(cr: *mut cairo_t) -> cairo_status_t;
     pub fn cairo_destroy(cr: *mut cairo_t);
 
@@ -39,19 +38,10 @@ extern "C" {
 
 pub type cairo_status_t = c_uint;
 pub type cairo_format_t = c_int;
-pub type cairo_antialias_t = c_uint;
 
 pub const CAIRO_STATUS_SUCCESS: cairo_status_t = 0;
 pub const CAIRO_STATUS_READ_ERROR: cairo_status_t = 10;
 pub const CAIRO_STATUS_WRITE_ERROR: cairo_status_t = 11;
-
-pub const CAIRO_ANTIALIAS_DEFAULT: cairo_antialias_t = 0;
-pub const CAIRO_ANTIALIAS_NONE: cairo_antialias_t = 1;
-pub const CAIRO_ANTIALIAS_GRAY: cairo_antialias_t = 2;
-pub const CAIRO_ANTIALIAS_SUBPIXEL: cairo_antialias_t = 3;
-pub const CAIRO_ANTIALIAS_FAST: cairo_antialias_t = 4;
-pub const CAIRO_ANTIALIAS_GOOD: cairo_antialias_t = 5;
-pub const CAIRO_ANTIALIAS_BEST: cairo_antialias_t = 6;
 
 pub const CAIRO_FORMAT_ARGB32: cairo_format_t = 0;
 pub const CAIRO_FORMAT_RGB24: cairo_format_t = 1;

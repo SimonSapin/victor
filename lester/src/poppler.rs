@@ -168,7 +168,6 @@ impl<'data> Page<'data> {
         let RenderOptions {
             dppx_x,
             dppx_y,
-            antialias,
             backdrop,
             for_printing,
         } = options;
@@ -187,7 +186,6 @@ impl<'data> Page<'data> {
             context.paint();
         }
         context.scale(dppx_x * PX_PER_PT, dppx_y * PX_PER_PT);
-        context.set_antialias(antialias);
         unsafe {
             if for_printing {
                 poppler_page_render_for_printing(self.ptr, context.ptr)
@@ -244,9 +242,6 @@ pub struct RenderOptions {
     /// Typically this is the same as `dppx_x`.
     pub dppx_y: f64,
 
-    /// The antialiasing mode to use for rasterizing text and vector graphics.
-    pub antialias: Antialias,
-
     /// What background to render pages on
     pub backdrop: Backdrop,
 
@@ -260,7 +255,6 @@ impl Default for RenderOptions {
         RenderOptions {
             dppx_x: 1.0,
             dppx_y: 1.0,
-            antialias: Antialias::Default,
             backdrop: Backdrop::Transparent,
             for_printing: false,
         }

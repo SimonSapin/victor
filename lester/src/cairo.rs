@@ -10,42 +10,6 @@ use std::panic;
 use std::path;
 use std::slice;
 
-macro_rules! antialias {
-    ($( $Variant: ident => $constant: expr, )+) => {
-        /// A cairo antialiasing mode.
-        ///
-        /// See [`cairo_antialias_t`] for the meaning of each value.
-        ///
-        /// [`cairo_antialias_t`]: https://www.cairographics.org/manual/cairo-cairo-t.html#cairo-antialias-t
-        #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-        pub enum Antialias {
-            $(
-                $Variant,
-            )+
-        }
-
-        impl Antialias {
-            fn to_cairo(&self) -> cairo_antialias_t {
-                match *self {
-                    $(
-                        Antialias::$Variant => $constant,
-                    )+
-                }
-            }
-        }
-    }
-}
-
-antialias! {
-    Default => CAIRO_ANTIALIAS_DEFAULT,
-    None => CAIRO_ANTIALIAS_NONE,
-    Gray => CAIRO_ANTIALIAS_GRAY,
-    Subpixel => CAIRO_ANTIALIAS_SUBPIXEL,
-    Fast => CAIRO_ANTIALIAS_FAST,
-    Good => CAIRO_ANTIALIAS_GOOD,
-    Best => CAIRO_ANTIALIAS_BEST,
-}
-
 /// The pixels from an `ImageSurface`
 #[derive(PartialEq, Eq)]
 pub struct Argb32Pixels<'data> {
@@ -189,12 +153,6 @@ impl CairoContext {
 
     pub(crate) fn paint(&mut self) {
         unsafe { cairo_paint(self.ptr) }
-    }
-
-    pub(crate) fn set_antialias(&mut self, mode: Antialias) {
-        unsafe {
-            cairo_set_antialias(self.ptr, mode.to_cairo());
-        }
     }
 
     pub(crate) fn scale(&mut self, x: f64, y: f64) {
