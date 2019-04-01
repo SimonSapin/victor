@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 fn main() {
@@ -70,10 +71,12 @@ impl TestFile {
 
     fn pages_pixels(&mut self) -> &mut [lester::ImageSurface] {
         if self.pages_pixels.is_none() {
-            let pages = lester::PdfDocument::from_bytes(self.pdf_bytes())
+            let pdf_bytes = self.pdf_bytes();
+            let pages = lester::PdfDocument::from_bytes(pdf_bytes)
                 .unwrap()
                 .pages()
-                .map(|page| page.render().unwrap())
+                .enumerate()
+                .map(|(i, _page)| render_without_antialiasing(pdf_bytes, i + 1))
                 .collect();
             self.pages_pixels = Some(pages)
         }
@@ -136,4 +139,30 @@ fn resolve_href(base: &Path, href: &str) -> PathBuf {
     let mut resolved = PathBuf::from(base);
     resolved.extend(href.split('/'));
     resolved
+}
+
+// Lester cannot do this, so shell out to the CLI tool instead :(
+// See https://gitlab.freedesktop.org/poppler/poppler/merge_requests/234
+fn render_without_antialiasing(pdf_bytes: &[u8], page_number: usize) -> lester::ImageSurface {
+    let child = std::process::Command::new("pdftocairo")
+        .args(&[
+            "-singlefile",
+            "-png",
+            "-antialias",
+            "none",
+            "-r",
+            "96",
+            "-transp",
+            "-f",
+            &page_number.to_string(),
+            "-",
+            "-",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.unwrap().write_all(pdf_bytes).unwrap();
+    let stdout = std::io::BufReader::new(child.stdout.unwrap());
+    lester::ImageSurface::read_from_png(stdout).unwrap()
 }
