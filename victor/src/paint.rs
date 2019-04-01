@@ -38,6 +38,7 @@ impl Fragment {
         match self {
             Fragment::Box(b) => b.paint_onto(page, containing_block),
             Fragment::Text(t) => {
+                page.set_color(&t.parent_style.color.color.into());
                 page.show_text(&TextRun {
                     segment: &t.text,
                     font_size: t.parent_style.font.font_size.0.into(),
