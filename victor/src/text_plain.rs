@@ -111,7 +111,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
             };
             let baseline = y + baseline_y;
             let mut x = min_x;
-            for segment in line_segments.drain(..) {
+            for segment in &line_segments {
                 let origin = Point::from_lengths(x, baseline);
                 x += segment.advance_width * px_per_em + word_spacing;
                 pdf_page.show_text(&TextRun {
@@ -120,6 +120,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
                     origin,
                 })?;
             }
+            line_segments.clear();
 
             y += line_height;
             if y > max_y {

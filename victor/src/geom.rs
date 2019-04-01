@@ -90,6 +90,12 @@ impl<T: Clone> flow_relative::Vec2<T> {
     }
 }
 
+impl From<physical::Vec2<Length>> for crate::primitives::Point<crate::primitives::CssPx> {
+    fn from(v: physical::Vec2<Length>) -> Self {
+        crate::primitives::Point::from_lengths(v.x.into(), v.y.into())
+    }
+}
+
 impl<T: Clone> physical::Sides<T> {
     pub fn to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Sides<T> {
         use Direction::*;

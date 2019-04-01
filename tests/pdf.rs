@@ -19,17 +19,17 @@ fn doc() -> Result<Vec<u8>, FontError> {
     let mut doc = Document::new();
     doc.add_page(Size::new(140., 50.))
         .show_text(&TextRun {
-            segment: ShapedSegment::naive_shape("Têst→iimm", vera)?,
+            segment: &(ShapedSegment::naive_shape("Têst→iimm", vera)?),
             font_size: Length::new(15.),
             origin: point(10., 20.),
         })?
         .show_text(&TextRun {
-            segment: ShapedSegment::naive_shape("pÉX", ahem)?,
+            segment: &(ShapedSegment::naive_shape("pÉX", ahem)?),
             font_size: Length::new(15.),
             origin: point(10., 40.),
         })?
         .show_text(&TextRun {
-            segment: ShapedSegment::naive_shape("𐁉 𐁁𐀓𐀠𐀴𐀍", noto)?,
+            segment: &(ShapedSegment::naive_shape("𐁉 𐁁𐀓𐀠𐀴𐀍", noto)?),
             font_size: Length::new(15.),
             origin: point(65., 40.),
         })?;

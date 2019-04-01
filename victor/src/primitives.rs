@@ -15,8 +15,8 @@ pub type Scale<Src, Dest> = euclid::TypedScale<f32, Src, Dest>;
 #[derive(Copy, Clone, PartialEq)]
 pub struct RGBA(pub f32, pub f32, pub f32, pub f32);
 
-pub struct TextRun {
-    pub segment: text::ShapedSegment,
+pub struct TextRun<'a> {
+    pub segment: &'a text::ShapedSegment,
     pub font_size: Length<CssPx>,
     pub origin: Point<CssPx>,
 }

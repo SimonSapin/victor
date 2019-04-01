@@ -148,6 +148,12 @@ impl ops::Div<f32> for Length {
     }
 }
 
+impl From<Length> for euclid::Length<f32, crate::primitives::CssPx> {
+    fn from(l: Length) -> Self {
+        euclid::Length::new(l.px)
+    }
+}
+
 impl fmt::Debug for Length {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.px.fmt(f)?;

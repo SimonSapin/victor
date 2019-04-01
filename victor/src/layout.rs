@@ -1,6 +1,8 @@
 mod boxes;
 pub(crate) mod fragments;
 
+use self::boxes::*;
+use self::fragments::*;
 use crate::geom::flow_relative::{Rect, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
@@ -12,15 +14,15 @@ impl crate::dom::Document {
     pub(crate) fn layout(
         &self,
         viewport: crate::primitives::Size<crate::primitives::CssPx>,
-    ) -> Vec<fragments::Fragment> {
+    ) -> Vec<Fragment> {
         let box_tree = self.box_tree();
         layout_document(&box_tree, viewport)
     }
 }
 fn layout_document(
-    box_tree: &boxes::BoxTreeRoot,
+    box_tree: &BoxTreeRoot,
     viewport: crate::primitives::Size<crate::primitives::CssPx>,
-) -> Vec<fragments::Fragment> {
+) -> Vec<Fragment> {
     // FIXME: use the document’s mode:
     // https://drafts.csswg.org/css-writing-modes/#principal-flow
     let initial_containing_block = ContainingBlock {
@@ -41,16 +43,16 @@ struct ContainingBlock {
     mode: (WritingMode, Direction),
 }
 
-impl boxes::BlockFormattingContext {
-    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<fragments::Fragment>, Length) {
+impl BlockFormattingContext {
+    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
         self.0.layout(containing_block)
     }
 }
 
-impl boxes::BlockContainer {
-    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<fragments::Fragment>, Length) {
+impl BlockContainer {
+    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
         match self {
-            boxes::BlockContainer::BlockLevelBoxes(child_boxes) => {
+            BlockContainer::BlockLevelBoxes(child_boxes) => {
                 let mut child_fragments = child_boxes
                     .par_iter()
                     .map(|child| child.layout(containing_block))
@@ -58,6 +60,10 @@ impl boxes::BlockContainer {
 
                 let mut block_size = Length::zero();
                 for child in &mut child_fragments {
+                    let child = match child {
+                        Fragment::Box(b) => b,
+                        _ => unreachable!(),
+                    };
                     // FIXME: margin collapsing
                     child.content_rect.start_corner.block += block_size;
                     block_size += child.padding.block_sum()
@@ -68,7 +74,7 @@ impl boxes::BlockContainer {
 
                 (child_fragments, block_size)
             }
-            boxes::BlockContainer::InlineFormattingContext(_children) => {
+            BlockContainer::InlineFormattingContext(_children) => {
                 eprintln!("Unimplemented: inline formatting context");
                 (Vec::new(), Length::zero())
             }
@@ -76,10 +82,10 @@ impl boxes::BlockContainer {
     }
 }
 
-impl boxes::BlockLevelBox {
-    fn layout(&self, containing_block: &ContainingBlock) -> fragments::Fragment {
+impl BlockLevelBox {
+    fn layout(&self, containing_block: &ContainingBlock) -> Fragment {
         match self {
-            boxes::BlockLevelBox::SameFormattingContextBlock { style, contents } => {
+            BlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 same_formatting_context_block(style, contents, containing_block)
             }
         }
@@ -88,9 +94,9 @@ impl boxes::BlockLevelBox {
 
 fn same_formatting_context_block(
     style: &Arc<ComputedValues>,
-    contents: &boxes::BlockContainer,
+    contents: &BlockContainer,
     containing_block: &ContainingBlock,
-) -> fragments::Fragment {
+) -> Fragment {
     let cbis = containing_block.inline_size;
     let zero = Length::zero();
     let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
@@ -157,12 +163,12 @@ fn same_formatting_context_block(
             inline: inline_size,
         },
     };
-    fragments::Fragment {
+    Fragment::Box(BoxFragment {
         style: style.clone(),
         children,
         content_rect,
         padding,
         border,
         margin,
-    }
+    })
 }

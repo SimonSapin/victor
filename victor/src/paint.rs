@@ -1,8 +1,8 @@
 use crate::geom::physical::{Rect, Vec2};
 use crate::geom::Length;
-use crate::layout::fragments::Fragment;
+use crate::layout::fragments::{BoxFragment, Fragment};
 use crate::pdf::Page;
-use crate::primitives::{CssPx, Size};
+use crate::primitives::{CssPx, Size, TextRun};
 
 impl crate::dom::Document {
     pub fn to_pdf_bytes(&self) -> Vec<u8> {
@@ -34,6 +34,27 @@ impl crate::dom::Document {
 }
 
 impl Fragment {
+    fn paint_onto(&self, page: &mut Page, containing_block: &Rect<Length>) {
+        match self {
+            Fragment::Box(b) => b.paint_onto(page, containing_block),
+            Fragment::Text(t) => {
+                page.show_text(&TextRun {
+                    segment: &t.text,
+                    font_size: t.style.font.font_size.0.into(),
+                    origin: t
+                        .content_rect
+                        .to_physical(t.style.writing_mode(), containing_block)
+                        .translate(&containing_block.top_left)
+                        .top_left
+                        .into(),
+                })
+                .unwrap();
+            }
+        }
+    }
+}
+
+impl BoxFragment {
     fn paint_onto(&self, page: &mut Page, containing_block: &Rect<Length>) {
         let background_color = self.style.to_rgba(self.style.background.background_color);
         if background_color.alpha > 0 {

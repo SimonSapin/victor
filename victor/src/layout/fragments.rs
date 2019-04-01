@@ -1,9 +1,16 @@
 use crate::geom::flow_relative::{Rect, Sides};
 use crate::geom::Length;
 use crate::style::ComputedValues;
+use crate::text::ShapedSegment;
 use std::sync::Arc;
 
-pub(crate) struct Fragment {
+pub(crate) enum Fragment {
+    Box(BoxFragment),
+    #[allow(unused)]
+    Text(TextFragment),
+}
+
+pub(crate) struct BoxFragment {
     pub style: Arc<ComputedValues>,
     pub children: Vec<Fragment>,
 
@@ -17,7 +24,13 @@ pub(crate) struct Fragment {
     pub margin: Sides<Length>,
 }
 
-impl Fragment {
+pub(crate) struct TextFragment {
+    pub style: Arc<ComputedValues>,
+    pub content_rect: Rect<Length>,
+    pub text: ShapedSegment,
+}
+
+impl BoxFragment {
     pub fn border_rect(&self) -> Rect<Length> {
         self.content_rect
             .inflate(&self.padding)
