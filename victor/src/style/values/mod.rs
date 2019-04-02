@@ -4,7 +4,6 @@ use crate::style::properties::{ComputedValuesForEarlyCascade, ComputedValuesForL
 use cssparser::Parser;
 
 mod border;
-#[path = "values/box.rs"]
 mod box_;
 mod color;
 mod fonts;

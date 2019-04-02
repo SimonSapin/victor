@@ -293,5 +293,5 @@ macro_rules! include_fonts {
 }
 
 include_fonts! {
-    BITSTREAM_VERA_SANS: "../fonts/vera/Vera.ttf",
+    BITSTREAM_VERA_SANS: "../../fonts/vera/Vera.ttf",
 }
