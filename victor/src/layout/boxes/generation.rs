@@ -1,6 +1,7 @@
 use super::*;
 use crate::dom;
 use crate::fonts::BITSTREAM_VERA_SANS;
+use crate::layout::Take;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -454,18 +455,5 @@ impl IntermediateTextRun {
             parent_style: self.parent_style,
             segment,
         }
-    }
-}
-
-trait Take {
-    fn take(&mut self) -> Self;
-}
-
-impl<T> Take for T
-where
-    T: Default,
-{
-    fn take(&mut self) -> Self {
-        std::mem::replace(self, Default::default())
     }
 }

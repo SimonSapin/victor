@@ -100,6 +100,10 @@ impl Length {
             px: self.px.max(other.px),
         }
     }
+
+    pub fn max_assign(&mut self, other: Self) {
+        *self = self.max(other)
+    }
 }
 
 impl ops::Add for Length {
