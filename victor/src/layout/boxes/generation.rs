@@ -193,17 +193,13 @@ impl<'a> BlockContainerBuilder<'a> {
                 .current_parent_style()
                 .expect("found a text node without a parent")
                 .clone();
-            let inline_level_boxes = self.ongoing_inline_level_box_stack.last_mut().map_or(
-                &mut self.ongoing_inline_formatting_context.inline_level_boxes,
-                |last| &mut last.children,
-            );
             self.ongoing_inline_formatting_context
                 .text_runs
                 .push(IntermediateTextRun {
                     parent_style,
                     node: descendant,
                 });
-            inline_level_boxes.push(InlineLevelBox::TextRun(run_id));
+            self.push_inline_level_box(InlineLevelBox::TextRun(run_id));
         }
 
         // Let .build continue the traversal from the next sibling of
@@ -385,18 +381,16 @@ impl<'a> BlockContainerBuilder<'a> {
             .ongoing_inline_level_box_stack
             .pop()
             .expect("no ongoing inline level box found");
-
         last_ongoing_inline_level_box.last_fragment = true;
+        self.push_inline_level_box(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
+    }
 
-        // The inline level box we just ended should be either pushed to the
-        // next ongoing inline level box that will be ended or directly to
-        // the ongoing inline formatting context.
+    fn push_inline_level_box(&mut self, inline_level_box: InlineLevelBox) {
         let inline_level_boxes = self.ongoing_inline_level_box_stack.last_mut().map_or(
             &mut self.ongoing_inline_formatting_context.inline_level_boxes,
             |last| &mut last.children,
         );
-
-        inline_level_boxes.push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
+        inline_level_boxes.push(inline_level_box);
     }
 
     fn current_parent_style(&self) -> Option<&Arc<ComputedValues>> {
