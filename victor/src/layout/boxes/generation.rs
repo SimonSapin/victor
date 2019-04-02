@@ -189,19 +189,18 @@ impl<'a> BlockContainerBuilder<'a> {
             // inline level box with the parent style of that inline level box
             // that will be ended, or directly to the ongoing inline formatting
             // context with the parent style of that builder.
-            let (parent_style, inline_level_boxes) =
-                self.ongoing_inline_level_box_stack.last_mut().map_or(
-                    (
-                        self.parent_style
-                            .expect("found a text node without a parent"),
-                        &mut self.ongoing_inline_formatting_context.inline_level_boxes,
-                    ),
-                    |last| (&last.style, &mut last.children),
-                );
+            let parent_style = self
+                .current_parent_style()
+                .expect("found a text node without a parent")
+                .clone();
+            let inline_level_boxes = self.ongoing_inline_level_box_stack.last_mut().map_or(
+                &mut self.ongoing_inline_formatting_context.inline_level_boxes,
+                |last| &mut last.children,
+            );
             self.ongoing_inline_formatting_context
                 .text_runs
                 .push(IntermediateTextRun {
-                    parent_style: parent_style.clone(),
+                    parent_style,
                     node: descendant,
                 });
             inline_level_boxes.push(InlineLevelBox::TextRun(run_id));
@@ -213,11 +212,7 @@ impl<'a> BlockContainerBuilder<'a> {
     }
 
     fn handle_element(&mut self, descendant: dom::NodeId) -> Option<dom::NodeId> {
-        let parent_style = self
-            .ongoing_inline_level_box_stack
-            .last()
-            .map(|last| &last.style)
-            .or(self.parent_style);
+        let parent_style = self.current_parent_style();
         let descendant_style = style_for_element(
             self.context.author_styles,
             self.context.document,
@@ -402,6 +397,13 @@ impl<'a> BlockContainerBuilder<'a> {
         );
 
         inline_level_boxes.push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
+    }
+
+    fn current_parent_style(&self) -> Option<&Arc<ComputedValues>> {
+        self.ongoing_inline_level_box_stack
+            .last()
+            .map(|last| &last.style)
+            .or(self.parent_style)
     }
 }
 
