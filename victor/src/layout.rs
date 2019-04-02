@@ -186,13 +186,12 @@ impl InlineFormattingContext {
         inline_position: &mut Length,
     ) -> (Vec<Fragment>, Length) {
         let mut block_size = Length::zero();
-        let mut fragments = Vec::new();
-        for child in children {
+        let fragments = children.iter().map(|child| {
             let (fragment, child_block_size) =
                 child.layout(containing_block, self, inline_position);
-            fragments.push(fragment);
             block_size = block_size.max(child_block_size);
-        }
+            fragment
+        }).collect();
         (fragments, block_size)
     }
 }
