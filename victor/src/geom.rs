@@ -60,6 +60,7 @@ where
         }
     }
 }
+
 impl<T: Clone> physical::Vec2<T> {
     pub fn size_to_flow_relative(&self, mode: (WritingMode, Direction)) -> flow_relative::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
@@ -71,6 +72,20 @@ impl<T: Clone> physical::Vec2<T> {
         flow_relative::Vec2 {
             inline: i.clone(),
             block: b.clone(),
+        }
+    }
+}
+
+impl<T> Add<&'_ flow_relative::Vec2<T>> for &'_ flow_relative::Vec2<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = flow_relative::Vec2<T>;
+
+    fn add(self, other: &'_ flow_relative::Vec2<T>) -> Self::Output {
+        flow_relative::Vec2 {
+            inline: self.inline + other.inline,
+            block: self.block + other.block,
         }
     }
 }

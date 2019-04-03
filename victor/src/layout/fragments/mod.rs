@@ -1,4 +1,4 @@
-use crate::geom::flow_relative::{Rect, Sides};
+use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
 use crate::style::ComputedValues;
 use crate::text::ShapedSegment;
@@ -30,6 +30,30 @@ pub(crate) struct TextFragment {
 }
 
 impl BoxFragment {
+    pub fn zero_sized(style: Arc<ComputedValues>) -> Self {
+        let zero_vec = Vec2 {
+            inline: Length::zero(),
+            block: Length::zero(),
+        };
+        let zero_sides = Sides {
+            inline_start: Length::zero(),
+            inline_end: Length::zero(),
+            block_start: Length::zero(),
+            block_end: Length::zero(),
+        };
+        Self {
+            style,
+            children: vec![],
+            content_rect: Rect {
+                start_corner: zero_vec.clone(),
+                size: zero_vec,
+            },
+            padding: zero_sides.clone(),
+            border: zero_sides.clone(),
+            margin: zero_sides,
+        }
+    }
+
     pub fn border_rect(&self) -> Rect<Length> {
         self.content_rect
             .inflate(&self.padding)

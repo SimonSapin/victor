@@ -1,9 +1,9 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::values::Parse;
+use crate::style::values::{CascadeContext, FromSpecified, SpecifiedValue};
 use cssparser::Parser;
 
 /// https://drafts.csswg.org/css-display-3/#the-display-properties
-#[derive(Copy, Clone, SpecifiedAsComputed)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum Display {
     None,
     Other {
@@ -12,18 +12,42 @@ pub(crate) enum Display {
     },
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum DisplayOutside {
     Inline,
     Block,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum DisplayInside {
     Flow,
 }
 
-impl Parse for Display {
+impl SpecifiedValue for Display {
+    type SpecifiedValue = Display;
+}
+
+impl FromSpecified for Display {
+    /// https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
+    fn from_specified(specified: &Display, context: &CascadeContext) -> Self {
+        match (specified, context.this.position()) {
+            (Display::None, _) => Display::None,
+            (
+                Display::Other {
+                    outside: DisplayOutside::Inline,
+                    inside,
+                },
+                Position::Absolute,
+            ) => Display::Other {
+                outside: DisplayOutside::Block,
+                inside: *inside,
+            },
+            (other, _) => *other,
+        }
+    }
+}
+
+impl super::Parse for Display {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
         let ident = parser.expect_ident()?;
         match &**ident {
@@ -42,4 +66,11 @@ impl Parse for Display {
             }
         }
     }
+}
+
+/// https://drafts.csswg.org/css-position-3/#position-property
+#[derive(Copy, Clone, Eq, Parse, PartialEq, SpecifiedAsComputed)]
+pub(crate) enum Position {
+    Static,
+    Absolute,
 }

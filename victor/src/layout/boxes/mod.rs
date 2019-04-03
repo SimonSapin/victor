@@ -31,6 +31,10 @@ pub(super) enum BlockLevelBox {
         style: Arc<ComputedValues>,
         contents: BlockContainer,
     },
+    AbsolutelyPositionedBox {
+        style: Arc<ComputedValues>,
+        contents: BlockFormattingContext,
+    },
     // Other {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,

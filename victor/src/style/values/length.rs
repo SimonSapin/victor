@@ -187,6 +187,15 @@ impl LengthOrPercentage {
     }
 }
 
+impl From<LengthOrPercentage> for LengthOrPercentageOrAuto {
+    fn from(value: LengthOrPercentage) -> Self {
+        match value {
+            LengthOrPercentage::Length(l) => LengthOrPercentageOrAuto::Length(l),
+            LengthOrPercentage::Percentage(p) => LengthOrPercentageOrAuto::Percentage(p),
+        }
+    }
+}
+
 impl LengthOrPercentageOrAuto {
     pub(crate) fn auto_is(&self, auto_value: impl FnOnce() -> Length) -> LengthOrPercentage {
         match *self {

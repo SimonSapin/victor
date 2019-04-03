@@ -14,6 +14,7 @@ properties! {
     }
 
     reset struct box_ {
+        @early position { "position", Position, initial = Position::Static }
         display {
             "display",
             Display,
@@ -22,6 +23,10 @@ properties! {
                 inside: DisplayInside::Flow,
             }
         }
+        top { "top", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
+        left { "left", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
+        bottom { "bottom", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
+        right { "right", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
         width { "width", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
         height { "height", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
     }

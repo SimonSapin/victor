@@ -2,7 +2,7 @@ use super::*;
 use crate::dom;
 use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::layout::Take;
-use crate::style::values::{Display, DisplayInside, DisplayOutside};
+use crate::style::values::{Display, DisplayInside, DisplayOutside, Position};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -37,6 +37,10 @@ enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
         contents: IntermediateBlockContainer,
+    },
+    AbsolutelyPositionedBox {
+        style: Arc<ComputedValues>,
+        element: dom::NodeId,
     },
 }
 
@@ -216,16 +220,28 @@ impl<'a> BlockContainerBuilder<'a> {
             descendant,
             parent_style.map(|style| &**style),
         );
-        match descendant_style.box_.display {
-            Display::None => self.move_to_next_sibling(descendant),
-            Display::Other {
-                outside: DisplayOutside::Inline,
-                inside: DisplayInside::Flow,
-            } => self.handle_inline_level_element(descendant, descendant_style),
-            Display::Other {
-                outside: DisplayOutside::Block,
-                inside: DisplayInside::Flow,
-            } => self.handle_block_level_element(descendant, descendant_style),
+        match (
+            descendant_style.box_.display,
+            descendant_style.box_.position,
+        ) {
+            (Display::None, _) => self.move_to_next_sibling(descendant),
+            (_, Position::Absolute) => {
+                self.handle_absolutely_positioned_element(descendant, descendant_style)
+            }
+            (
+                Display::Other {
+                    outside: DisplayOutside::Inline,
+                    inside: DisplayInside::Flow,
+                },
+                _,
+            ) => self.handle_inline_level_element(descendant, descendant_style),
+            (
+                Display::Other {
+                    outside: DisplayOutside::Block,
+                    inside: DisplayInside::Flow,
+                },
+                _,
+            ) => self.handle_block_level_element(descendant, descendant_style),
         }
     }
 
@@ -315,6 +331,29 @@ impl<'a> BlockContainerBuilder<'a> {
                 },
             });
 
+        self.move_to_next_sibling(descendant)
+    }
+
+    fn handle_absolutely_positioned_element(
+        &mut self,
+        descendant: dom::NodeId,
+        descendant_style: Arc<ComputedValues>,
+    ) -> Option<dom::NodeId> {
+        if self
+            .ongoing_inline_formatting_context
+            .inline_level_boxes
+            .is_empty()
+            && self.ongoing_inline_level_box_stack.is_empty()
+        {
+            self.block_level_boxes
+                .push(IntermediateBlockLevelBox::AbsolutelyPositionedBox {
+                    style: descendant_style,
+                    element: descendant,
+                })
+        } else {
+            // FIXME(nox): Handle absolutely-positioned elements in
+            // inline boxes.
+        }
         self.move_to_next_sibling(descendant)
     }
 
@@ -409,6 +448,16 @@ impl IntermediateBlockLevelBox {
                 BlockLevelBox::SameFormattingContextBlock {
                     contents: contents.finish(context, &style),
                     style,
+                }
+            }
+            IntermediateBlockLevelBox::AbsolutelyPositionedBox { style, element } => {
+                BlockLevelBox::AbsolutelyPositionedBox {
+                    contents: BlockFormattingContext(BlockContainerBuilder::build(
+                        context,
+                        element,
+                        Some(&style),
+                    )),
+                    style: style,
                 }
             }
         }

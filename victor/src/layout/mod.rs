@@ -3,11 +3,12 @@ pub(crate) mod fragments;
 
 use self::boxes::*;
 use self::fragments::*;
-use crate::geom::flow_relative::{Rect, Vec2};
+use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 use crate::style::ComputedValues;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use parking_lot::Mutex;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::sync::Arc;
 
 impl crate::dom::Document {
@@ -19,43 +20,82 @@ impl crate::dom::Document {
         layout_document(&box_tree, viewport)
     }
 }
+
 fn layout_document(
     box_tree: &BoxTreeRoot,
     viewport: crate::primitives::Size<crate::primitives::CssPx>,
 ) -> Vec<Fragment> {
+    let inline_size = Length { px: viewport.width };
+
     // FIXME: use the document’s mode:
     // https://drafts.csswg.org/css-writing-modes/#principal-flow
     let initial_containing_block = ContainingBlock {
-        inline_size: Length { px: viewport.width },
+        inline_start_from_absolute_containing_block: Length::zero(),
+        inline_size,
         block_size: Some(Length {
             px: viewport.height,
         }),
         mode: (WritingMode::HorizontalTb, Direction::Ltr),
     };
 
-    let (fragments, _) = box_tree.layout(&initial_containing_block);
+    let (mut fragments, absolutely_positioned_fragments, _) =
+        box_tree.layout(&initial_containing_block, &initial_containing_block, 0);
+    fragments.extend(
+        absolutely_positioned_fragments
+            .into_iter()
+            .map(|fragment| Fragment::Box(fragment.contents)),
+    );
     fragments
 }
 
+struct AbsoluteContext<'a> {
+    containing_block: &'a ContainingBlock,
+    absolutely_positioned_fragments: Mutex<Vec<AbsolutelyPositionedFragment>>,
+}
+
+struct AbsolutelyPositionedFragment {
+    index: usize,
+    uses_static_block_position: bool,
+    contents: BoxFragment,
+}
+
 struct ContainingBlock {
+    inline_start_from_absolute_containing_block: Length,
     inline_size: Length,
     block_size: Option<Length>,
     mode: (WritingMode, Direction),
 }
 
 impl BlockFormattingContext {
-    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
-        self.0.layout(containing_block)
+    fn layout(
+        &self,
+        absolute_containing_block: &ContainingBlock,
+        containing_block: &ContainingBlock,
+        index: usize,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+        self.0
+            .layout(absolute_containing_block, containing_block, index)
     }
 }
 
 impl BlockContainer {
-    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
+    fn layout(
+        &self,
+        absolute_containing_block: &ContainingBlock,
+        containing_block: &ContainingBlock,
+        index: usize,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
+                let mut absolute_context = AbsoluteContext {
+                    containing_block: absolute_containing_block,
+                    absolutely_positioned_fragments: Default::default(),
+                };
+
                 let mut child_fragments = child_boxes
                     .par_iter()
-                    .map(|child| child.layout(containing_block))
+                    .enumerate()
+                    .map(|(index, child)| child.layout(&absolute_context, containing_block, index))
                     .collect::<Vec<_>>();
 
                 let mut block_size = Length::zero();
@@ -72,27 +112,70 @@ impl BlockContainer {
                         + child.content_rect.size.block;
                 }
 
-                (child_fragments, block_size)
+                let mut absolutely_positioned_fragments = absolute_context
+                    .absolutely_positioned_fragments
+                    .get_mut()
+                    .take();
+                absolutely_positioned_fragments.sort_by_key(|fragment| fragment.index);
+                for abspos_fragment in &mut absolutely_positioned_fragments {
+                    if abspos_fragment.uses_static_block_position {
+                        let child_fragment = match &child_fragments[abspos_fragment.index] {
+                            Fragment::Box(b) => b,
+                            _ => unreachable!(),
+                        };
+                        abspos_fragment.contents.content_rect.start_corner.block +=
+                            child_fragment.content_rect.start_corner.block;
+                    }
+                    abspos_fragment.index = index;
+                }
+
+                (child_fragments, absolutely_positioned_fragments, block_size)
             }
-            BlockContainer::InlineFormattingContext(ifc) => ifc.layout(containing_block),
+            BlockContainer::InlineFormattingContext(ifc) => {
+                let (child_fragments, block_size) = ifc.layout(containing_block);
+                // FIXME(nox): Handle abspos in inline.
+                (child_fragments, vec![], block_size)
+            }
         }
     }
 }
 
 impl BlockLevelBox {
-    fn layout(&self, containing_block: &ContainingBlock) -> Fragment {
+    fn layout(
+        &self,
+        absolute_context: &AbsoluteContext,
+        containing_block: &ContainingBlock,
+        index: usize,
+    ) -> Fragment {
         match self {
             BlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                same_formatting_context_block(style, contents, containing_block)
+                same_formatting_context_block(
+                    absolute_context,
+                    containing_block,
+                    index,
+                    style,
+                    contents,
+                )
+            }
+            BlockLevelBox::AbsolutelyPositionedBox { style, contents } => {
+                absolutely_positioned_box(
+                    absolute_context,
+                    containing_block,
+                    index,
+                    style,
+                    contents,
+                )
             }
         }
     }
 }
 
 fn same_formatting_context_block(
-    style: &Arc<ComputedValues>,
-    contents: &BlockContainer,
+    absolute_context: &AbsoluteContext,
     containing_block: &ContainingBlock,
+    index: usize,
+    style: &Arc<ComputedValues>,
+    contents: &boxes::BlockContainer,
 ) -> Fragment {
     let cbis = containing_block.inline_size;
     let zero = Length::zero();
@@ -142,6 +225,8 @@ fn same_formatting_context_block(
         LengthOrPercentage::Percentage(p) => containing_block.block_size.map(|cbbs| cbbs * p),
     });
     let containing_block_for_children = ContainingBlock {
+        inline_start_from_absolute_containing_block: pbm.inline_start
+            + containing_block.inline_start_from_absolute_containing_block,
         inline_size,
         block_size,
         mode: style.writing_mode(),
@@ -151,7 +236,18 @@ fn same_formatting_context_block(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
-    let (children, content_block_size) = contents.layout(&containing_block_for_children);
+    let (children, absolutely_positioned_fragments, content_block_size) = contents.layout(
+        absolute_context.containing_block,
+        &containing_block_for_children,
+        index,
+    );
+    if !absolutely_positioned_fragments.is_empty() {
+        absolute_context
+            .absolutely_positioned_fragments
+            .lock()
+            .extend(absolutely_positioned_fragments);
+    }
+
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
         start_corner: pbm.start_corner(),
@@ -168,6 +264,255 @@ fn same_formatting_context_block(
         border,
         margin,
     })
+}
+
+fn absolutely_positioned_box(
+    absolute_context: &AbsoluteContext,
+    containing_block: &ContainingBlock,
+    index: usize,
+    style: &Arc<ComputedValues>,
+    contents: &BlockFormattingContext,
+) -> Fragment {
+    let cbis = absolute_context.containing_block.inline_size;
+    let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
+    let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
+    let pb = &padding + &border;
+    let box_size = style.box_size();
+
+    let computed_physical_margin = style
+        .physical_margin()
+        .map(|v| v.non_auto().map(|v| v.percentage_relative_to(cbis)));
+    let computed_margin = style
+        .margin()
+        .map(|v| v.non_auto().map(|v| v.percentage_relative_to(cbis)));
+
+    let computed_inline_size = box_size
+        .inline
+        .non_auto()
+        .map(|v| v.percentage_relative_to(cbis));
+    let computed_block_size = box_size.block.non_auto().and_then(|b| match b {
+        LengthOrPercentage::Length(l) => Some(l),
+        LengthOrPercentage::Percentage(p) => absolute_context
+            .containing_block
+            .block_size
+            .map(|cbbs| cbbs * p),
+    });
+
+    struct Solution {
+        margin_start: Length,
+        margin_end: Length,
+        strategy: Strategy,
+    }
+
+    enum Strategy {
+        FromStart {
+            start: Option<Length>,
+            size: Option<Length>,
+        },
+        FromEnd {
+            end: Length,
+        },
+    }
+
+    fn solve_axis(
+        containing_block_inline_size: Length,
+        physical_start: Option<Length>,
+        physical_end: Option<Length>,
+        computed_margin_start: Option<Length>,
+        computed_margin_end: Option<Length>,
+        solve_margins: impl FnOnce(Length) -> (Length, Length),
+        padding_border_sum: Length,
+        size: Option<Length>,
+    ) -> Solution {
+        let cbis_minus_pb = containing_block_inline_size - padding_border_sum;
+        let zero = Length::zero();
+
+        let mut margin_start = computed_margin_start.unwrap_or(zero);
+        let mut margin_end = computed_margin_end.unwrap_or(zero);
+
+        let strategy = match (physical_start, size, physical_end) {
+            (start, size, None) => Strategy::FromStart { start, size },
+            (Some(start), Some(size), Some(end)) => {
+                let margins = cbis_minus_pb - start - size - end;
+
+                match (computed_margin_start, computed_margin_end) {
+                    (None, None) => {
+                        let (s, e) = solve_margins(margins);
+                        margin_start = s;
+                        margin_end = e;
+                    }
+                    (None, Some(end)) => {
+                        margin_start = margins - end;
+                        margin_end = end;
+                    }
+                    (Some(start), _) => {
+                        margin_start = start;
+                        margin_end = margins - start;
+                    }
+                }
+
+                Strategy::FromStart {
+                    start: Some(start),
+                    size: Some(size),
+                }
+            }
+            (None, None, Some(end)) => Strategy::FromEnd { end },
+            (None, Some(size), Some(end)) => {
+                let start = cbis_minus_pb - size - end - margin_start - margin_end;
+                Strategy::FromStart {
+                    start: Some(start),
+                    size: Some(size),
+                }
+            }
+            (Some(start), None, Some(end)) => {
+                // FIXME(nox): Wait, what happens when that is negative?
+                let size = cbis_minus_pb - start - end - margin_start - margin_end;
+                Strategy::FromStart {
+                    start: Some(start),
+                    size: Some(size),
+                }
+            }
+        };
+
+        Solution {
+            margin_start,
+            margin_end,
+            strategy,
+        }
+    }
+
+    // https://drafts.csswg.org/css2/visudet.html#abs-non-replaced-width
+    let inline_solution = solve_axis(
+        cbis,
+        computed_physical_margin.inline_start,
+        computed_physical_margin.inline_end,
+        computed_margin.inline_start,
+        computed_margin.inline_end,
+        |margins| {
+            if margins.px >= 0. {
+                (margins / 2., margins / 2.)
+            } else {
+                (Length::zero(), margins)
+            }
+        },
+        pb.inline_sum(),
+        computed_inline_size,
+    );
+
+    let inline_size;
+    let inline_start;
+    match inline_solution.strategy {
+        Strategy::FromStart { start, size } => {
+            inline_start =
+                start.unwrap_or(containing_block.inline_start_from_absolute_containing_block);
+            inline_size = size.unwrap_or_else(|| {
+                let available_size =
+                    cbis - inline_start - inline_solution.margin_start - inline_solution.margin_end;
+                // FIXME(nox): shrink-to-fit inline size.
+                available_size
+            });
+        }
+        Strategy::FromEnd { end } => {
+            inline_start = Length::zero();
+            let available_size =
+                cbis - end - inline_solution.margin_start - inline_solution.margin_end;
+            // FIXME(nox): shrink-to-fit inline size.
+            inline_size = available_size;
+        }
+    }
+
+    // https://drafts.csswg.org/css2/visudet.html#abs-non-replaced-height
+    let block_solution = solve_axis(
+        cbis,
+        computed_physical_margin.block_start,
+        computed_physical_margin.block_end,
+        computed_margin.block_start,
+        computed_margin.block_end,
+        |margins| (margins / 2., margins / 2.),
+        pb.block_sum(),
+        computed_block_size,
+    );
+
+    let block_size = match block_solution.strategy {
+        Strategy::FromStart { size, .. } => size,
+        Strategy::FromEnd { .. } => None,
+    };
+
+    let containing_block_for_children = ContainingBlock {
+        inline_start_from_absolute_containing_block: Length::zero(),
+        inline_size,
+        block_size,
+        mode: style.writing_mode(),
+    };
+
+    // https://drafts.csswg.org/css-writing-modes/#orthogonal-flows
+    assert_eq!(
+        absolute_context.containing_block.mode, containing_block.mode,
+        "Mixed writing modes are not supported yet"
+    );
+    assert_eq!(
+        containing_block.mode, containing_block_for_children.mode,
+        "Mixed writing modes are not supported yet"
+    );
+
+    let (mut children, absolutely_positioned_fragments, content_block_size) = contents.layout(
+        &containing_block_for_children,
+        &containing_block_for_children,
+        0,
+    );
+    children.extend(
+        absolutely_positioned_fragments
+            .into_iter()
+            .map(|fragment| Fragment::Box(fragment.contents)),
+    );
+
+    let block_size = block_size.unwrap_or(content_block_size);
+    let (block_start, uses_static_block_position) = match block_solution.strategy {
+        Strategy::FromStart { start: None, .. } => (Length::zero(), true),
+        Strategy::FromStart {
+            start: Some(start), ..
+        } => (start, false),
+        Strategy::FromEnd { end } => (cbis - end - block_size, false),
+    };
+
+    let margin_start_corner = Vec2 {
+        block: block_start,
+        inline: inline_start,
+    };
+    let margin = Sides {
+        inline_start: inline_solution.margin_start,
+        inline_end: inline_solution.margin_end,
+        block_start: block_solution.margin_start,
+        block_end: block_solution.margin_end,
+    };
+    let pbm = &pb + &margin;
+
+    let content_rect = Rect {
+        start_corner: &margin_start_corner + &pbm.start_corner(),
+        size: Vec2 {
+            block: block_size,
+            inline: inline_size,
+        },
+    };
+
+    let absolutely_positioned_fragment = AbsolutelyPositionedFragment {
+        index,
+        uses_static_block_position,
+        contents: BoxFragment {
+            style: style.clone(),
+            children,
+            content_rect,
+            padding,
+            border,
+            margin,
+        },
+    };
+    absolute_context
+        .absolutely_positioned_fragments
+        .lock()
+        .push(absolutely_positioned_fragment);
+
+    Fragment::Box(BoxFragment::zero_sized(style.clone()))
 }
 
 struct InlineFormattingContextLayoutState<'a> {
