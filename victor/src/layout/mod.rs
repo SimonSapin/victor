@@ -40,13 +40,7 @@ fn layout_document(
         mode: (WritingMode::HorizontalTb, Direction::Ltr),
     };
 
-    let (mut fragments, absolutely_positioned_fragments, _) =
-        box_tree.layout(&initial_containing_block, &initial_containing_block, 0);
-    fragments.extend(
-        absolutely_positioned_fragments
-            .into_iter()
-            .map(|fragment| Fragment::Box(fragment.contents)),
-    );
+    let (fragments, _) = box_tree.layout_into_absolute_containing_block(&initial_containing_block);
     fragments
 }
 
@@ -64,6 +58,20 @@ struct ContainingBlock {
 }
 
 impl BlockFormattingContext {
+    fn layout_into_absolute_containing_block(
+        &self,
+        containing_block: &ContainingBlock,
+    ) -> (Vec<Fragment>, Length) {
+        let (mut fragments, absolutely_positioned_fragments, block_size) =
+            self.layout(containing_block, containing_block, 0);
+        fragments.extend(
+            absolutely_positioned_fragments
+                .into_iter()
+                .map(|fragment| Fragment::Box(fragment.contents)),
+        );
+        (fragments, block_size)
+    }
+
     fn layout(
         &self,
         absolute_containing_block: &ContainingBlock,
@@ -118,11 +126,7 @@ impl BlockContainer {
                     abspos_fragment.index = index;
                 }
 
-                (
-                    child_fragments,
-                    absolutely_positioned_fragments,
-                    block_size,
-                )
+                (child_fragments, absolutely_positioned_fragments, block_size)
             }
             BlockContainer::InlineFormattingContext(ifc) => {
                 let (child_fragments, block_size) = ifc.layout(containing_block);
@@ -441,16 +445,8 @@ fn absolutely_positioned_box(
         "Mixed writing modes are not supported yet"
     );
 
-    let (mut children, absolutely_positioned_fragments, content_block_size) = contents.layout(
-        &containing_block_for_children,
-        &containing_block_for_children,
-        0,
-    );
-    children.extend(
-        absolutely_positioned_fragments
-            .into_iter()
-            .map(|fragment| Fragment::Box(fragment.contents)),
-    );
+    let (children, content_block_size) =
+        contents.layout_into_absolute_containing_block(&containing_block_for_children);
 
     let block_size = block_size.unwrap_or(content_block_size);
     let (block_start, uses_static_block_position) = match block_solution.strategy {
