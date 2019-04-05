@@ -23,6 +23,22 @@ pub(crate) enum DisplayInside {
     Flow,
 }
 
+impl Display {
+    /// https://drafts.csswg.org/css-display-3/#blockify
+    fn blockify(&self) -> Self {
+        match *self {
+            Display::Other {
+                outside: DisplayOutside::Inline,
+                inside,
+            } => Display::Other {
+                outside: DisplayOutside::Block,
+                inside,
+            },
+            other => other,
+        }
+    }
+}
+
 impl SpecifiedValue for Display {
     type SpecifiedValue = Display;
 }
@@ -30,19 +46,10 @@ impl SpecifiedValue for Display {
 impl FromSpecified for Display {
     /// https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
     fn from_specified(specified: &Display, context: &CascadeContext) -> Self {
-        match (specified, context.this.position()) {
-            (Display::None, _) => Display::None,
-            (
-                Display::Other {
-                    outside: DisplayOutside::Inline,
-                    inside,
-                },
-                Position::Absolute,
-            ) => Display::Other {
-                outside: DisplayOutside::Block,
-                inside: *inside,
-            },
-            (other, _) => *other,
+        if !context.this.position().is_absolutely_positioned() {
+            *specified
+        } else {
+            specified.blockify()
         }
     }
 }
@@ -73,4 +80,10 @@ impl super::Parse for Display {
 pub(crate) enum Position {
     Static,
     Absolute,
+}
+
+impl Position {
+    pub fn is_absolutely_positioned(&self) -> bool {
+        *self == Position::Absolute
+    }
 }
