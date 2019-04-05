@@ -266,8 +266,8 @@ fn absolutely_positioned_box(
     let pb = &padding + &border;
     let box_size = style.box_size();
 
-    let computed_physical_margin = style
-        .physical_margin()
+    let computed_box_offsets = style
+        .box_offsets()
         .map(|v| v.non_auto().map(|v| v.percentage_relative_to(cbis)));
     let computed_margin = style
         .margin()
@@ -302,8 +302,8 @@ fn absolutely_positioned_box(
 
     fn solve_axis(
         containing_block_inline_size: Length,
-        physical_start: Option<Length>,
-        physical_end: Option<Length>,
+        box_start: Option<Length>,
+        box_end: Option<Length>,
         computed_margin_start: Option<Length>,
         computed_margin_end: Option<Length>,
         solve_margins: impl FnOnce(Length) -> (Length, Length),
@@ -316,7 +316,7 @@ fn absolutely_positioned_box(
         let mut margin_start = computed_margin_start.unwrap_or(zero);
         let mut margin_end = computed_margin_end.unwrap_or(zero);
 
-        let strategy = match (physical_start, size, physical_end) {
+        let strategy = match (box_start, size, box_end) {
             (start, size, None) => Strategy::FromStart { start, size },
             (Some(start), Some(size), Some(end)) => {
                 let margins = cbis_minus_pb - start - size - end;
@@ -370,8 +370,8 @@ fn absolutely_positioned_box(
     // https://drafts.csswg.org/css2/visudet.html#abs-non-replaced-width
     let inline_solution = solve_axis(
         cbis,
-        computed_physical_margin.inline_start,
-        computed_physical_margin.inline_end,
+        computed_box_offsets.inline_start,
+        computed_box_offsets.inline_end,
         computed_margin.inline_start,
         computed_margin.inline_end,
         |margins| {
@@ -410,8 +410,8 @@ fn absolutely_positioned_box(
     // https://drafts.csswg.org/css2/visudet.html#abs-non-replaced-height
     let block_solution = solve_axis(
         cbis,
-        computed_physical_margin.block_start,
-        computed_physical_margin.block_end,
+        computed_box_offsets.block_start,
+        computed_box_offsets.block_end,
         computed_margin.block_start,
         computed_margin.block_end,
         |margins| (margins / 2., margins / 2.),

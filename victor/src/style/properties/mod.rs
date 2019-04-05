@@ -32,7 +32,7 @@ impl ComputedValues {
         (WritingMode::HorizontalTb, Direction::Ltr)
     }
 
-    pub(crate) fn physical_margin(&self) -> flow_relative::Sides<values::LengthOrPercentageOrAuto> {
+    pub(crate) fn box_offsets(&self) -> flow_relative::Sides<values::LengthOrPercentageOrAuto> {
         physical::Sides {
             top: self.box_.top,
             left: self.box_.left,
