@@ -45,7 +45,10 @@ fn layout_document(
 }
 
 struct AbsolutelyPositionedFragment {
-    index: usize,
+    /// The rank of the child from which this absolutely positioned fragment
+    /// came from, when doing the layout of a block container. Used to compute
+    /// static positions when going up the tree.
+    tree_rank: usize,
     uses_static_block_position: bool,
     contents: BoxFragment,
 }
@@ -76,10 +79,10 @@ impl BlockFormattingContext {
         &self,
         absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
-        index: usize,
+        tree_rank: usize,
     ) -> (Vec<Fragment>, FlatVec<AbsolutelyPositionedFragment>, Length) {
         self.0
-            .layout(absolute_containing_block, containing_block, index)
+            .layout(absolute_containing_block, containing_block, tree_rank)
     }
 }
 
@@ -88,15 +91,15 @@ impl BlockContainer {
         &self,
         absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
-        index: usize,
+        tree_rank: usize,
     ) -> (Vec<Fragment>, FlatVec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
                 let (mut child_fragments, mut absolutely_positioned_fragments) = child_boxes
                     .par_iter()
                     .enumerate()
-                    .map(|(index, child)| {
-                        child.layout(absolute_containing_block, containing_block, index)
+                    .map(|(tree_rank, child)| {
+                        child.layout(absolute_containing_block, containing_block, tree_rank)
                     })
                     .unzip::<_, _, Vec<_>, FlatVec<_>>();
 
@@ -116,14 +119,14 @@ impl BlockContainer {
 
                 for abspos_fragment in &mut absolutely_positioned_fragments {
                     if abspos_fragment.uses_static_block_position {
-                        let child_fragment = match &child_fragments[abspos_fragment.index] {
+                        let child_fragment = match &child_fragments[abspos_fragment.tree_rank] {
                             Fragment::Box(b) => b,
                             _ => unreachable!(),
                         };
                         abspos_fragment.contents.content_rect.start_corner.block +=
                             child_fragment.content_rect.start_corner.block;
                     }
-                    abspos_fragment.index = index;
+                    abspos_fragment.tree_rank = tree_rank;
                 }
 
                 (child_fragments, absolutely_positioned_fragments, block_size)
@@ -142,14 +145,14 @@ impl BlockLevelBox {
         &self,
         absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
-        index: usize,
+        tree_rank: usize,
     ) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
         match self {
             BlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 same_formatting_context_block(
                     absolute_containing_block,
                     containing_block,
-                    index,
+                    tree_rank,
                     style,
                     contents,
                 )
@@ -158,7 +161,7 @@ impl BlockLevelBox {
                 absolutely_positioned_box(
                     absolute_containing_block,
                     containing_block,
-                    index,
+                    tree_rank,
                     style,
                     contents,
                 )
@@ -170,7 +173,7 @@ impl BlockLevelBox {
 fn same_formatting_context_block(
     absolute_containing_block: &ContainingBlock,
     containing_block: &ContainingBlock,
-    index: usize,
+    tree_rank: usize,
     style: &Arc<ComputedValues>,
     contents: &boxes::BlockContainer,
 ) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
@@ -236,7 +239,7 @@ fn same_formatting_context_block(
     let (children, absolutely_positioned_fragments, content_block_size) = contents.layout(
         absolute_containing_block,
         &containing_block_for_children,
-        index,
+        tree_rank,
     );
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
@@ -260,7 +263,7 @@ fn same_formatting_context_block(
 fn absolutely_positioned_box(
     absolute_containing_block: &ContainingBlock,
     containing_block: &ContainingBlock,
-    index: usize,
+    tree_rank: usize,
     style: &Arc<ComputedValues>,
     contents: &BlockFormattingContext,
 ) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
@@ -480,7 +483,7 @@ fn absolutely_positioned_box(
     let fragment = Fragment::Box(BoxFragment::zero_sized(style.clone()));
 
     let absolutely_positioned_fragment = AbsolutelyPositionedFragment {
-        index,
+        tree_rank,
         uses_static_block_position,
         contents: BoxFragment {
             style: style.clone(),
