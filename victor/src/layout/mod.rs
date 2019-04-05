@@ -7,8 +7,10 @@ use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
 use crate::style::ComputedValues;
-use parking_lot::Mutex;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelExtend,
+    ParallelIterator,
+};
 use std::sync::Arc;
 
 impl crate::dom::Document {
@@ -48,11 +50,6 @@ fn layout_document(
     fragments
 }
 
-struct AbsoluteContext<'a> {
-    containing_block: &'a ContainingBlock,
-    absolutely_positioned_fragments: Mutex<Vec<AbsolutelyPositionedFragment>>,
-}
-
 struct AbsolutelyPositionedFragment {
     index: usize,
     uses_static_block_position: bool,
@@ -72,7 +69,7 @@ impl BlockFormattingContext {
         absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
         index: usize,
-    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+    ) -> (Vec<Fragment>, FlatVec<AbsolutelyPositionedFragment>, Length) {
         self.0
             .layout(absolute_containing_block, containing_block, index)
     }
@@ -84,19 +81,16 @@ impl BlockContainer {
         absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
         index: usize,
-    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+    ) -> (Vec<Fragment>, FlatVec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
-                let mut absolute_context = AbsoluteContext {
-                    containing_block: absolute_containing_block,
-                    absolutely_positioned_fragments: Default::default(),
-                };
-
-                let mut child_fragments = child_boxes
+                let (mut child_fragments, mut absolutely_positioned_fragments) = child_boxes
                     .par_iter()
                     .enumerate()
-                    .map(|(index, child)| child.layout(&absolute_context, containing_block, index))
-                    .collect::<Vec<_>>();
+                    .map(|(index, child)| {
+                        child.layout(absolute_containing_block, containing_block, index)
+                    })
+                    .unzip::<_, _, Vec<_>, FlatVec<_>>();
 
                 let mut block_size = Length::zero();
                 for child in &mut child_fragments {
@@ -112,11 +106,6 @@ impl BlockContainer {
                         + child.content_rect.size.block;
                 }
 
-                let mut absolutely_positioned_fragments = absolute_context
-                    .absolutely_positioned_fragments
-                    .get_mut()
-                    .take();
-                absolutely_positioned_fragments.sort_by_key(|fragment| fragment.index);
                 for abspos_fragment in &mut absolutely_positioned_fragments {
                     if abspos_fragment.uses_static_block_position {
                         let child_fragment = match &child_fragments[abspos_fragment.index] {
@@ -129,12 +118,16 @@ impl BlockContainer {
                     abspos_fragment.index = index;
                 }
 
-                (child_fragments, absolutely_positioned_fragments, block_size)
+                (
+                    child_fragments,
+                    absolutely_positioned_fragments,
+                    block_size,
+                )
             }
             BlockContainer::InlineFormattingContext(ifc) => {
                 let (child_fragments, block_size) = ifc.layout(containing_block);
                 // FIXME(nox): Handle abspos in inline.
-                (child_fragments, vec![], block_size)
+                (child_fragments, vec![].into(), block_size)
             }
         }
     }
@@ -143,14 +136,14 @@ impl BlockContainer {
 impl BlockLevelBox {
     fn layout(
         &self,
-        absolute_context: &AbsoluteContext,
+        absolute_containing_block: &ContainingBlock,
         containing_block: &ContainingBlock,
         index: usize,
-    ) -> Fragment {
+    ) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
         match self {
             BlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 same_formatting_context_block(
-                    absolute_context,
+                    absolute_containing_block,
                     containing_block,
                     index,
                     style,
@@ -159,7 +152,7 @@ impl BlockLevelBox {
             }
             BlockLevelBox::AbsolutelyPositionedBox { style, contents } => {
                 absolutely_positioned_box(
-                    absolute_context,
+                    absolute_containing_block,
                     containing_block,
                     index,
                     style,
@@ -171,12 +164,12 @@ impl BlockLevelBox {
 }
 
 fn same_formatting_context_block(
-    absolute_context: &AbsoluteContext,
+    absolute_containing_block: &ContainingBlock,
     containing_block: &ContainingBlock,
     index: usize,
     style: &Arc<ComputedValues>,
     contents: &boxes::BlockContainer,
-) -> Fragment {
+) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
     let cbis = containing_block.inline_size;
     let zero = Length::zero();
     let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
@@ -237,17 +230,10 @@ fn same_formatting_context_block(
         "Mixed writing modes are not supported yet"
     );
     let (children, absolutely_positioned_fragments, content_block_size) = contents.layout(
-        absolute_context.containing_block,
+        absolute_containing_block,
         &containing_block_for_children,
         index,
     );
-    if !absolutely_positioned_fragments.is_empty() {
-        absolute_context
-            .absolutely_positioned_fragments
-            .lock()
-            .extend(absolutely_positioned_fragments);
-    }
-
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
         start_corner: pbm.start_corner(),
@@ -256,24 +242,25 @@ fn same_formatting_context_block(
             inline: inline_size,
         },
     };
-    Fragment::Box(BoxFragment {
+    let fragment = Fragment::Box(BoxFragment {
         style: style.clone(),
         children,
         content_rect,
         padding,
         border,
         margin,
-    })
+    });
+    (fragment, absolutely_positioned_fragments)
 }
 
 fn absolutely_positioned_box(
-    absolute_context: &AbsoluteContext,
+    absolute_containing_block: &ContainingBlock,
     containing_block: &ContainingBlock,
     index: usize,
     style: &Arc<ComputedValues>,
     contents: &BlockFormattingContext,
-) -> Fragment {
-    let cbis = absolute_context.containing_block.inline_size;
+) -> (Fragment, FlatVec<AbsolutelyPositionedFragment>) {
+    let cbis = absolute_containing_block.inline_size;
     let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
     let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
     let pb = &padding + &border;
@@ -292,10 +279,9 @@ fn absolutely_positioned_box(
         .map(|v| v.percentage_relative_to(cbis));
     let computed_block_size = box_size.block.non_auto().and_then(|b| match b {
         LengthOrPercentage::Length(l) => Some(l),
-        LengthOrPercentage::Percentage(p) => absolute_context
-            .containing_block
-            .block_size
-            .map(|cbbs| cbbs * p),
+        LengthOrPercentage::Percentage(p) => {
+            absolute_containing_block.block_size.map(|cbbs| cbbs * p)
+        }
     });
 
     struct Solution {
@@ -447,7 +433,7 @@ fn absolutely_positioned_box(
 
     // https://drafts.csswg.org/css-writing-modes/#orthogonal-flows
     assert_eq!(
-        absolute_context.containing_block.mode, containing_block.mode,
+        absolute_containing_block.mode, containing_block.mode,
         "Mixed writing modes are not supported yet"
     );
     assert_eq!(
@@ -495,6 +481,8 @@ fn absolutely_positioned_box(
         },
     };
 
+    let fragment = Fragment::Box(BoxFragment::zero_sized(style.clone()));
+
     let absolutely_positioned_fragment = AbsolutelyPositionedFragment {
         index,
         uses_static_block_position,
@@ -507,12 +495,8 @@ fn absolutely_positioned_box(
             margin,
         },
     };
-    absolute_context
-        .absolutely_positioned_fragments
-        .lock()
-        .push(absolutely_positioned_fragment);
 
-    Fragment::Box(BoxFragment::zero_sized(style.clone()))
+    (fragment, vec![absolutely_positioned_fragment].into())
 }
 
 struct InlineFormattingContextLayoutState<'a> {
@@ -685,6 +669,68 @@ impl TextRun {
                 // to make this clone cheaper?
                 text: self.segment.clone(),
             }));
+    }
+}
+
+struct FlatVec<T>(Vec<T>);
+
+impl<T> Default for FlatVec<T> {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
+
+impl<T> From<Vec<T>> for FlatVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self(vec)
+    }
+}
+
+impl<'a, T> IntoIterator for FlatVec<T>
+where
+    T: Send + 'a,
+{
+    type Item = T;
+    type IntoIter = <Vec<T> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut FlatVec<T>
+where
+    T: Send + 'a,
+{
+    type Item = &'a mut T;
+    type IntoIter = <&'a mut Vec<T> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&mut self.0).into_iter()
+    }
+}
+
+impl<T> IntoParallelIterator for FlatVec<T>
+where
+    T: Send,
+{
+    type Iter = <Vec<T> as IntoParallelIterator>::Iter;
+    type Item = T;
+
+    fn into_par_iter(self) -> Self::Iter {
+        self.0.into_par_iter()
+    }
+}
+
+impl<T> ParallelExtend<Self> for FlatVec<T>
+where
+    T: Send,
+{
+    fn par_extend<I>(&mut self, par_iter: I)
+    where
+        I: IntoParallelIterator<Item = Self>,
+    {
+        self.0.par_extend(par_iter.into_par_iter().flatten());
     }
 }
 
