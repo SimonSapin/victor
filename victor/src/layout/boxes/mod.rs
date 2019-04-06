@@ -31,14 +31,17 @@ pub(super) enum BlockLevelBox {
         style: Arc<ComputedValues>,
         contents: BlockContainer,
     },
-    AbsolutelyPositionedBox {
-        style: Arc<ComputedValues>,
-        contents: BlockFormattingContext,
-    },
+    AbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Other {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,
     // },
+}
+
+#[derive(Debug)]
+pub(super) struct AbsolutelyPositionedBox {
+    pub style: Arc<ComputedValues>,
+    pub contents: BlockFormattingContext,
 }
 
 #[derive(Debug)]

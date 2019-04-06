@@ -451,14 +451,14 @@ impl IntermediateBlockLevelBox {
                 }
             }
             IntermediateBlockLevelBox::AbsolutelyPositionedBox { style, element } => {
-                BlockLevelBox::AbsolutelyPositionedBox {
+                BlockLevelBox::AbsolutelyPositionedBox(AbsolutelyPositionedBox {
                     contents: BlockFormattingContext(BlockContainerBuilder::build(
                         context,
                         element,
                         Some(&style),
                     )),
                     style: style,
-                }
+                })
             }
         }
     }
