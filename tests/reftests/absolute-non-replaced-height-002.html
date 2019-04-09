@@ -1,0 +1,28 @@
+<!doctype html>
+<link rel="match" href="absolute-non-replaced-height-002-ref.html">
+<style>
+div.outer {
+  position: absolute;
+  height: 200px;
+  width: 200px;
+  background-color: green;
+}
+
+div.inner {
+  position: absolute;
+  width: 100px;
+  background-color: red;
+}
+
+div.inner div {
+  height: 100px;
+  width: 100px;
+  background-color: blue;
+}
+</style>
+<body>
+<div class="outer">
+  <div class="inner">
+    <div></div>
+  </div>
+</div>
