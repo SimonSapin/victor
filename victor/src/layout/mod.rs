@@ -169,43 +169,25 @@ fn layout_block_level_children<'a>(
     containing_block: &ContainingBlock,
     child_boxes: &'a [BlockLevelBox],
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>) {
-    use rayon::iter::{
-        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelExtend,
-        ParallelIterator,
-    };
+    use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+    use rayon_croissant::ParallelIteratorExt;
 
-    struct FlatVec<T>(Vec<T>);
-
-    impl<T> Default for FlatVec<T> {
-        fn default() -> Self {
-            Self(vec![])
-        }
-    }
-
-    impl<T> ParallelExtend<Self> for FlatVec<T>
-    where
-        T: Send,
-    {
-        fn par_extend<I>(&mut self, par_iter: I)
-        where
-            I: IntoParallelIterator<Item = Self>,
-        {
-            self.0
-                .par_extend(par_iter.into_par_iter().map(|v| v.0).flatten());
-        }
-    }
-
-    let (child_fragments, absolutely_positioned_fragments) = child_boxes
+    let mut absolutely_positioned_fragments = vec![];
+    let child_fragments = child_boxes
         .par_iter()
         .enumerate()
-        .map(|(tree_rank, child)| {
-            let mut abspos_fragments = vec![];
-            let fragment = child.layout(containing_block, tree_rank, &mut abspos_fragments);
-            (fragment, FlatVec(abspos_fragments))
-        })
-        .unzip::<_, _, Vec<_>, FlatVec<_>>();
+        .mapfold_reduce_into(
+            &mut absolutely_positioned_fragments,
+            |abspos_fragments, (tree_rank, child)| {
+                child.layout(containing_block, tree_rank, abspos_fragments)
+            },
+            |left_abspos_fragments, mut right_abspos_fragments| {
+                left_abspos_fragments.append(&mut right_abspos_fragments);
+            },
+        )
+        .collect::<Vec<_>>();
 
-    (child_fragments, absolutely_positioned_fragments.0)
+    (child_fragments, absolutely_positioned_fragments)
 }
 
 impl BlockLevelBox {
