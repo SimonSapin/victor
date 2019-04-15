@@ -79,10 +79,15 @@ impl super::Parse for Display {
 #[derive(Copy, Clone, Eq, Parse, PartialEq, SpecifiedAsComputed)]
 pub(crate) enum Position {
     Static,
+    Relative,
     Absolute,
 }
 
 impl Position {
+    pub fn is_relatively_positioned(self) -> bool {
+        self == Position::Relative
+    }
+
     pub fn is_absolutely_positioned(&self) -> bool {
         *self == Position::Absolute
     }

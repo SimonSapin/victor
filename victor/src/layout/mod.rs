@@ -242,9 +242,10 @@ fn same_formatting_context_block<'a>(
     );
     let (children, abspos_children, content_block_size) =
         contents.layout(&containing_block_for_children, tree_rank);
+    let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
-        start_corner: pbm.start_corner(),
+        start_corner: &pbm.start_corner() + &relative_adjustement,
         size: Vec2 {
             block: block_size,
             inline: inline_size,
@@ -297,7 +298,7 @@ impl InlineFormattingContext {
             } else
             // Reached the end of state.remaining_boxes
             if let Some(partial) = partial_inline_boxes_stack.pop() {
-                partial.finish_layout(&mut inline_position, &mut state)
+                partial.finish_layout(containing_block, &mut inline_position, &mut state)
             } else {
                 return (
                     state.fragments_so_far,
@@ -365,6 +366,7 @@ impl InlineBox {
 impl<'a> PartialInlineBoxFragment<'a> {
     fn finish_layout(
         mut self,
+        containing_block: &ContainingBlock,
         inline_position: &mut Length,
         ifc_state: &mut InlineFormattingContextLayoutState<'a>,
     ) {
@@ -373,6 +375,11 @@ impl<'a> PartialInlineBoxFragment<'a> {
             inline: *inline_position - fragment.content_rect.start_corner.inline,
             block: ifc_state.max_block_size_of_fragments_so_far,
         };
+        fragment.content_rect.start_corner += &relative_adjustement(
+            &fragment.style,
+            containing_block.inline_size,
+            containing_block.block_size,
+        );
         if self.last_fragment {
             *inline_position += fragment.padding.inline_end
                 + fragment.border.inline_end
@@ -432,6 +439,37 @@ impl TextRun {
                 // to make this clone cheaper?
                 text: self.segment.clone(),
             }));
+    }
+}
+
+/// https://drafts.csswg.org/css2/visuren.html#relative-positioning
+fn relative_adjustement(
+    style: &ComputedValues,
+    inline_size: Length,
+    block_size: Option<Length>,
+) -> Vec2<Length> {
+    let zero = Length::zero();
+    if !style.box_.position.is_relatively_positioned() {
+        return Vec2 {
+            inline: zero,
+            block: zero,
+        }
+    }
+    fn adjust(start: Option<Length>, end: Option<Length>) -> Length {
+        match (start, end) {
+            (None, None) => Length::zero(),
+            (Some(start), _) => start,
+            (None, Some(end)) => -end,
+        }
+    }
+    let block_size = block_size.unwrap_or(zero);
+    let box_offsets = style.box_offsets().map_inline_and_block_axes(
+        |v| v.non_auto().map(|v| v.percentage_relative_to(inline_size)),
+        |v| v.non_auto().map(|v| v.percentage_relative_to(block_size)),
+    );
+    Vec2 {
+        inline: adjust(box_offsets.inline_start, box_offsets.inline_end),
+        block: adjust(box_offsets.block_start, box_offsets.block_end),
     }
 }
 

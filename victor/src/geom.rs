@@ -45,7 +45,7 @@ pub(crate) mod flow_relative {
 }
 
 use crate::style::values::{Direction, WritingMode};
-use std::ops::{Add, Sub};
+use std::ops::{Add, AddAssign, Sub};
 
 impl<T> Add<&'_ physical::Vec2<T>> for &'_ physical::Vec2<T>
 where
@@ -87,6 +87,16 @@ where
             inline: self.inline + other.inline,
             block: self.block + other.block,
         }
+    }
+}
+
+impl<T> AddAssign<&'_ flow_relative::Vec2<T>> for flow_relative::Vec2<T>
+where
+    T: AddAssign<T> + Copy,
+{
+    fn add_assign(&mut self, other: &'_ flow_relative::Vec2<T>) {
+        self.inline += other.inline;
+        self.block += other.block;
     }
 }
 

@@ -106,6 +106,13 @@ impl Length {
     }
 }
 
+impl ops::Neg for Length {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Length { px: -self.px }
+    }
+}
+
 impl ops::Add for Length {
     type Output = Self;
     fn add(self, other: Self) -> Self {
