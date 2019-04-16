@@ -100,6 +100,15 @@ where
     }
 }
 
+impl flow_relative::Vec2<Length> {
+    pub fn zero() -> Self {
+        Self {
+            inline: Length::zero(),
+            block: Length::zero(),
+        }
+    }
+}
+
 impl<T: Clone> flow_relative::Vec2<T> {
     pub fn size_to_physical(&self, mode: (WritingMode, Direction)) -> physical::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical

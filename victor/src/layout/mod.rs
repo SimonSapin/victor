@@ -335,10 +335,7 @@ impl InlineBox {
                 block: padding.block_start + border.block_start + margin.block_start,
                 inline: *inline_position,
             },
-            size: Vec2 {
-                block: Length::zero(),
-                inline: Length::zero(),
-            },
+            size: Vec2::zero(),
         };
         let fragment = BoxFragment {
             style,
@@ -448,12 +445,8 @@ fn relative_adjustement(
     inline_size: Length,
     block_size: Option<Length>,
 ) -> Vec2<Length> {
-    let zero = Length::zero();
     if !style.box_.position.is_relatively_positioned() {
-        return Vec2 {
-            inline: zero,
-            block: zero,
-        }
+        return Vec2::zero();
     }
     fn adjust(start: Option<Length>, end: Option<Length>) -> Length {
         match (start, end) {
@@ -462,7 +455,7 @@ fn relative_adjustement(
             (None, Some(end)) => -end,
         }
     }
-    let block_size = block_size.unwrap_or(zero);
+    let block_size = block_size.unwrap_or(Length::zero());
     let box_offsets = style.box_offsets().map_inline_and_block_axes(
         |v| v.non_auto().map(|v| v.percentage_relative_to(inline_size)),
         |v| v.non_auto().map(|v| v.percentage_relative_to(block_size)),
