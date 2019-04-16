@@ -88,7 +88,7 @@ impl Position {
         self == Position::Relative
     }
 
-    pub fn is_absolutely_positioned(&self) -> bool {
-        *self == Position::Absolute
+    pub fn is_absolutely_positioned(self) -> bool {
+        self == Position::Absolute
     }
 }
