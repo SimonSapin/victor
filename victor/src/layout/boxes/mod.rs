@@ -1,5 +1,4 @@
 use crate::style::ComputedValues;
-use crate::text::ShapedSegment;
 use std::sync::Arc;
 
 mod generation;
@@ -44,16 +43,15 @@ pub(super) struct AbsolutelyPositionedBox {
     pub contents: BlockFormattingContext,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct InlineFormattingContext {
     pub inline_level_boxes: Vec<InlineLevelBox>,
-    pub text_runs: Vec<TextRun>,
 }
 
 #[derive(Debug)]
 pub(super) enum InlineLevelBox {
     InlineBox(InlineBox),
-    TextRun(TextRunId),
+    TextRun(TextRun),
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Atomic {
     //     style: Arc<ComputedValues>,
@@ -69,9 +67,6 @@ pub(super) struct InlineBox {
     pub children: Vec<InlineLevelBox>,
 }
 
-#[derive(Debug)]
-pub(super) struct TextRunId(pub usize);
-
 /// https://www.w3.org/TR/css-display-3/#css-text-run
 ///
 /// Contiguous sequence of sibling text nodes generates multiple text runs,
@@ -79,5 +74,5 @@ pub(super) struct TextRunId(pub usize);
 #[derive(Debug)]
 pub(super) struct TextRun {
     pub parent_style: Arc<ComputedValues>,
-    pub segment: ShapedSegment,
+    pub text: String,
 }

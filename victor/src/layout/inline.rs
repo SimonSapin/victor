@@ -2,9 +2,11 @@ use super::abspos::AbsolutelyPositionedFragment;
 use super::boxes::{InlineBox, InlineFormattingContext, InlineLevelBox, TextRun};
 use super::fragments::{BoxFragment, Fragment, TextFragment};
 use super::{relative_adjustement, ContainingBlock, Take};
+use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::geom::flow_relative::{Rect, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
+use crate::text::ShapedSegment;
 
 struct InlineFormattingContextLayoutState<'a> {
     remaining_boxes: std::slice::Iter<'a, InlineLevelBox>,
@@ -39,9 +41,7 @@ impl InlineFormattingContext {
                     InlineLevelBox::InlineBox(inline) => partial_inline_boxes_stack.push(
                         inline.start_layout(containing_block, &mut inline_position, &mut state),
                     ),
-                    InlineLevelBox::TextRun(id) => {
-                        self.text_runs[id.0].layout(&mut inline_position, &mut state)
-                    }
+                    InlineLevelBox::TextRun(run) => run.layout(&mut inline_position, &mut state),
                     InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                         let initial_start_corner = match box_.style.specified_display {
                             Display::Other {
@@ -179,7 +179,9 @@ impl TextRun {
         ifc_state: &mut InlineFormattingContextLayoutState,
     ) {
         let parent_style = self.parent_style.clone();
-        let inline_size = parent_style.font.font_size * self.segment.advance_width;
+        let mut text = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
+        text.append(self.text.chars()).unwrap();
+        let inline_size = parent_style.font.font_size * text.advance_width;
         // https://www.w3.org/TR/CSS2/visudet.html#propdef-line-height
         // 'normal':
         // “set the used value to a "reasonable" value based on the font of the element.”
@@ -203,9 +205,7 @@ impl TextRun {
             .push(Fragment::Text(TextFragment {
                 parent_style,
                 content_rect,
-                // FIXME: keep Arc<ShapedSegment> instead of ShapedSegment,
-                // to make this clone cheaper?
-                text: self.segment.clone(),
+                text,
             }));
     }
 }

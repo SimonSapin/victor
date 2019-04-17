@@ -1,6 +1,5 @@
 use super::*;
 use crate::dom;
-use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::layout::Take;
 use crate::style::values::{Display, DisplayInside, DisplayOutside, Position};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
@@ -52,23 +51,8 @@ enum IntermediateBlockLevelBox {
 ///
 /// Deferring allows using rayon’s `into_par_iter`.
 enum IntermediateBlockContainer {
-    InlineFormattingContext(IntermediateInlineFormattingContext),
+    InlineFormattingContext(InlineFormattingContext),
     Deferred { from_children_of: dom::NodeId },
-}
-
-/// An intermediate inline formatting context.
-///
-/// Text runs are not shaped yet at this point.
-#[derive(Default)]
-struct IntermediateInlineFormattingContext {
-    inline_level_boxes: Vec<InlineLevelBox>,
-    text_runs: Vec<IntermediateTextRun>,
-}
-
-/// An intermediate text run, ready to be shaped.
-struct IntermediateTextRun {
-    parent_style: Arc<ComputedValues>,
-    node: dom::NodeId,
 }
 
 /// A builder for a block container.
@@ -105,7 +89,7 @@ struct BlockContainerBuilder<'a> {
     /// this inline formatting context is pushed as a block level box to
     /// the list of block-level boxes of the builder
     /// (see `end_ongoing_inline_formatting_context`).
-    ongoing_inline_formatting_context: IntermediateInlineFormattingContext,
+    ongoing_inline_formatting_context: InlineFormattingContext,
     /// The ongoing inline-level box stack of the builder.
     ///
     /// Contains all the currently ongoing inline-level boxes we entered so far.
@@ -170,7 +154,7 @@ impl<'a> BlockContainerBuilder<'a> {
         {
             if builder.block_level_boxes.is_empty() {
                 return BlockContainer::InlineFormattingContext(
-                    builder.ongoing_inline_formatting_context.finish(context),
+                    builder.ongoing_inline_formatting_context,
                 )
             }
             builder.end_ongoing_inline_formatting_context();
@@ -188,8 +172,6 @@ impl<'a> BlockContainerBuilder<'a> {
     fn handle_text(&mut self, descendant: dom::NodeId, contents: &str) -> Option<dom::NodeId> {
         // FIXME: implement https://drafts.csswg.org/css2/text.html#white-space-model
         if !contents.as_bytes().iter().all(u8::is_ascii_whitespace) {
-            let run_id = TextRunId(self.ongoing_inline_formatting_context.text_runs.len());
-
             // This text node should be pushed either to the next ongoing
             // inline level box with the parent style of that inline level box
             // that will be ended, or directly to the ongoing inline formatting
@@ -198,13 +180,11 @@ impl<'a> BlockContainerBuilder<'a> {
                 .current_parent_style()
                 .expect("found a text node without a parent")
                 .clone();
-            self.ongoing_inline_formatting_context
-                .text_runs
-                .push(IntermediateTextRun {
-                    parent_style,
-                    node: descendant,
-                });
-            self.push_inline_level_box(InlineLevelBox::TextRun(run_id));
+            let text = match &self.context.document[descendant].data {
+                dom::NodeData::Text { contents } => contents.clone(),
+                _ => panic!("node should be a text node"),
+            };
+            self.push_inline_level_box(InlineLevelBox::TextRun(TextRun { parent_style, text }));
         }
 
         // Let .build continue the traversal from the next sibling of
@@ -480,38 +460,8 @@ impl IntermediateBlockContainer {
                 BlockContainerBuilder::build(context, from_children_of, Some(style))
             }
             IntermediateBlockContainer::InlineFormattingContext(ifc) => {
-                BlockContainer::InlineFormattingContext(ifc.finish(context))
+                BlockContainer::InlineFormattingContext(ifc)
             }
-        }
-    }
-}
-
-impl IntermediateInlineFormattingContext {
-    fn finish(self, context: &Context) -> InlineFormattingContext {
-        InlineFormattingContext {
-            inline_level_boxes: self.inline_level_boxes,
-            text_runs: self
-                .text_runs
-                .into_par_iter()
-                .map(|text| text.finish(context))
-                .collect(),
-        }
-    }
-}
-
-impl IntermediateTextRun {
-    fn finish(self, context: &Context) -> TextRun {
-        let contents = match &context.document[self.node].data {
-            dom::NodeData::Text { contents } => contents,
-            _ => panic!("node should be a text node"),
-        };
-
-        let mut segment = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
-        segment.append(contents.chars()).unwrap();
-
-        TextRun {
-            parent_style: self.parent_style,
-            segment,
         }
     }
 }
