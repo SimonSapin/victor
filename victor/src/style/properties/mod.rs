@@ -4,7 +4,7 @@ pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
 pub(super) use self::definitions::{ComputedValuesForEarlyCascade, ComputedValuesForLateCascade};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{self, CssWideKeyword, Direction, WritingMode, Display};
+use crate::style::values::{self, CssWideKeyword, Direction, Display, WritingMode};
 use crate::style::values::{CascadeContext, EarlyCascadeContext};
 use cssparser::{Color, RGBA};
 use std::sync::Arc;

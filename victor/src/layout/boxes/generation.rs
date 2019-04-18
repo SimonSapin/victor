@@ -351,8 +351,16 @@ impl<'a> BlockContainerBuilder<'a> {
                     element: descendant,
                 })
         } else {
-            // FIXME(nox): Handle absolutely-positioned elements in
-            // inline boxes.
+            self.push_inline_level_box(InlineLevelBox::AbsolutelyPositionedBox(
+                AbsolutelyPositionedBox {
+                    contents: BlockFormattingContext(BlockContainerBuilder::build(
+                        self.context,
+                        descendant,
+                        Some(&descendant_style),
+                    )),
+                    style: descendant_style,
+                },
+            ));
         }
         self.move_to_next_sibling(descendant)
     }

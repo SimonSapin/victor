@@ -7,7 +7,10 @@ use self::boxes::*;
 use self::fragments::*;
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
-use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
+use crate::style::values::{
+    Direction, Display, DisplayInside, DisplayOutside, LengthOrPercentage,
+    LengthOrPercentageOrAuto, WritingMode,
+};
 use crate::style::ComputedValues;
 use std::sync::Arc;
 
@@ -118,11 +121,7 @@ impl BlockContainer {
 
                 (child_fragments, absolutely_positioned_fragments, block_size)
             }
-            BlockContainer::InlineFormattingContext(ifc) => {
-                let (child_fragments, block_size) = ifc.layout(containing_block);
-                // FIXME(nox): Handle abspos in inline.
-                (child_fragments, vec![].into(), block_size)
-            }
+            BlockContainer::InlineFormattingContext(ifc) => ifc.layout(containing_block, tree_rank),
         }
     }
 }
@@ -169,8 +168,10 @@ impl BlockLevelBox {
                     contents,
                 )
             }
-            BlockLevelBox::AbsolutelyPositionedBox(absolutely_positioned_box) => {
-                absolutely_positioned_box.layout(tree_rank, absolutely_positioned_fragments)
+            BlockLevelBox::AbsolutelyPositionedBox(box_) => {
+                let fragment = Fragment::Box(BoxFragment::zero_sized(box_.style.clone()));
+                absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
+                fragment
             }
         }
     }
@@ -276,7 +277,12 @@ struct PartialInlineBoxFragment<'a> {
 }
 
 impl InlineFormattingContext {
-    fn layout(&self, containing_block: &ContainingBlock) -> (Vec<Fragment>, Length) {
+    fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+        tree_rank: usize,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+        let mut absolutely_positioned_fragments = Vec::new();
         let mut partial_inline_boxes_stack = Vec::new();
         let mut inline_position = Length::zero();
 
@@ -294,6 +300,28 @@ impl InlineFormattingContext {
                     InlineLevelBox::TextRun(id) => {
                         self.text_runs[id.0].layout(&mut inline_position, &mut state)
                     }
+                    InlineLevelBox::AbsolutelyPositionedBox(box_) => {
+                        let initial_start_corner = match box_.style.specified_display {
+                            Display::Other {
+                                outside: DisplayOutside::Inline,
+                                inside: DisplayInside::Flow,
+                            } => Vec2 {
+                                inline: inline_position,
+                                // FIXME(nox): Line-breaking will make that incorrect.
+                                block: Length::zero(),
+                            },
+                            Display::Other {
+                                outside: DisplayOutside::Block,
+                                inside: DisplayInside::Flow,
+                            } => Vec2 {
+                                inline: Length::zero(),
+                                block: state.max_block_size_of_fragments_so_far,
+                            },
+                            Display::None => panic!("abspos box cannot be display:none"),
+                        };
+                        absolutely_positioned_fragments
+                            .push(box_.layout(initial_start_corner, tree_rank));
+                    }
                 }
             } else
             // Reached the end of state.remaining_boxes
@@ -302,6 +330,7 @@ impl InlineFormattingContext {
             } else {
                 return (
                     state.fragments_so_far,
+                    absolutely_positioned_fragments,
                     state.max_block_size_of_fragments_so_far,
                 )
             }

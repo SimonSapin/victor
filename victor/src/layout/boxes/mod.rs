@@ -54,6 +54,7 @@ pub(super) struct InlineFormattingContext {
 pub(super) enum InlineLevelBox {
     InlineBox(InlineBox),
     TextRun(TextRunId),
+    AbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Atomic {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,

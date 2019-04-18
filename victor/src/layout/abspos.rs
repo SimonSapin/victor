@@ -68,9 +68,9 @@ impl BlockFormattingContext {
 impl AbsolutelyPositionedBox {
     pub(super) fn layout<'a>(
         &'a self,
+        initial_start_corner: Vec2<Length>,
         tree_rank: usize,
-        absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
-    ) -> Fragment {
+    ) -> AbsolutelyPositionedFragment {
         let style = &self.style;
         let box_offsets = style.box_offsets();
         let box_size = style.box_size();
@@ -79,12 +79,13 @@ impl AbsolutelyPositionedBox {
         let block_size = box_size.block.non_auto();
 
         fn absolute_box_offsets(
+            initial_static_start: Length,
             start: LengthOrPercentageOrAuto,
             end: LengthOrPercentageOrAuto,
         ) -> AbsoluteBoxOffsets<LengthOrPercentage> {
             match (start.non_auto(), end.non_auto()) {
                 (None, None) => AbsoluteBoxOffsets::StaticStart {
-                    start: Length::zero(),
+                    start: initial_static_start,
                 },
                 (Some(start), Some(end)) => AbsoluteBoxOffsets::Both { start, end },
                 (None, Some(end)) => AbsoluteBoxOffsets::End { end },
@@ -92,21 +93,25 @@ impl AbsolutelyPositionedBox {
             }
         }
 
-        let inline_start = absolute_box_offsets(box_offsets.inline_start, box_offsets.inline_end);
-        let block_start = absolute_box_offsets(box_offsets.block_start, box_offsets.block_end);
+        let inline_start = absolute_box_offsets(
+            initial_start_corner.inline,
+            box_offsets.inline_start,
+            box_offsets.inline_end,
+        );
+        let block_start = absolute_box_offsets(
+            initial_start_corner.block,
+            box_offsets.block_start,
+            box_offsets.block_end,
+        );
 
-        let fragment = Fragment::Box(BoxFragment::zero_sized(style.clone()));
-
-        absolutely_positioned_fragments.push(AbsolutelyPositionedFragment {
+        AbsolutelyPositionedFragment {
             absolutely_positioned_box: self,
             tree_rank,
             inline_start,
             inline_size,
             block_start,
             block_size,
-        });
-
-        fragment
+        }
     }
 }
 
