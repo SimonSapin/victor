@@ -260,12 +260,12 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             .layout_into_absolute_containing_block(&containing_block_for_children, &padding);
 
         let inline_start = match inline_anchor {
-            Anchor::Start(start) => start,
+            Anchor::Start(start) => start + pb.inline_start + margin.inline_start,
             Anchor::End(end) => cbbs - end - pb.inline_end - margin.inline_end - inline_size,
         };
 
         let block_start = match block_anchor {
-            Anchor::Start(start) => start,
+            Anchor::Start(start) => start + pb.block_start + margin.block_start,
             Anchor::End(end) => cbbs - end - pb.block_end - margin.block_end - block_size,
         };
 
