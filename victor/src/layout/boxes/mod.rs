@@ -31,7 +31,7 @@ pub(super) enum BlockLevelBox {
         style: Arc<ComputedValues>,
         contents: BlockContainer,
     },
-    AbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Other {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,
@@ -54,7 +54,7 @@ pub(super) struct InlineFormattingContext {
 pub(super) enum InlineLevelBox {
     InlineBox(InlineBox),
     TextRun(TextRunId),
-    AbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Atomic {
     //     style: Arc<ComputedValues>,
     //     contents: FormattingContext,

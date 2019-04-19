@@ -156,7 +156,7 @@ impl BlockLevelBox {
                     contents,
                 )
             }
-            BlockLevelBox::AbsolutelyPositionedBox(box_) => {
+            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
                 Fragment::Box(BoxFragment::zero_sized())
             }

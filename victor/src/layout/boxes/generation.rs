@@ -38,7 +38,7 @@ enum IntermediateBlockLevelBox {
         style: Arc<ComputedValues>,
         contents: IntermediateBlockContainer,
     },
-    AbsolutelyPositionedBox {
+    OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
         element: dom::NodeId,
     },
@@ -345,13 +345,14 @@ impl<'a> BlockContainerBuilder<'a> {
             .is_empty()
             && self.ongoing_inline_level_box_stack.is_empty()
         {
-            self.block_level_boxes
-                .push(IntermediateBlockLevelBox::AbsolutelyPositionedBox {
+            self.block_level_boxes.push(
+                IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                     style: descendant_style,
                     element: descendant,
-                })
+                },
+            )
         } else {
-            self.push_inline_level_box(InlineLevelBox::AbsolutelyPositionedBox(
+            self.push_inline_level_box(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(
                 AbsolutelyPositionedBox {
                     contents: BlockFormattingContext(BlockContainerBuilder::build(
                         self.context,
@@ -458,8 +459,8 @@ impl IntermediateBlockLevelBox {
                     style,
                 }
             }
-            IntermediateBlockLevelBox::AbsolutelyPositionedBox { style, element } => {
-                BlockLevelBox::AbsolutelyPositionedBox(AbsolutelyPositionedBox {
+            IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox { style, element } => {
+                BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
                     contents: BlockFormattingContext(BlockContainerBuilder::build(
                         context,
                         element,

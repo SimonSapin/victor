@@ -42,7 +42,7 @@ impl InlineFormattingContext {
                     InlineLevelBox::TextRun(id) => {
                         self.text_runs[id.0].layout(&mut inline_position, &mut state)
                     }
-                    InlineLevelBox::AbsolutelyPositionedBox(box_) => {
+                    InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                         let initial_start_corner = match box_.style.specified_display {
                             Display::Other {
                                 outside: DisplayOutside::Inline,
