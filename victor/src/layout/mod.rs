@@ -46,7 +46,7 @@ fn layout_document(
         block_end: zero,
     };
 
-    let (fragments, _) = box_tree.layout_into_absolute_containing_block(
+    let (fragments, _) = box_tree.0.layout_into_absolute_containing_block(
         &initial_containing_block,
         &initial_containing_block_padding,
     );
@@ -57,16 +57,6 @@ struct ContainingBlock {
     inline_size: Length,
     block_size: Option<Length>,
     mode: (WritingMode, Direction),
-}
-
-impl BlockFormattingContext {
-    fn layout(
-        &self,
-        containing_block: &ContainingBlock,
-        tree_rank: usize,
-    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
-        self.0.layout(containing_block, tree_rank)
-    }
 }
 
 impl BlockContainer {

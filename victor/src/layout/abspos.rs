@@ -1,4 +1,4 @@
-use super::boxes::{AbsolutelyPositionedBox, BlockFormattingContext};
+use super::boxes::{AbsolutelyPositionedBox, BlockContainer};
 use super::fragments::{BoxFragment, Fragment};
 use super::ContainingBlock;
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
@@ -35,7 +35,7 @@ struct AbsoluteContainingBlock {
     mode: (WritingMode, Direction),
 }
 
-impl BlockFormattingContext {
+impl BlockContainer {
     pub(super) fn layout_into_absolute_containing_block(
         &self,
         containing_block: &ContainingBlock,
@@ -262,6 +262,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         let (children, block_size) = self
             .absolutely_positioned_box
             .contents
+            .0
             .layout_into_absolute_containing_block(&containing_block_for_children, &padding);
 
         let inline_start = match inline_anchor {
