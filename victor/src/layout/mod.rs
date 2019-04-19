@@ -229,8 +229,14 @@ fn same_formatting_context_block<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
-    let (children, abspos_children, content_block_size) =
-        contents.layout(&containing_block_for_children, tree_rank);
+    let (children, content_block_size) = if !style.box_.position.is_relatively_positioned() {
+        let (children, abspos_children, content_block_size) =
+            contents.layout(&containing_block_for_children, tree_rank);
+        absolutely_positioned_fragments.extend(abspos_children);
+        (children, content_block_size)
+    } else {
+        contents.layout_into_absolute_containing_block(&containing_block_for_children, &padding)
+    };
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
@@ -240,16 +246,14 @@ fn same_formatting_context_block<'a>(
             inline: inline_size,
         },
     };
-    let fragment = Fragment::Box(BoxFragment {
+    Fragment::Box(BoxFragment {
         style: style.clone(),
         children,
         content_rect,
         padding,
         border,
         margin,
-    });
-    absolutely_positioned_fragments.extend(abspos_children);
-    fragment
+    })
 }
 
 /// https://drafts.csswg.org/css2/visuren.html#relative-positioning
