@@ -1,9 +1,10 @@
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{CascadeContext, FromSpecified, SpecifiedValue};
+use crate::style::properties::ComputedValues;
 use cssparser::Parser;
+use std::sync::Arc;
 
 /// https://drafts.csswg.org/css-display-3/#the-display-properties
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, SpecifiedAsComputed)]
 pub(crate) enum Display {
     None,
     Other {
@@ -24,8 +25,13 @@ pub(crate) enum DisplayInside {
 }
 
 impl Display {
+    pub const INITIAL: Self = Display::Other {
+        outside: DisplayOutside::Inline,
+        inside: DisplayInside::Flow,
+    };
+
     /// https://drafts.csswg.org/css-display-3/#blockify
-    fn blockify(&self) -> Self {
+    pub fn blockify(&self) -> Self {
         match *self {
             Display::Other {
                 outside: DisplayOutside::Inline,
@@ -37,19 +43,13 @@ impl Display {
             other => other,
         }
     }
-}
 
-impl SpecifiedValue for Display {
-    type SpecifiedValue = Display;
-}
-
-impl FromSpecified for Display {
     /// https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
-    fn from_specified(specified: &Display, context: &CascadeContext) -> Self {
-        if !context.this.position().is_absolutely_positioned() {
-            *specified
-        } else {
-            specified.blockify()
+    pub fn fixup(style: &mut ComputedValues) {
+        style.specified_display = style.box_.display;
+        if style.box_.position.is_absolutely_positioned() {
+            let box_ = Arc::make_mut(&mut style.box_);
+            box_.display = box_.display.blockify()
         }
     }
 }

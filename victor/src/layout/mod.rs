@@ -446,7 +446,7 @@ fn relative_adjustement(
     block_size: Option<Length>,
 ) -> Vec2<Length> {
     if !style.box_.position.is_relatively_positioned() {
-        return Vec2::zero();
+        return Vec2::zero()
     }
     fn adjust(start: Option<Length>, end: Option<Length>) -> Length {
         match (start, end) {

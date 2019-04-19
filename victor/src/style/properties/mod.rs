@@ -4,7 +4,7 @@ pub(super) use self::definitions::{property_data_by_name, LonghandDeclaration};
 pub(super) use self::definitions::{ComputedValuesForEarlyCascade, ComputedValuesForLateCascade};
 use crate::geom::{flow_relative, physical};
 use crate::style::errors::PropertyParseError;
-use crate::style::values::{self, CssWideKeyword, Direction, WritingMode};
+use crate::style::values::{self, CssWideKeyword, Direction, WritingMode, Display};
 use crate::style::values::{CascadeContext, EarlyCascadeContext};
 use cssparser::{Color, RGBA};
 use std::sync::Arc;
@@ -25,6 +25,8 @@ impl ComputedValues {
         b.border_left_width.fixup(b.border_left_style);
         b.border_bottom_width.fixup(b.border_bottom_style);
         b.border_right_width.fixup(b.border_right_style);
+
+        Display::fixup(self);
     }
 
     pub(crate) fn writing_mode(&self) -> (WritingMode, Direction) {

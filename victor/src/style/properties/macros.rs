@@ -166,6 +166,7 @@ macro_rules! properties {
             $(
                 pub(crate) $struct_name: Arc<style_structs::$struct_name>,
             )+
+            pub(crate) specified_display: Display,
         }
 
         impl std::fmt::Debug for ComputedValues {
@@ -203,6 +204,7 @@ macro_rules! properties {
                                 }
                             ),
                         )+
+                        specified_display: Display::INITIAL,
                     };
                 }
                 let inherited = inherited.unwrap_or(&*INITIAL_VALUES);
@@ -214,6 +216,7 @@ macro_rules! properties {
                     $(
                         $struct_name: Arc::clone(&select!($inherited).$struct_name),
                     )+
+                    specified_display: Display::INITIAL,
                 };
                 if let Some(matching) = matching {
                     matching.cascade(&mut crate::style::values::EarlyCascadeContext {
