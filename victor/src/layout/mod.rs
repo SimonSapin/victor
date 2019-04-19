@@ -157,9 +157,8 @@ impl BlockLevelBox {
                 )
             }
             BlockLevelBox::AbsolutelyPositionedBox(box_) => {
-                let fragment = Fragment::Box(BoxFragment::zero_sized(box_.style.clone()));
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
-                fragment
+                Fragment::Box(BoxFragment::zero_sized())
             }
         }
     }

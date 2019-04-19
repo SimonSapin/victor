@@ -30,7 +30,7 @@ pub(crate) struct TextFragment {
 }
 
 impl BoxFragment {
-    pub fn zero_sized(style: Arc<ComputedValues>) -> Self {
+    pub fn zero_sized() -> Self {
         let zero_vec = Vec2 {
             inline: Length::zero(),
             block: Length::zero(),
@@ -42,7 +42,7 @@ impl BoxFragment {
             block_end: Length::zero(),
         };
         Self {
-            style,
+            style: ComputedValues::anonymous_inheriting_from(None),
             children: vec![],
             content_rect: Rect {
                 start_corner: zero_vec.clone(),
