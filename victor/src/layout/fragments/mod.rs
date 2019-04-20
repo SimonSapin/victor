@@ -30,7 +30,8 @@ pub(crate) struct TextFragment {
 }
 
 impl BoxFragment {
-    pub fn zero_sized() -> Self {
+    /// Create a fragment that does not contribute any painting operation.
+    pub fn no_op() -> Self {
         let zero_vec = Vec2 {
             inline: Length::zero(),
             block: Length::zero(),
