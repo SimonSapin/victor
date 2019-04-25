@@ -42,7 +42,7 @@ impl Sink {
                     } = &mut self.document[id]
                     {
                         contents.push_str(&text);
-                        return
+                        return;
                     }
                 }
                 self.new_node(NodeData::Text {

@@ -93,13 +93,13 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
                     // go to the next line.
                     segments.rewind(Ok((segment, is_hard_break)));
                     justify = style.justify;
-                    break
+                    break;
                 }
                 line_segments.push(segment);
                 total_width = next_total_width;
                 if is_hard_break {
                     justify = false;
-                    break
+                    break;
                 }
             }
 
@@ -125,7 +125,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Document, FontError> {
             y += line_height;
             if y > max_y {
                 // We’ve reached the bottom of the page
-                break
+                break;
             }
         }
     }

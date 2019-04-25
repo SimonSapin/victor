@@ -236,7 +236,7 @@ fn read_postscript_name(
     for record in name_records {
         const POSTSCRIPT_NAME: u16 = 6;
         if record.name_id().read_from(bytes)? != POSTSCRIPT_NAME {
-            continue
+            continue;
         }
 
         const MACINTOSH: u16 = 1;
@@ -250,7 +250,7 @@ fn read_postscript_name(
             (MICROSOFT, UNICODE_BMP) => decode_ucs2(string_bytes(record)?),
             _ => continue,
         };
-        return Ok(postscript_name)
+        return Ok(postscript_name);
     }
 
     Err(FontError::NoSupportedPostscriptName)

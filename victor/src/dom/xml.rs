@@ -37,7 +37,7 @@ impl Document {
                         } = &mut document[last_child]
                         {
                             contents.push_str(&s);
-                            continue
+                            continue;
                         }
                     }
                     let id = document.push_node(Node::new(NodeData::Text { contents: s.into() }));

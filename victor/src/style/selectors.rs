@@ -112,7 +112,7 @@ where
     let mut node = first?;
     loop {
         if document[node].as_element().is_some() {
-            return Some(NodeRef { document, node })
+            return Some(NodeRef { document, node });
         }
         node = next(&document[node])?
     }
@@ -241,11 +241,11 @@ impl<'a> selectors::Element for NodeRef<'a> {
             None => true,
             Some(mut node) => loop {
                 if self.document[node].as_element().is_some() {
-                    return false
+                    return false;
                 }
                 if let Some(text) = self.document[node].as_text() {
                     if !text.is_empty() {
-                        return false
+                        return false;
                     }
                 }
                 match self.document[node].next_sibling {

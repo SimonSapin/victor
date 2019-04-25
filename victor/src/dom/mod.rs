@@ -49,7 +49,7 @@ impl Document {
             // https://html.spec.whatwg.org/multipage/semantics.html#update-a-style-block
             if let Some(type_attr) = element.as_element().unwrap().get_attr(&local_name!("type")) {
                 if !type_attr.eq_ignore_ascii_case("text/css") {
-                    continue
+                    continue;
                 }
             }
             style_set.add_stylesheet(&self.child_text_content(id))

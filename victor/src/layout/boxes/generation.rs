@@ -155,7 +155,7 @@ impl<'a> BlockContainerBuilder<'a> {
             if builder.block_level_boxes.is_empty() {
                 return BlockContainer::InlineFormattingContext(
                     builder.ongoing_inline_formatting_context,
-                )
+                );
             }
             builder.end_ongoing_inline_formatting_context();
         }
@@ -214,9 +214,9 @@ impl<'a> BlockContainerBuilder<'a> {
             if let Some(i) = input.bytes().position(|b| !b.is_ascii_whitespace()) {
                 input = &input[i..];
             } else if this_whitespace_collapses {
-                return None
+                return None;
             } else {
-                return Some(output)
+                return Some(output);
             }
         }
         loop {
@@ -227,11 +227,11 @@ impl<'a> BlockContainerBuilder<'a> {
                 if let Some(i) = rest.bytes().position(|b| !b.is_ascii_whitespace()) {
                     input = &rest[i..];
                 } else {
-                    return Some(output)
+                    return Some(output);
                 }
             } else {
                 output.push_str(input);
-                return Some(output)
+                return Some(output);
             }
         }
     }
@@ -286,7 +286,7 @@ impl<'a> BlockContainerBuilder<'a> {
         if let Some(first_child) = self.context.document[descendant].first_child {
             // This inline level element has children, let .build continue
             // the traversal from there.
-            return Some(first_child)
+            return Some(first_child);
         }
 
         // This inline level element didn't have any children, so we end
@@ -395,7 +395,7 @@ impl<'a> BlockContainerBuilder<'a> {
         if let Some(next_sibling) = descendant_node.next_sibling {
             // This descendant has a next sibling, just let .build continue
             // the traversal from there.
-            return Some(next_sibling)
+            return Some(next_sibling);
         }
 
         // This descendant has no next sibling, so it was the last child of its
@@ -408,7 +408,7 @@ impl<'a> BlockContainerBuilder<'a> {
                 .parent
                 .expect("found a descendant without a parent")];
             if let Some(next_sibling) = descendant_node.next_sibling {
-                return Some(next_sibling)
+                return Some(next_sibling);
             }
         }
 
@@ -429,7 +429,7 @@ impl<'a> BlockContainerBuilder<'a> {
             .is_empty()
         {
             // There should never be an empty inline formatting context.
-            return
+            return;
         }
 
         let parent_style = self.parent_style.map(|s| &**s);

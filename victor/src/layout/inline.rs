@@ -74,7 +74,7 @@ impl InlineFormattingContext {
                     state.fragments_so_far,
                     absolutely_positioned_fragments,
                     state.max_block_size_of_fragments_so_far,
-                )
+                );
             }
         }
     }

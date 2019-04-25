@@ -32,7 +32,7 @@ pub fn derive_sfnt_table(input: proc_macro::TokenStream) -> proc_macro::TokenStr
                             const TAG: Tag = Tag(*#tag);
                         }
                     };
-                    break
+                    break;
                 }
             }
         }

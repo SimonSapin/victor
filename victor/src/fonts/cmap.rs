@@ -106,7 +106,7 @@ impl Format4 {
         code_point: u32,
     ) -> Result<Option<u16>, FontError> {
         if code_point > 0xFFFF {
-            return Ok(None)
+            return Ok(None);
         }
         let code_point = code_point as u16;
 
@@ -143,7 +143,7 @@ impl Format4 {
                 }
 
                 if code_point == end_code {
-                    break
+                    break;
                 }
                 code_point += 1
             }
@@ -220,7 +220,7 @@ impl Format12 {
             // For now, pretend that glyphs with larger IDs are missing.
             // FIXME: Maybe this will be unnecessary with PDF font subsetting?
             if id32 <= 0xFFFF {
-                return Ok(Some(id32 as u16))
+                return Ok(Some(id32 as u16));
             }
         }
 
@@ -241,7 +241,7 @@ impl Format12 {
                 f(code_point, glyph_id as u16);
 
                 if code_point == end_code {
-                    break
+                    break;
                 }
                 code_point += 1;
             }

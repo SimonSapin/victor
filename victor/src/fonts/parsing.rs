@@ -200,7 +200,7 @@ where
 {
     use std::cmp::Ordering::*;
     if size == 0 {
-        return Ok(None)
+        return Ok(None);
     }
     let mut base: u32 = 0;
     while size > 1 {

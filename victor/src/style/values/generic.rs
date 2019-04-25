@@ -24,7 +24,7 @@ where
                 left: top.clone(),
                 bottom: top.clone(),
                 right: top,
-            })
+            });
         };
 
         let bottom = if let Ok(bottom) = parser.r#try(T::parse) {
@@ -35,7 +35,7 @@ where
                 left: left.clone(),
                 bottom: top,
                 right: left,
-            })
+            });
         };
 
         let right = if let Ok(right) = parser.r#try(T::parse) {
@@ -46,7 +46,7 @@ where
                 left: left.clone(),
                 bottom: bottom,
                 right: left,
-            })
+            });
         };
 
         Ok(FourSides {
