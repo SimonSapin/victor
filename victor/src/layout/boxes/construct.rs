@@ -169,17 +169,51 @@ impl<'a> BlockContainerBuilder<'a> {
         )
     }
 
-    fn handle_text(&mut self, descendant: dom::NodeId, contents: &str) -> Option<dom::NodeId> {
-        if let Some(text) = self.make_text_run(contents) {
+    fn handle_text(&mut self, descendant: dom::NodeId, input: &str) -> Option<dom::NodeId> {
+        let (leading_whitespace, mut input) = self.handle_leading_whitespace(input);
+        if leading_whitespace || !input.is_empty() {
             // This text node should be pushed either to the next ongoing
             // inline level box with the parent style of that inline level box
             // that will be ended, or directly to the ongoing inline formatting
             // context with the parent style of that builder.
-            let parent_style = self
-                .current_parent_style()
-                .expect("found a text node without a parent")
-                .clone();
-            self.push_inline_level_box(InlineLevelBox::TextRun(TextRun { parent_style, text }));
+            let (inlines, parent_style) = self.current_inline_level_boxes_and_parent_style();
+
+            let mut new_text_run_contents;
+            let output;
+            if let Some(InlineLevelBox::TextRun(TextRun { text, .. })) = inlines.last_mut() {
+                // Append to the existing text run
+                new_text_run_contents = None;
+                output = text;
+            } else {
+                new_text_run_contents = Some(String::new());
+                output = new_text_run_contents.as_mut().unwrap();
+            }
+
+            if leading_whitespace {
+                output.push(' ')
+            }
+            loop {
+                if let Some(i) = input.bytes().position(|b| b.is_ascii_whitespace()) {
+                    let (non_whitespace, rest) = input.split_at(i);
+                    output.push_str(non_whitespace);
+                    output.push(' ');
+                    if let Some(i) = rest.bytes().position(|b| !b.is_ascii_whitespace()) {
+                        input = &rest[i..];
+                    } else {
+                        break;
+                    }
+                } else {
+                    output.push_str(input);
+                    break;
+                }
+            }
+
+            if let Some(text) = new_text_run_contents {
+                let parent_style = parent_style
+                    .expect("found a text node without a parent")
+                    .clone();
+                inlines.push(InlineLevelBox::TextRun(TextRun { parent_style, text }))
+            }
         }
 
         // Let .build continue the traversal from the next sibling of
@@ -187,53 +221,30 @@ impl<'a> BlockContainerBuilder<'a> {
         self.move_to_next_sibling(descendant)
     }
 
-    fn make_text_run(&self, mut input: &str) -> Option<String> {
+    /// Returns:
+    ///
+    /// * Whether this text run has preserved (non-collapsible) leading whitespace
+    /// * The contents starting at the first non-whitespace character (or the empty string)
+    fn handle_leading_whitespace<'text>(&mut self, text: &'text str) -> (bool, &'text str) {
         // FIXME: this is only an approximation of
         // https://drafts.csswg.org/css2/text.html#white-space-model
-        let mut output = String::new();
-        if input.as_bytes().get(0)?.is_ascii_whitespace() {
-            let mut inline_level_boxes = self.ongoing_inline_level_box_stack.last().map_or(
-                &self.ongoing_inline_formatting_context.inline_level_boxes[..],
-                |last| &last.children,
-            );
-            let this_whitespace_collapses = loop {
-                match inline_level_boxes.split_last() {
-                    Some((InlineLevelBox::InlineBox(b), _)) => inline_level_boxes = &b.children,
-                    Some((InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_), before)) => {
-                        inline_level_boxes = before
-                    }
-                    Some((InlineLevelBox::TextRun(r), _)) => break r.text.ends_with(' '),
-                    // Some(InlineLevelBox::Atomic(_)) => break false,
-                    None => break true, // Paragraph start
-                }
-            };
-            if !this_whitespace_collapses {
-                output.push(' ')
-            }
-
-            if let Some(i) = input.bytes().position(|b| !b.is_ascii_whitespace()) {
-                input = &input[i..];
-            } else if this_whitespace_collapses {
-                return None;
-            } else {
-                return Some(output);
-            }
+        if !text.starts_with(|c: char| c.is_ascii_whitespace()) {
+            return (false, text);
         }
-        loop {
-            if let Some(i) = input.bytes().position(|b| b.is_ascii_whitespace()) {
-                let (non_whitespace, rest) = input.split_at(i);
-                output.push_str(non_whitespace);
-                output.push(' ');
-                if let Some(i) = rest.bytes().position(|b| !b.is_ascii_whitespace()) {
-                    input = &rest[i..];
-                } else {
-                    return Some(output);
+        let mut inline_level_boxes = self.current_inline_level_boxes().as_slice();
+        let preserved = loop {
+            match inline_level_boxes.split_last() {
+                Some((InlineLevelBox::InlineBox(b), _)) => inline_level_boxes = &b.children,
+                Some((InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_), before)) => {
+                    inline_level_boxes = before
                 }
-            } else {
-                output.push_str(input);
-                return Some(output);
+                Some((InlineLevelBox::TextRun(r), _)) => break !r.text.ends_with(' '),
+                // Some(InlineLevelBox::Atomic(_)) => break false,
+                None => break false, // Paragraph start
             }
-        }
+        };
+        let text = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
+        (preserved, text)
     }
 
     fn handle_element(&mut self, descendant: dom::NodeId) -> Option<dom::NodeId> {
@@ -376,16 +387,15 @@ impl<'a> BlockContainerBuilder<'a> {
                 },
             )
         } else {
-            self.push_inline_level_box(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(
-                AbsolutelyPositionedBox {
-                    contents: BlockFormattingContext(BlockContainerBuilder::build(
-                        self.context,
-                        descendant,
-                        Some(&descendant_style),
-                    )),
-                    style: descendant_style,
-                },
-            ));
+            let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
+                contents: BlockFormattingContext(BlockContainerBuilder::build(
+                    self.context,
+                    descendant,
+                    Some(&descendant_style),
+                )),
+                style: descendant_style,
+            });
+            self.current_inline_level_boxes().push(box_)
         }
         self.move_to_next_sibling(descendant)
     }
@@ -455,15 +465,27 @@ impl<'a> BlockContainerBuilder<'a> {
             .pop()
             .expect("no ongoing inline level box found");
         last_ongoing_inline_level_box.last_fragment = true;
-        self.push_inline_level_box(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
+        self.current_inline_level_boxes()
+            .push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
     }
 
-    fn push_inline_level_box(&mut self, inline_level_box: InlineLevelBox) {
-        let inline_level_boxes = self.ongoing_inline_level_box_stack.last_mut().map_or(
-            &mut self.ongoing_inline_formatting_context.inline_level_boxes,
-            |last| &mut last.children,
-        );
-        inline_level_boxes.push(inline_level_box);
+    fn current_inline_level_boxes_and_parent_style(
+        &mut self,
+    ) -> (&mut Vec<InlineLevelBox>, Option<&Arc<ComputedValues>>) {
+        match self.ongoing_inline_level_box_stack.last_mut() {
+            Some(last) => (&mut last.children, Some(&last.style)),
+            None => (
+                &mut self.ongoing_inline_formatting_context.inline_level_boxes,
+                self.parent_style,
+            ),
+        }
+    }
+
+    fn current_inline_level_boxes(&mut self) -> &mut Vec<InlineLevelBox> {
+        match self.ongoing_inline_level_box_stack.last_mut() {
+            Some(last) => &mut last.children,
+            None => &mut self.ongoing_inline_formatting_context.inline_level_boxes,
+        }
     }
 
     fn current_parent_style(&self) -> Option<&Arc<ComputedValues>> {
