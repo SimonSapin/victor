@@ -1,7 +1,7 @@
 use crate::style::ComputedValues;
 use std::sync::Arc;
 
-mod generation;
+mod construct;
 
 pub(super) type BoxTreeRoot = BlockFormattingContext;
 
