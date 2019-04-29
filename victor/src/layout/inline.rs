@@ -23,7 +23,7 @@ struct PartialInlineBoxFragment<'box_tree> {
     border: Sides<Length>,
     margin: Sides<Length>,
     last_fragment: bool,
-    saved_state: InlineNestingLevelState<'box_tree>,
+    parent_nesting_level: InlineNestingLevelState<'box_tree>,
 }
 
 struct InlineFormattingContextState<'box_tree, 'cb> {
@@ -88,8 +88,9 @@ impl InlineFormattingContext {
                 }
             } else
             // Reached the end of ifc.remaining_boxes
-            if let Some(partial) = ifc.partial_inline_boxes_stack.pop() {
-                partial.finish_layout(&mut ifc)
+            if let Some(mut partial) = ifc.partial_inline_boxes_stack.pop() {
+                partial.finish_layout(&mut ifc.current_nesting_level, &mut ifc.inline_position);
+                ifc.current_nesting_level = partial.parent_nesting_level
             } else {
                 let mut line_box = BoxFragment::no_op();
                 line_box.content_rect.start_corner.block = ifc.next_line_block_position;
@@ -140,7 +141,7 @@ impl InlineBox {
             border,
             margin,
             last_fragment: self.last_fragment,
-            saved_state: std::mem::replace(
+            parent_nesting_level: std::mem::replace(
                 &mut ifc.current_nesting_level,
                 InlineNestingLevelState {
                     remaining_boxes: self.children.iter(),
@@ -153,23 +154,27 @@ impl InlineBox {
 }
 
 impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
-    fn finish_layout(mut self, ifc: &mut InlineFormattingContextState<'box_tree, '_>) {
+    fn finish_layout(
+        &mut self,
+        nesting_level: &mut InlineNestingLevelState,
+        inline_position: &mut Length,
+    ) {
         let mut fragment = BoxFragment {
-            style: self.style,
-            children: ifc.current_nesting_level.fragments_so_far.take(),
+            style: self.style.clone(),
+            children: nesting_level.fragments_so_far.take(),
             content_rect: Rect {
                 size: Vec2 {
-                    inline: ifc.inline_position - self.start_corner.inline,
-                    block: ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+                    inline: *inline_position - self.start_corner.inline,
+                    block: nesting_level.max_block_size_of_fragments_so_far,
                 },
-                start_corner: self.start_corner,
+                start_corner: self.start_corner.clone(),
             },
-            padding: self.padding,
-            border: self.border,
-            margin: self.margin,
+            padding: self.padding.clone(),
+            border: self.border.clone(),
+            margin: self.margin.clone(),
         };
         if self.last_fragment {
-            ifc.inline_position += fragment.padding.inline_end
+            *inline_position += fragment.padding.inline_end
                 + fragment.border.inline_end
                 + fragment.margin.inline_end;
         } else {
@@ -177,7 +182,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             fragment.border.inline_end = Length::zero();
             fragment.margin.inline_end = Length::zero();
         }
-        self.saved_state
+        self.parent_nesting_level
             .max_block_size_of_fragments_so_far
             .max_assign(
                 fragment.content_rect.size.block
@@ -185,13 +190,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
                     + fragment.border.block_sum()
                     + fragment.margin.block_sum(),
             );
-        debug_assert!(ifc
-            .current_nesting_level
-            .remaining_boxes
-            .as_slice()
-            .is_empty());
-        ifc.current_nesting_level = self.saved_state;
-        ifc.current_nesting_level
+        self.parent_nesting_level
             .fragments_so_far
             .push(Fragment::Box(fragment));
     }
