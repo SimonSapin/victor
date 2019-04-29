@@ -13,6 +13,7 @@ use std::sync::Arc;
 struct InlineNestingLevelState<'box_tree> {
     remaining_boxes: std::slice::Iter<'box_tree, InlineLevelBox>,
     fragments_so_far: Vec<Fragment>,
+    inline_start: Length,
     max_block_size_of_fragments_so_far: Length,
 }
 
@@ -58,6 +59,7 @@ impl InlineFormattingContext {
             current_nesting_level: InlineNestingLevelState {
                 remaining_boxes: self.inline_level_boxes.iter(),
                 fragments_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
+                inline_start: Length::zero(),
                 max_block_size_of_fragments_so_far: Length::zero(),
             },
         };
@@ -94,7 +96,11 @@ impl InlineFormattingContext {
             } else
             // Reached the end of ifc.remaining_boxes
             if let Some(mut partial) = ifc.partial_inline_boxes_stack.pop() {
-                partial.finish_layout(&mut ifc.current_nesting_level, &mut ifc.inline_position);
+                partial.finish_layout(
+                    &mut ifc.current_nesting_level,
+                    &mut ifc.inline_position,
+                    false,
+                );
                 ifc.current_nesting_level = partial.parent_nesting_level
             } else {
                 ifc.line_boxes.finish_line(&mut ifc.current_nesting_level);
@@ -143,7 +149,7 @@ impl InlineBox {
         }
         let mut start_corner = Vec2 {
             block: padding.block_start + border.block_start + margin.block_start,
-            inline: ifc.inline_position,
+            inline: ifc.inline_position - ifc.current_nesting_level.inline_start,
         };
         start_corner += &relative_adjustement(
             &style,
@@ -162,6 +168,7 @@ impl InlineBox {
                 InlineNestingLevelState {
                     remaining_boxes: self.children.iter(),
                     fragments_so_far: Vec::with_capacity(self.children.len()),
+                    inline_start: ifc.inline_position,
                     max_block_size_of_fragments_so_far: Length::zero(),
                 },
             ),
@@ -174,6 +181,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
         &mut self,
         nesting_level: &mut InlineNestingLevelState,
         inline_position: &mut Length,
+        at_line_break: bool,
     ) {
         let mut fragment = BoxFragment {
             style: self.style.clone(),
@@ -189,8 +197,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             border: self.border.clone(),
             margin: self.margin.clone(),
         };
-        let last_fragment =
-            self.last_box_tree_fragment && nesting_level.remaining_boxes.as_slice().is_empty();
+        let last_fragment = self.last_box_tree_fragment && !at_line_break;
         if last_fragment {
             *inline_position += fragment.padding.inline_end
                 + fragment.border.inline_end
@@ -216,6 +223,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
 
 impl TextRun {
     fn layout(&self, ifc: &mut InlineFormattingContextState) {
+        let available = ifc.containing_block.inline_size - ifc.inline_position;
         let mut chars = self.text.chars();
         loop {
             let mut shaped = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
@@ -224,7 +232,7 @@ impl TextRun {
                 let next = chars.next();
                 if matches!(next, Some(' ') | None) {
                     let inline_size = self.parent_style.font.font_size * shaped.advance_width;
-                    if inline_size > ifc.containing_block.inline_size {
+                    if inline_size > available {
                         if let Some((state, iter)) = last_break_opportunity.take() {
                             shaped.restore(&state);
                             chars = iter;
@@ -249,7 +257,7 @@ impl TextRun {
             let content_rect = Rect {
                 start_corner: Vec2 {
                     block: Length::zero(),
-                    inline: ifc.inline_position,
+                    inline: ifc.inline_position - ifc.current_nesting_level.inline_start,
                 },
                 size: Vec2 {
                     block: line_height,
@@ -271,9 +279,15 @@ impl TextRun {
                 break;
             } else {
                 // New line
+                ifc.current_nesting_level.inline_start = Length::zero();
                 let mut nesting_level = &mut ifc.current_nesting_level;
                 for partial in ifc.partial_inline_boxes_stack.iter_mut().rev() {
-                    partial.finish_layout(nesting_level, &mut ifc.inline_position);
+                    partial.finish_layout(nesting_level, &mut ifc.inline_position, true);
+                    partial.start_corner.inline = Length::zero();
+                    partial.padding.inline_start = Length::zero();
+                    partial.border.inline_start = Length::zero();
+                    partial.margin.inline_start = Length::zero();
+                    partial.parent_nesting_level.inline_start = Length::zero();
                     nesting_level = &mut partial.parent_nesting_level;
                 }
                 ifc.line_boxes.finish_line(nesting_level);

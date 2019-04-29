@@ -4,7 +4,17 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    for_each_file_in(reftests_dir(), &mut |path| TestFile::load(path).test())
+    let args: Vec<_> = env::args().collect();
+    let base = reftests_dir();
+    for_each_file_in(base.clone(), &mut |path| {
+        if !args.is_empty() {
+            let relative = path.strip_prefix(&base).unwrap().to_str().unwrap();
+            if !args.iter().any(|arg| relative.contains(arg)) {
+                return;
+            }
+        }
+        TestFile::load(path).test()
+    })
 }
 
 fn target_dir() -> PathBuf {
