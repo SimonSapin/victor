@@ -9,6 +9,11 @@ pub struct ShapedSegment {
     pub(crate) advance_width: Length<Em>,
 }
 
+pub struct ShapedSegmentState {
+    glyphs: usize,
+    advance_width: Length<Em>,
+}
+
 impl std::fmt::Debug for ShapedSegment {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.write_str("ShapedSegment")
@@ -36,12 +41,26 @@ impl ShapedSegment {
         }
     }
 
-    pub fn append(&mut self, text: impl Iterator<Item = char>) -> Result<(), FontError> {
-        for ch in text {
-            let id = self.font.glyph_id(ch)?;
-            self.advance_width += self.font.glyph_width(id)?;
-            self.glyphs.push(id);
-        }
+    pub fn append(&mut self, mut text: impl Iterator<Item = char>) -> Result<(), FontError> {
+        text.try_for_each(|ch| self.append_char(ch))
+    }
+
+    pub fn append_char(&mut self, ch: char) -> Result<(), FontError> {
+        let id = self.font.glyph_id(ch)?;
+        self.advance_width += self.font.glyph_width(id)?;
+        self.glyphs.push(id);
         Ok(())
+    }
+
+    pub fn save(&self) -> ShapedSegmentState {
+        ShapedSegmentState {
+            glyphs: self.glyphs.len(),
+            advance_width: self.advance_width,
+        }
+    }
+
+    pub fn restore(&mut self, state: &ShapedSegmentState) {
+        self.glyphs.truncate(state.glyphs);
+        self.advance_width = state.advance_width;
     }
 }

@@ -22,18 +22,22 @@ struct PartialInlineBoxFragment<'box_tree> {
     padding: Sides<Length>,
     border: Sides<Length>,
     margin: Sides<Length>,
-    last_fragment: bool,
+    last_box_tree_fragment: bool,
     parent_nesting_level: InlineNestingLevelState<'box_tree>,
 }
 
 struct InlineFormattingContextState<'box_tree, 'cb> {
     containing_block: &'cb ContainingBlock,
     absolutely_positioned_fragments: Vec<AbsolutelyPositionedFragment<'box_tree>>,
-    line_boxes: Vec<Fragment>,
+    line_boxes: LinesBoxes,
     inline_position: Length,
-    next_line_block_position: Length,
     partial_inline_boxes_stack: Vec<PartialInlineBoxFragment<'box_tree>>,
     current_nesting_level: InlineNestingLevelState<'box_tree>,
+}
+
+struct LinesBoxes {
+    boxes: Vec<Fragment>,
+    next_line_block_position: Length,
 }
 
 impl InlineFormattingContext {
@@ -46,9 +50,11 @@ impl InlineFormattingContext {
             containing_block,
             absolutely_positioned_fragments: Vec::new(),
             partial_inline_boxes_stack: Vec::new(),
-            line_boxes: Vec::new(),
+            line_boxes: LinesBoxes {
+                boxes: Vec::new(),
+                next_line_block_position: Length::zero(),
+            },
             inline_position: Length::zero(),
-            next_line_block_position: Length::zero(),
             current_nesting_level: InlineNestingLevelState {
                 remaining_boxes: self.inline_level_boxes.iter(),
                 fragments_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
@@ -70,15 +76,14 @@ impl InlineFormattingContext {
                                 inside: DisplayInside::Flow,
                             } => Vec2 {
                                 inline: ifc.inline_position,
-                                // FIXME(nox): Line-breaking will make that incorrect.
-                                block: Length::zero(),
+                                block: ifc.line_boxes.next_line_block_position,
                             },
                             Display::Other {
                                 outside: DisplayOutside::Block,
                                 inside: DisplayInside::Flow,
                             } => Vec2 {
                                 inline: Length::zero(),
-                                block: ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+                                block: ifc.line_boxes.next_line_block_position,
                             },
                             Display::None => panic!("abspos box cannot be display:none"),
                         };
@@ -92,17 +97,28 @@ impl InlineFormattingContext {
                 partial.finish_layout(&mut ifc.current_nesting_level, &mut ifc.inline_position);
                 ifc.current_nesting_level = partial.parent_nesting_level
             } else {
-                let mut line_box = BoxFragment::no_op();
-                line_box.content_rect.start_corner.block = ifc.next_line_block_position;
-                line_box.children = ifc.current_nesting_level.fragments_so_far;
-                ifc.line_boxes.push(Fragment::Box(line_box));
+                ifc.line_boxes.finish_line(&mut ifc.current_nesting_level);
                 return (
-                    ifc.line_boxes,
+                    ifc.line_boxes.boxes,
                     ifc.absolutely_positioned_fragments,
-                    ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+                    ifc.line_boxes.next_line_block_position,
                 );
             }
         }
+    }
+}
+
+impl LinesBoxes {
+    fn finish_line(&mut self, top_nesting_level: &mut InlineNestingLevelState) {
+        let mut line_box = BoxFragment::no_op();
+        line_box.content_rect.start_corner.block = self.next_line_block_position;
+        line_box.content_rect.size.block = std::mem::replace(
+            &mut top_nesting_level.max_block_size_of_fragments_so_far,
+            Length::zero(),
+        );
+        line_box.children = top_nesting_level.fragments_so_far.take();
+        self.next_line_block_position += line_box.content_rect.size.block;
+        self.boxes.push(Fragment::Box(line_box));
     }
 }
 
@@ -140,7 +156,7 @@ impl InlineBox {
             padding,
             border,
             margin,
-            last_fragment: self.last_fragment,
+            last_box_tree_fragment: self.last_fragment,
             parent_nesting_level: std::mem::replace(
                 &mut ifc.current_nesting_level,
                 InlineNestingLevelState {
@@ -173,7 +189,9 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             border: self.border.clone(),
             margin: self.margin.clone(),
         };
-        if self.last_fragment {
+        let last_fragment =
+            self.last_box_tree_fragment && nesting_level.remaining_boxes.as_slice().is_empty();
+        if last_fragment {
             *inline_position += fragment.padding.inline_end
                 + fragment.border.inline_end
                 + fragment.margin.inline_end;
@@ -198,34 +216,69 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
 
 impl TextRun {
     fn layout(&self, ifc: &mut InlineFormattingContextState) {
-        let parent_style = self.parent_style.clone();
-        let mut text = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
-        text.append(self.text.chars()).unwrap();
-        let inline_size = parent_style.font.font_size * text.advance_width;
-        // https://www.w3.org/TR/CSS2/visudet.html#propdef-line-height
-        // 'normal':
-        // “set the used value to a "reasonable" value based on the font of the element.”
-        let line_height = parent_style.font.font_size.0 * 1.2;
-        let content_rect = Rect {
-            start_corner: Vec2 {
-                block: Length::zero(),
-                inline: ifc.inline_position,
-            },
-            size: Vec2 {
-                block: line_height,
-                inline: inline_size,
-            },
-        };
-        ifc.inline_position += inline_size;
-        ifc.current_nesting_level
-            .max_block_size_of_fragments_so_far
-            .max_assign(line_height);
-        ifc.current_nesting_level
-            .fragments_so_far
-            .push(Fragment::Text(TextFragment {
-                parent_style,
-                content_rect,
-                text,
-            }));
+        let mut chars = self.text.chars();
+        loop {
+            let mut shaped = ShapedSegment::new_with_naive_shaping(BITSTREAM_VERA_SANS.clone());
+            let mut last_break_opportunity = None;
+            loop {
+                let next = chars.next();
+                if matches!(next, Some(' ') | None) {
+                    let inline_size = self.parent_style.font.font_size * shaped.advance_width;
+                    if inline_size > ifc.containing_block.inline_size {
+                        if let Some((state, iter)) = last_break_opportunity.take() {
+                            shaped.restore(&state);
+                            chars = iter;
+                        }
+                        break;
+                    }
+                }
+                if let Some(ch) = next {
+                    if ch == ' ' {
+                        last_break_opportunity = Some((shaped.save(), chars.clone()))
+                    }
+                    shaped.append_char(ch).unwrap()
+                } else {
+                    break;
+                }
+            }
+            let inline_size = self.parent_style.font.font_size * shaped.advance_width;
+            // https://www.w3.org/TR/CSS2/visudet.html#propdef-line-height
+            // 'normal':
+            // “set the used value to a "reasonable" value based on the font of the element.”
+            let line_height = self.parent_style.font.font_size.0 * 1.2;
+            let content_rect = Rect {
+                start_corner: Vec2 {
+                    block: Length::zero(),
+                    inline: ifc.inline_position,
+                },
+                size: Vec2 {
+                    block: line_height,
+                    inline: inline_size,
+                },
+            };
+            ifc.inline_position += inline_size;
+            ifc.current_nesting_level
+                .max_block_size_of_fragments_so_far
+                .max_assign(line_height);
+            ifc.current_nesting_level
+                .fragments_so_far
+                .push(Fragment::Text(TextFragment {
+                    parent_style: self.parent_style.clone(),
+                    content_rect,
+                    text: shaped,
+                }));
+            if chars.as_str().is_empty() {
+                break;
+            } else {
+                // New line
+                let mut nesting_level = &mut ifc.current_nesting_level;
+                for partial in ifc.partial_inline_boxes_stack.iter_mut().rev() {
+                    partial.finish_layout(nesting_level, &mut ifc.inline_position);
+                    nesting_level = &mut partial.parent_nesting_level;
+                }
+                ifc.line_boxes.finish_line(nesting_level);
+                ifc.inline_position = Length::zero();
+            }
+        }
     }
 }

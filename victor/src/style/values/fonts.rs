@@ -22,9 +22,19 @@ impl EarlyFromSpecified for FontSize {
     }
 }
 
-impl std::ops::Mul<crate::primitives::Length<crate::fonts::Em>> for FontSize {
+pub(crate) type Em = crate::primitives::Length<crate::fonts::Em>;
+
+impl std::ops::Mul<Em> for FontSize {
     type Output = Length;
-    fn mul(self, other: crate::primitives::Length<crate::fonts::Em>) -> Length {
+    fn mul(self, other: Em) -> Length {
         self.0 * other.0
+    }
+}
+
+impl std::ops::Div<FontSize> for Length {
+    type Output = Em;
+
+    fn div(self, other: FontSize) -> Em {
+        Em::new(self.px / other.0.px)
     }
 }
