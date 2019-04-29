@@ -61,6 +61,9 @@ impl Parse for SpecifiedLength {
                     Err(parser.new_custom_error(PropertyParseErrorKind::UnknownUnit(u)))
                 }
             ),
+            Token::Number { value, .. } if *value == 0. => {
+                Ok(SpecifiedLength::Absolute(Length { px: 0. }))
+            }
             token => {
                 let t = token.clone();
                 Err(parser.new_unexpected_token_error(t))
