@@ -3,10 +3,12 @@ use super::boxes::{InlineBox, InlineFormattingContext, InlineLevelBox, TextRun};
 use super::fragments::{BoxFragment, Fragment, TextFragment};
 use super::{relative_adjustement, ContainingBlock, Take};
 use crate::fonts::BITSTREAM_VERA_SANS;
-use crate::geom::flow_relative::{Rect, Vec2};
+use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
 use crate::style::values::{Display, DisplayInside, DisplayOutside};
+use crate::style::ComputedValues;
 use crate::text::ShapedSegment;
+use std::sync::Arc;
 
 struct InlineNestingLevelState<'box_tree> {
     remaining_boxes: std::slice::Iter<'box_tree, InlineLevelBox>,
@@ -15,7 +17,11 @@ struct InlineNestingLevelState<'box_tree> {
 }
 
 struct PartialInlineBoxFragment<'box_tree> {
-    fragment: BoxFragment,
+    style: Arc<ComputedValues>,
+    start_corner: Vec2<Length>,
+    padding: Sides<Length>,
+    border: Sides<Length>,
+    margin: Sides<Length>,
     last_fragment: bool,
     saved_state: InlineNestingLevelState<'box_tree>,
 }
@@ -23,7 +29,9 @@ struct PartialInlineBoxFragment<'box_tree> {
 struct InlineFormattingContextState<'box_tree, 'cb> {
     containing_block: &'cb ContainingBlock,
     absolutely_positioned_fragments: Vec<AbsolutelyPositionedFragment<'box_tree>>,
+    line_boxes: Vec<Fragment>,
     inline_position: Length,
+    next_line_block_position: Length,
     partial_inline_boxes_stack: Vec<PartialInlineBoxFragment<'box_tree>>,
     current_nesting_level: InlineNestingLevelState<'box_tree>,
 }
@@ -38,7 +46,9 @@ impl InlineFormattingContext {
             containing_block,
             absolutely_positioned_fragments: Vec::new(),
             partial_inline_boxes_stack: Vec::new(),
+            line_boxes: Vec::new(),
             inline_position: Length::zero(),
+            next_line_block_position: Length::zero(),
             current_nesting_level: InlineNestingLevelState {
                 remaining_boxes: self.inline_level_boxes.iter(),
                 fragments_so_far: Vec::with_capacity(self.inline_level_boxes.len()),
@@ -81,8 +91,12 @@ impl InlineFormattingContext {
             if let Some(partial) = ifc.partial_inline_boxes_stack.pop() {
                 partial.finish_layout(&mut ifc)
             } else {
+                let mut line_box = BoxFragment::no_op();
+                line_box.content_rect.start_corner.block = ifc.next_line_block_position;
+                line_box.children = ifc.current_nesting_level.fragments_so_far;
+                ifc.line_boxes.push(Fragment::Box(line_box));
                 return (
-                    ifc.current_nesting_level.fragments_so_far,
+                    ifc.line_boxes,
                     ifc.absolutely_positioned_fragments,
                     ifc.current_nesting_level.max_block_size_of_fragments_so_far,
                 );
@@ -110,23 +124,21 @@ impl InlineBox {
             border.inline_start = Length::zero();
             margin.inline_start = Length::zero();
         }
-        let content_rect = Rect {
-            start_corner: Vec2 {
-                block: padding.block_start + border.block_start + margin.block_start,
-                inline: ifc.inline_position,
-            },
-            size: Vec2::zero(),
+        let mut start_corner = Vec2 {
+            block: padding.block_start + border.block_start + margin.block_start,
+            inline: ifc.inline_position,
         };
-        let fragment = BoxFragment {
+        start_corner += &relative_adjustement(
+            &style,
+            ifc.containing_block.inline_size,
+            ifc.containing_block.block_size,
+        );
+        PartialInlineBoxFragment {
             style,
-            content_rect,
+            start_corner,
             padding,
             border,
             margin,
-            children: Vec::new(),
-        };
-        PartialInlineBoxFragment {
-            fragment,
             last_fragment: self.last_fragment,
             saved_state: std::mem::replace(
                 &mut ifc.current_nesting_level,
@@ -142,16 +154,20 @@ impl InlineBox {
 
 impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
     fn finish_layout(mut self, ifc: &mut InlineFormattingContextState<'box_tree, '_>) {
-        let mut fragment = self.fragment;
-        fragment.content_rect.size = Vec2 {
-            inline: ifc.inline_position - fragment.content_rect.start_corner.inline,
-            block: ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+        let mut fragment = BoxFragment {
+            style: self.style,
+            children: ifc.current_nesting_level.fragments_so_far.take(),
+            content_rect: Rect {
+                size: Vec2 {
+                    inline: ifc.inline_position - self.start_corner.inline,
+                    block: ifc.current_nesting_level.max_block_size_of_fragments_so_far,
+                },
+                start_corner: self.start_corner,
+            },
+            padding: self.padding,
+            border: self.border,
+            margin: self.margin,
         };
-        fragment.content_rect.start_corner += &relative_adjustement(
-            &fragment.style,
-            ifc.containing_block.inline_size,
-            ifc.containing_block.block_size,
-        );
         if self.last_fragment {
             ifc.inline_position += fragment.padding.inline_end
                 + fragment.border.inline_end
@@ -169,7 +185,6 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
                     + fragment.border.block_sum()
                     + fragment.margin.block_sum(),
             );
-        fragment.children = ifc.current_nesting_level.fragments_so_far.take();
         debug_assert!(ifc
             .current_nesting_level
             .remaining_boxes
