@@ -68,9 +68,6 @@ pub(super) struct InlineBox {
 }
 
 /// https://www.w3.org/TR/css-display-3/#css-text-run
-///
-/// Contiguous sequence of sibling text nodes generates multiple text runs,
-/// as opposed as in the specification.
 #[derive(Debug)]
 pub(super) struct TextRun {
     pub parent_style: Arc<ComputedValues>,
