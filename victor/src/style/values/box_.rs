@@ -75,6 +75,14 @@ impl super::Parse for Display {
     }
 }
 
+/// https://drafts.csswg.org/css2/visuren.html#propdef-float
+#[derive(Copy, Clone, Eq, Parse, PartialEq, SpecifiedAsComputed)]
+pub(crate) enum Float {
+    None,
+    Left,
+    Right,
+}
+
 /// https://drafts.csswg.org/css-position-3/#position-property
 #[derive(Copy, Clone, Eq, Parse, PartialEq, SpecifiedAsComputed)]
 pub(crate) enum Position {

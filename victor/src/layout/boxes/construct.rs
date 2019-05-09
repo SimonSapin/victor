@@ -16,11 +16,7 @@ impl dom::Document {
             author_styles: &author_styles,
         };
 
-        BlockFormattingContext(BlockContainerBuilder::build(
-            &context,
-            dom::Document::document_node_id(),
-            None,
-        ))
+        BlockFormattingContext::build(&context, dom::Document::document_node_id(), None)
     }
 }
 
@@ -107,6 +103,17 @@ struct BlockContainerBuilder<'a> {
     /// The style of the anonymous block boxes pushed to the list of block-level
     /// boxes, if any (see `end_ongoing_inline_formatting_context`).
     anonymous_style: Option<Arc<ComputedValues>>,
+}
+
+impl BlockFormattingContext {
+    fn build<'a>(
+        context: &'a Context<'a>,
+        node: dom::NodeId,
+        parent_style: Option<&'a Arc<ComputedValues>>,
+    ) -> Self {
+        let contents = BlockContainerBuilder::build(context, node, parent_style);
+        Self { contents }
+    }
 }
 
 impl<'a> BlockContainerBuilder<'a> {
@@ -388,11 +395,11 @@ impl<'a> BlockContainerBuilder<'a> {
             )
         } else {
             let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                contents: BlockFormattingContext(BlockContainerBuilder::build(
+                contents: BlockFormattingContext::build(
                     self.context,
                     descendant,
                     Some(&descendant_style),
-                )),
+                ),
                 style: descendant_style,
             });
             self.current_inline_level_boxes().push(box_)
@@ -507,11 +514,7 @@ impl IntermediateBlockLevelBox {
             }
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox { style, element } => {
                 BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                    contents: BlockFormattingContext(BlockContainerBuilder::build(
-                        context,
-                        element,
-                        Some(&style),
-                    )),
+                    contents: BlockFormattingContext::build(context, element, Some(&style)),
                     style: style,
                 })
             }

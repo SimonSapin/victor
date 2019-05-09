@@ -16,7 +16,9 @@ pub(super) enum FormattingContext {
 }
 
 #[derive(Debug)]
-pub(super) struct BlockFormattingContext(pub BlockContainer);
+pub(super) struct BlockFormattingContext {
+    pub contents: BlockContainer,
+}
 
 #[derive(Debug)]
 pub(super) enum BlockContainer {
