@@ -15,6 +15,7 @@ properties! {
 
     reset struct box_ {
         position { "position", Position, initial = Position::Static }
+        float { "float", Float, initial = Float::None }
         display { "display", Display, initial = Display::INITIAL }
         top { "top", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
         left { "left", LengthOrPercentageOrAuto, initial = LengthOrPercentageOrAuto::Auto }
