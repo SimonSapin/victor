@@ -262,7 +262,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         let (children, block_size) = self
             .absolutely_positioned_box
             .contents
-            .0
+            .contents
             .layout_into_absolute_containing_block(&containing_block_for_children, &padding);
 
         let inline_start = match inline_anchor {

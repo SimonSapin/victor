@@ -12,7 +12,7 @@ mod generic;
 mod length;
 mod writing_modes;
 
-pub(super) use self::{generic::*, background::*};
+pub(super) use self::{background::*, generic::*};
 pub(crate) use self::{border::*, box_::*, color::*, fonts::*, length::*, writing_modes::*};
 
 pub(super) trait Parse: Sized {

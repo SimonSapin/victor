@@ -46,7 +46,7 @@ fn layout_document(
         block_end: zero,
     };
 
-    let (fragments, _) = box_tree.0.layout_into_absolute_containing_block(
+    let (fragments, _) = box_tree.contents.layout_into_absolute_containing_block(
         &initial_containing_block,
         &initial_containing_block_padding,
     );
