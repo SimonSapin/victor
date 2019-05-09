@@ -5,10 +5,10 @@ mod construct;
 
 pub(super) type BoxTreeRoot = BlockFormattingContext;
 
+/// https://drafts.csswg.org/css-display/#independent-formatting-context
 #[allow(unused)]
 #[derive(Debug)]
-pub(super) enum FormattingContext {
-    // Not included: inline formatting context, which is always part of a block container
+pub(super) enum IndependentFormattingContext {
     Flow(BlockFormattingContext),
     // Replaced(ReplacedElement), // Not called FC in specs, but behaves close enough
     // Table(Table),
@@ -35,7 +35,7 @@ pub(super) enum BlockLevelBox {
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Other {
     //     style: Arc<ComputedValues>,
-    //     contents: FormattingContext,
+    //     contents: IndependentFormattingContext,
     // },
 }
 
@@ -57,7 +57,7 @@ pub(super) enum InlineLevelBox {
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     // Atomic {
     //     style: Arc<ComputedValues>,
-    //     contents: FormattingContext,
+    //     contents: IndependentFormattingContext,
     // },
 }
 
