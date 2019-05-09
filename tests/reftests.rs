@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
+    let args: Vec<_> = env::args().skip(1).collect();
     let base = reftests_dir();
     for_each_file_in(base.clone(), &mut |path| {
         if !args.is_empty() {
