@@ -1,4 +1,5 @@
 [workspace]
+default-members = ["victor"]
 members = [
     "lester",
     "victor",
