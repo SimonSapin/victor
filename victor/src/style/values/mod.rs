@@ -3,6 +3,7 @@ use crate::style::properties::ComputedValues;
 use crate::style::properties::{ComputedValuesForEarlyCascade, ComputedValuesForLateCascade};
 use cssparser::Parser;
 
+mod background;
 mod border;
 mod box_;
 mod color;
@@ -11,7 +12,7 @@ mod generic;
 mod length;
 mod writing_modes;
 
-pub(super) use self::generic::*;
+pub(super) use self::{generic::*, background::*};
 pub(crate) use self::{border::*, box_::*, color::*, fonts::*, length::*, writing_modes::*};
 
 pub(super) trait Parse: Sized {

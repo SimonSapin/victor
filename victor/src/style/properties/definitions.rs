@@ -95,5 +95,8 @@ properties! {
             color: border_top_color,
             width: border_top_width,
         }
+        "background" => Background {
+            color: background_color,
+        }
     }
 }
