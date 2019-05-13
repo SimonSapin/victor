@@ -1,9 +1,10 @@
 use super::*;
 use crate::dom;
 use crate::layout::Take;
-use crate::style::values::{Display, DisplayInside, DisplayOutside, Position};
+use crate::style::values::{Display, DisplayInside, DisplayOutside, Float, Position};
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon_croissant::ParallelIteratorExt;
 
 impl dom::Document {
     pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
@@ -34,6 +35,10 @@ enum IntermediateBlockLevelBox {
         contents: IntermediateBlockContainer,
     },
     OutOfFlowAbsolutelyPositionedBox {
+        style: Arc<ComputedValues>,
+        element: dom::NodeId,
+    },
+    OutOfFlowFloatBox {
         style: Arc<ComputedValues>,
         element: dom::NodeId,
     },
@@ -103,6 +108,8 @@ struct BlockContainerBuilder<'a> {
     /// The style of the anonymous block boxes pushed to the list of block-level
     /// boxes, if any (see `end_ongoing_inline_formatting_context`).
     anonymous_style: Option<Arc<ComputedValues>>,
+    /// Whether the resulting block container contains any float box.
+    contains_floats: ContainsFloats,
 }
 
 impl BlockFormattingContext {
@@ -111,8 +118,11 @@ impl BlockFormattingContext {
         node: dom::NodeId,
         parent_style: Option<&'a Arc<ComputedValues>>,
     ) -> Self {
-        let contents = BlockContainerBuilder::build(context, node, parent_style);
-        Self { contents }
+        let (contents, contains_floats) = BlockContainerBuilder::build(context, node, parent_style);
+        Self {
+            contents,
+            contains_floats,
+        }
     }
 }
 
@@ -121,7 +131,7 @@ impl<'a> BlockContainerBuilder<'a> {
         context: &'a Context<'a>,
         node: dom::NodeId,
         parent_style: Option<&'a Arc<ComputedValues>>,
-    ) -> BlockContainer {
+    ) -> (BlockContainer, ContainsFloats) {
         let mut builder = Self {
             context,
             first_child: context.document[node].first_child,
@@ -130,6 +140,7 @@ impl<'a> BlockContainerBuilder<'a> {
             ongoing_inline_formatting_context: Default::default(),
             ongoing_inline_level_box_stack: Default::default(),
             anonymous_style: Default::default(),
+            contains_floats: Default::default(),
         };
 
         let mut next_descendant = builder.first_child;
@@ -160,20 +171,31 @@ impl<'a> BlockContainerBuilder<'a> {
             .is_empty()
         {
             if builder.block_level_boxes.is_empty() {
-                return BlockContainer::InlineFormattingContext(
+                let container = BlockContainer::InlineFormattingContext(
                     builder.ongoing_inline_formatting_context,
                 );
+                return (container, builder.contains_floats);
             }
             builder.end_ongoing_inline_formatting_context();
         }
 
-        BlockContainer::BlockLevelBoxes(
+        let mut contains_floats = builder.contains_floats;
+        let container = BlockContainer::BlockLevelBoxes(
             builder
                 .block_level_boxes
                 .into_par_iter()
-                .map(|block_level_box| block_level_box.finish(context))
+                .mapfold_reduce_into(
+                    &mut contains_floats,
+                    |contains_floats, intermediate| {
+                        let (block_level_box, box_contains_floats) = intermediate.finish(context);
+                        *contains_floats |= box_contains_floats;
+                        block_level_box
+                    },
+                    |left, right| *left |= right,
+                )
                 .collect(),
-        )
+        );
+        (container, contains_floats)
     }
 
     fn handle_text(&mut self, descendant: dom::NodeId, input: &str) -> Option<dom::NodeId> {
@@ -245,6 +267,7 @@ impl<'a> BlockContainerBuilder<'a> {
                 Some((InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_), before)) => {
                     inline_level_boxes = before
                 }
+                Some((InlineLevelBox::OutOfFlowFloatBox(_), before)) => inline_level_boxes = before,
                 Some((InlineLevelBox::TextRun(r), _)) => break !r.text.ends_with(' '),
                 // Some(InlineLevelBox::Atomic(_)) => break false,
                 None => break false, // Paragraph start
@@ -262,13 +285,14 @@ impl<'a> BlockContainerBuilder<'a> {
             descendant,
             parent_style.map(|style| &**style),
         );
-        match (
-            descendant_style.box_.display,
-            descendant_style.box_.position,
-        ) {
-            (Display::None, _) => self.move_to_next_sibling(descendant),
-            (_, Position::Absolute) => {
+        let box_ = &descendant_style.box_;
+        match (box_.display, box_.position, box_.float) {
+            (Display::None, _, _) => self.move_to_next_sibling(descendant),
+            (_, Position::Absolute, _) => {
                 self.handle_absolutely_positioned_element(descendant, descendant_style)
+            }
+            (_, _, Float::Left) | (_, _, Float::Right) => {
+                self.handle_float_element(descendant, descendant_style)
             }
             (
                 Display::Other {
@@ -276,12 +300,14 @@ impl<'a> BlockContainerBuilder<'a> {
                     inside: DisplayInside::Flow,
                 },
                 _,
+                _,
             ) => self.handle_inline_level_element(descendant, descendant_style),
             (
                 Display::Other {
                     outside: DisplayOutside::Block,
                     inside: DisplayInside::Flow,
                 },
+                _,
                 _,
             ) => self.handle_block_level_element(descendant, descendant_style),
         }
@@ -381,12 +407,7 @@ impl<'a> BlockContainerBuilder<'a> {
         descendant: dom::NodeId,
         descendant_style: Arc<ComputedValues>,
     ) -> Option<dom::NodeId> {
-        if self
-            .ongoing_inline_formatting_context
-            .inline_level_boxes
-            .is_empty()
-            && self.ongoing_inline_level_box_stack.is_empty()
-        {
+        if !self.has_ongoing_inline_formatting_context() {
             self.block_level_boxes.push(
                 IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                     style: descendant_style,
@@ -404,6 +425,31 @@ impl<'a> BlockContainerBuilder<'a> {
             });
             self.current_inline_level_boxes().push(box_)
         }
+        self.move_to_next_sibling(descendant)
+    }
+
+    fn handle_float_element(
+        &mut self,
+        descendant: dom::NodeId,
+        descendant_style: Arc<ComputedValues>,
+    ) -> Option<dom::NodeId> {
+        if !self.has_ongoing_inline_formatting_context() {
+            self.block_level_boxes
+                .push(IntermediateBlockLevelBox::OutOfFlowFloatBox {
+                    style: descendant_style,
+                    element: descendant,
+                });
+        } else {
+            let (contents, _) =
+                BlockContainerBuilder::build(self.context, descendant, Some(&descendant_style));
+            let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
+                contents,
+                style: descendant_style,
+            });
+            self.contains_floats = ContainsFloats::Yes;
+            self.current_inline_level_boxes().push(box_);
+        }
+        self.contains_floats = ContainsFloats::Yes;
         self.move_to_next_sibling(descendant)
     }
 
@@ -501,35 +547,60 @@ impl<'a> BlockContainerBuilder<'a> {
             .map(|last| &last.style)
             .or(self.parent_style)
     }
+
+    fn has_ongoing_inline_formatting_context(&self) -> bool {
+        !self
+            .ongoing_inline_formatting_context
+            .inline_level_boxes
+            .is_empty()
+            || !self.ongoing_inline_level_box_stack.is_empty()
+    }
 }
 
 impl IntermediateBlockLevelBox {
-    fn finish(self, context: &Context) -> BlockLevelBox {
+    fn finish(self, context: &Context) -> (BlockLevelBox, ContainsFloats) {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                BlockLevelBox::SameFormattingContextBlock {
-                    contents: contents.finish(context, &style),
-                    style,
-                }
+                let (contents, contains_floats) = contents.finish(context, &style);
+                let block_level_box = BlockLevelBox::SameFormattingContextBlock { contents, style };
+                (block_level_box, contains_floats)
             }
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox { style, element } => {
-                BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                    contents: BlockFormattingContext::build(context, element, Some(&style)),
-                    style: style,
-                })
+                let block_level_box =
+                    BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
+                        contents: BlockFormattingContext::build(context, element, Some(&style)),
+                        style: style,
+                    });
+                (block_level_box, ContainsFloats::No)
+            }
+            IntermediateBlockLevelBox::OutOfFlowFloatBox { style, element } => {
+                let (contents, _) = BlockContainerBuilder::build(context, element, Some(&style));
+                let block_level_box =
+                    BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
+                (block_level_box, ContainsFloats::Yes)
             }
         }
     }
 }
 
 impl IntermediateBlockContainer {
-    fn finish(self, context: &Context, style: &Arc<ComputedValues>) -> BlockContainer {
+    fn finish(
+        self,
+        context: &Context,
+        style: &Arc<ComputedValues>,
+    ) -> (BlockContainer, ContainsFloats) {
         match self {
             IntermediateBlockContainer::Deferred { from_children_of } => {
                 BlockContainerBuilder::build(context, from_children_of, Some(style))
             }
             IntermediateBlockContainer::InlineFormattingContext(ifc) => {
-                BlockContainer::InlineFormattingContext(ifc)
+                // If that inline formatting context contained any float, those
+                // were already taken into account during the first phase of
+                // box construction.
+                (
+                    BlockContainer::InlineFormattingContext(ifc),
+                    ContainsFloats::No,
+                )
             }
         }
     }

@@ -1,4 +1,5 @@
 use crate::style::ComputedValues;
+use std::ops::BitOrAssign;
 use std::sync::Arc;
 
 mod construct;
@@ -18,6 +19,27 @@ pub(super) enum IndependentFormattingContext {
 #[derive(Debug)]
 pub(super) struct BlockFormattingContext {
     pub contents: BlockContainer,
+    pub contains_floats: ContainsFloats,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ContainsFloats {
+    No,
+    Yes,
+}
+
+impl BitOrAssign for ContainsFloats {
+    fn bitor_assign(&mut self, other: Self) {
+        if other == ContainsFloats::Yes {
+            *self = ContainsFloats::Yes;
+        }
+    }
+}
+
+impl Default for ContainsFloats {
+    fn default() -> Self {
+        ContainsFloats::No
+    }
 }
 
 #[derive(Debug)]
@@ -33,6 +55,7 @@ pub(super) enum BlockLevelBox {
         contents: BlockContainer,
     },
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowFloatBox(FloatBox),
     // Other {
     //     style: Arc<ComputedValues>,
     //     contents: IndependentFormattingContext,
@@ -45,6 +68,12 @@ pub(super) struct AbsolutelyPositionedBox {
     pub contents: BlockFormattingContext,
 }
 
+#[derive(Debug)]
+pub(super) struct FloatBox {
+    pub style: Arc<ComputedValues>,
+    pub contents: BlockContainer,
+}
+
 #[derive(Debug, Default)]
 pub(super) struct InlineFormattingContext {
     pub inline_level_boxes: Vec<InlineLevelBox>,
@@ -55,6 +84,7 @@ pub(super) enum InlineLevelBox {
     InlineBox(InlineBox),
     TextRun(TextRun),
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowFloatBox(FloatBox),
     // Atomic {
     //     style: Arc<ComputedValues>,
     //     contents: IndependentFormattingContext,

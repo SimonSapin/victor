@@ -92,6 +92,10 @@ impl InlineFormattingContext {
                         ifc.absolutely_positioned_fragments
                             .push(box_.layout(initial_start_corner, tree_rank));
                     }
+                    InlineLevelBox::OutOfFlowFloatBox(_box_) => {
+                        // TODO
+                        continue;
+                    }
                 }
             } else
             // Reached the end of ifc.remaining_boxes

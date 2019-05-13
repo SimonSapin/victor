@@ -160,6 +160,10 @@ impl BlockLevelBox {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
                 Fragment::Box(BoxFragment::no_op())
             }
+            BlockLevelBox::OutOfFlowFloatBox(_box_) => {
+                // TODO
+                Fragment::Box(BoxFragment::no_op())
+            }
         }
     }
 }
