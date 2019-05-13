@@ -1,5 +1,4 @@
 use crate::style::ComputedValues;
-use std::ops::BitOrAssign;
 use std::sync::Arc;
 
 mod construct;
@@ -19,27 +18,7 @@ pub(super) enum IndependentFormattingContext {
 #[derive(Debug)]
 pub(super) struct BlockFormattingContext {
     pub contents: BlockContainer,
-    pub contains_floats: ContainsFloats,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ContainsFloats {
-    No,
-    Yes,
-}
-
-impl BitOrAssign for ContainsFloats {
-    fn bitor_assign(&mut self, other: Self) {
-        if other == ContainsFloats::Yes {
-            *self = ContainsFloats::Yes;
-        }
-    }
-}
-
-impl Default for ContainsFloats {
-    fn default() -> Self {
-        ContainsFloats::No
-    }
+    pub contains_floats: bool,
 }
 
 #[derive(Debug)]

@@ -1,3 +1,4 @@
+use std::ops::BitOrAssign;
 use super::*;
 use crate::dom;
 use crate::layout::Take;
@@ -112,6 +113,26 @@ struct BlockContainerBuilder<'a> {
     contains_floats: ContainsFloats,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ContainsFloats {
+    No,
+    Yes,
+}
+
+impl BitOrAssign for ContainsFloats {
+    fn bitor_assign(&mut self, other: Self) {
+        if other == ContainsFloats::Yes {
+            *self = ContainsFloats::Yes;
+        }
+    }
+}
+
+impl Default for ContainsFloats {
+    fn default() -> Self {
+        ContainsFloats::No
+    }
+}
+
 impl BlockFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
@@ -121,7 +142,7 @@ impl BlockFormattingContext {
         let (contents, contains_floats) = BlockContainerBuilder::build(context, node, parent_style);
         Self {
             contents,
-            contains_floats,
+            contains_floats: contains_floats == ContainsFloats::Yes,
         }
     }
 }
