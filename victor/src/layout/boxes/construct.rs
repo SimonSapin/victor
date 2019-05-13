@@ -440,14 +440,13 @@ impl<'a> BlockContainerBuilder<'a> {
                     element: descendant,
                 });
         } else {
-            let (contents, _) =
-                BlockContainerBuilder::build(self.context, descendant, Some(&descendant_style));
-            let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
+            let contents =
+                BlockFormattingContext::build(self.context, descendant, Some(&descendant_style));
+            self.current_inline_level_boxes().push(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents,
                 style: descendant_style,
-            });
+            }));
             self.contains_floats = ContainsFloats::Yes;
-            self.current_inline_level_boxes().push(box_);
         }
         self.contains_floats = ContainsFloats::Yes;
         self.move_to_next_sibling(descendant)
@@ -574,7 +573,7 @@ impl IntermediateBlockLevelBox {
                 (block_level_box, ContainsFloats::No)
             }
             IntermediateBlockLevelBox::OutOfFlowFloatBox { style, element } => {
-                let (contents, _) = BlockContainerBuilder::build(context, element, Some(&style));
+                let contents = BlockFormattingContext::build(context, element, Some(&style));
                 let block_level_box =
                     BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
                 (block_level_box, ContainsFloats::Yes)

@@ -71,7 +71,7 @@ pub(super) struct AbsolutelyPositionedBox {
 #[derive(Debug)]
 pub(super) struct FloatBox {
     pub style: Arc<ComputedValues>,
-    pub contents: BlockContainer,
+    pub contents: BlockFormattingContext,
 }
 
 #[derive(Debug, Default)]
