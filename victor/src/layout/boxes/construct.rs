@@ -1,4 +1,3 @@
-use std::ops::BitOrAssign;
 use super::*;
 use crate::dom;
 use crate::layout::Take;
@@ -6,6 +5,7 @@ use crate::style::values::{Display, DisplayInside, DisplayOutside, Float, Positi
 use crate::style::{style_for_element, StyleSet, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon_croissant::ParallelIteratorExt;
+use std::ops::BitOrAssign;
 
 impl dom::Document {
     pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
@@ -463,10 +463,11 @@ impl<'a> BlockContainerBuilder<'a> {
         } else {
             let contents =
                 BlockFormattingContext::build(self.context, descendant, Some(&descendant_style));
-            self.current_inline_level_boxes().push(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
-                contents,
-                style: descendant_style,
-            }));
+            self.current_inline_level_boxes()
+                .push(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
+                    contents,
+                    style: descendant_style,
+                }));
             self.contains_floats = ContainsFloats::Yes;
         }
         self.contains_floats = ContainsFloats::Yes;
