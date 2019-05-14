@@ -47,7 +47,7 @@ impl Display {
     /// https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
     pub fn fixup(style: &mut ComputedValues) {
         style.specified_display = style.box_.display;
-        if style.box_.position.is_absolutely_positioned() {
+        if style.box_.position.is_absolutely_positioned() || style.box_.float.is_floating() {
             let box_ = Arc::make_mut(&mut style.box_);
             box_.display = box_.display.blockify()
         }
@@ -81,6 +81,15 @@ pub(crate) enum Float {
     None,
     Left,
     Right,
+}
+
+impl Float {
+    pub fn is_floating(self) -> bool {
+        match self {
+            Float::None => false,
+            Float::Left | Float::Right => true,
+        }
+    }
 }
 
 /// https://drafts.csswg.org/css-position-3/#position-property

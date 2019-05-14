@@ -6,7 +6,6 @@ mod construct;
 pub(super) type BoxTreeRoot = BlockFormattingContext;
 
 /// https://drafts.csswg.org/css-display/#independent-formatting-context
-#[allow(unused)]
 #[derive(Debug)]
 pub(super) enum IndependentFormattingContext {
     Flow(BlockFormattingContext),
@@ -44,13 +43,13 @@ pub(super) enum BlockLevelBox {
 #[derive(Debug)]
 pub(super) struct AbsolutelyPositionedBox {
     pub style: Arc<ComputedValues>,
-    pub contents: BlockFormattingContext,
+    pub contents: IndependentFormattingContext,
 }
 
 #[derive(Debug)]
 pub(super) struct FloatBox {
     pub style: Arc<ComputedValues>,
-    pub contents: BlockFormattingContext,
+    pub contents: IndependentFormattingContext,
 }
 
 #[derive(Debug, Default)]
