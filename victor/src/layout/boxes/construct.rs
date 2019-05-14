@@ -281,17 +281,25 @@ impl<'a> BlockContainerBuilder<'a> {
         if !text.starts_with(|c: char| c.is_ascii_whitespace()) {
             return (false, text);
         }
-        let mut inline_level_boxes = self.current_inline_level_boxes().as_slice();
+        let mut inline_level_boxes = self.current_inline_level_boxes().iter().rev();
+        let mut stack = Vec::new();
         let preserved = loop {
-            match inline_level_boxes.split_last() {
-                Some((InlineLevelBox::InlineBox(b), _)) => inline_level_boxes = &b.children,
-                Some((InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_), before)) => {
-                    inline_level_boxes = before
-                }
-                Some((InlineLevelBox::OutOfFlowFloatBox(_), before)) => inline_level_boxes = before,
-                Some((InlineLevelBox::TextRun(r), _)) => break !r.text.ends_with(' '),
+            match inline_level_boxes.next() {
+                Some(InlineLevelBox::TextRun(r)) => break !r.text.ends_with(' '),
                 // Some(InlineLevelBox::Atomic(_)) => break false,
-                None => break false, // Paragraph start
+                Some(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_))
+                | Some(InlineLevelBox::OutOfFlowFloatBox(_)) => {}
+                Some(InlineLevelBox::InlineBox(b)) => {
+                    stack.push(inline_level_boxes);
+                    inline_level_boxes = b.children.iter().rev()
+                }
+                None => {
+                    if let Some(iter) = stack.pop() {
+                        inline_level_boxes = iter
+                    } else {
+                        break false; // Paragraph start
+                    }
+                }
             }
         };
         let text = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
