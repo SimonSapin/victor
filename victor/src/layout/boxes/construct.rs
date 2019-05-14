@@ -135,6 +135,21 @@ impl Default for ContainsFloats {
     }
 }
 
+impl IndependentFormattingContext {
+    fn build<'a>(
+        context: &'a Context<'a>,
+        node: dom::NodeId,
+        style: &'a Arc<ComputedValues>,
+        display_inside: DisplayInside,
+    ) -> Self {
+        match display_inside {
+            DisplayInside::Flow => IndependentFormattingContext::Flow(
+                BlockFormattingContext::build(context, node, Some(style)),
+            ),
+        }
+    }
+}
+
 impl BlockFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
@@ -452,13 +467,12 @@ impl<'a> BlockContainerBuilder<'a> {
             )
         } else {
             let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                contents: match display_inside {
-                    DisplayInside::Flow => BlockFormattingContext::build(
-                        self.context,
-                        descendant,
-                        Some(&descendant_style),
-                    ),
-                },
+                contents: IndependentFormattingContext::build(
+                    self.context,
+                    descendant,
+                    &descendant_style,
+                    display_inside,
+                ),
                 style: descendant_style,
             });
             self.current_inline_level_boxes().push(box_)
@@ -480,11 +494,12 @@ impl<'a> BlockContainerBuilder<'a> {
                     display_inside,
                 });
         } else {
-            let contents = match display_inside {
-                DisplayInside::Flow => {
-                    BlockFormattingContext::build(self.context, descendant, Some(&descendant_style))
-                }
-            };
+            let contents = IndependentFormattingContext::build(
+                self.context,
+                descendant,
+                &descendant_style,
+                display_inside,
+            );
             self.current_inline_level_boxes()
                 .push(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
                     contents,
@@ -615,11 +630,12 @@ impl IntermediateBlockLevelBox {
             } => {
                 let block_level_box =
                     BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                        contents: match display_inside {
-                            DisplayInside::Flow => {
-                                BlockFormattingContext::build(context, element, Some(&style))
-                            }
-                        },
+                        contents: IndependentFormattingContext::build(
+                            context,
+                            element,
+                            &style,
+                            display_inside,
+                        ),
                         style: style,
                     });
                 (block_level_box, ContainsFloats::No)
@@ -629,11 +645,8 @@ impl IntermediateBlockLevelBox {
                 element,
                 display_inside,
             } => {
-                let contents = match display_inside {
-                    DisplayInside::Flow => {
-                        BlockFormattingContext::build(context, element, Some(&style))
-                    }
-                };
+                let contents =
+                    IndependentFormattingContext::build(context, element, &style, display_inside);
                 let block_level_box =
                     BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
                 (block_level_box, ContainsFloats::Yes)

@@ -1,4 +1,4 @@
-use super::boxes::{AbsolutelyPositionedBox, BlockContainer};
+use super::boxes::{AbsolutelyPositionedBox, BlockContainer, IndependentFormattingContext};
 use super::fragments::{BoxFragment, Fragment};
 use super::ContainingBlock;
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
@@ -259,11 +259,11 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             absolute_containing_block.mode, containing_block_for_children.mode,
             "Mixed writing modes are not supported yet"
         );
-        let (children, block_size) = self
-            .absolutely_positioned_box
-            .contents
-            .contents
-            .layout_into_absolute_containing_block(&containing_block_for_children, &padding);
+        let (children, block_size) = match &self.absolutely_positioned_box.contents {
+            IndependentFormattingContext::Flow(bfc) => bfc
+                .contents
+                .layout_into_absolute_containing_block(&containing_block_for_children, &padding),
+        };
 
         let inline_start = match inline_anchor {
             Anchor::Start(start) => start + pb.inline_start + margin.inline_start,
