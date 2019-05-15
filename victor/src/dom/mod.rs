@@ -1,5 +1,6 @@
 //! This is *a* Document Object Model, but is not necessarily compatible with *the* DOM.
 
+mod cursor;
 mod html;
 mod xml;
 
@@ -8,6 +9,7 @@ use html5ever::{LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
 
+pub(crate) use self::cursor::SubtreeCursor;
 pub use self::xml::XmlError;
 
 pub struct Document {

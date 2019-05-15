@@ -31,92 +31,6 @@ struct Context<'a> {
     author_styles: &'a StyleSet,
 }
 
-enum TreeDirection {
-    NextSibling,
-    FirstChild,
-}
-
-struct DomSubtreeCursor<'a> {
-    document: &'a dom::Document,
-    node_id: dom::NodeId,
-    next_direction: TreeDirection,
-    ancestor_stack: smallbitvec::SmallBitVec,
-}
-
-impl<'a> DomSubtreeCursor<'a> {
-    fn for_descendendants_of(node_id: dom::NodeId, document: &'a dom::Document) -> Self {
-        DomSubtreeCursor {
-            node_id,
-            next_direction: TreeDirection::FirstChild,
-            document,
-            ancestor_stack: smallbitvec::SmallBitVec::new(),
-        }
-    }
-
-    fn next(&mut self) -> Option<dom::NodeId> {
-        loop {
-            let node = &self.document[self.node_id];
-            let next = match self.next_direction {
-                TreeDirection::NextSibling => node.next_sibling,
-                TreeDirection::FirstChild => node.first_child,
-            };
-            if let Some(id) = next {
-                self.next_direction = TreeDirection::NextSibling;
-                self.node_id = id
-            } else {
-                let pretend_children_are_siblings = self.ancestor_stack.last()?;
-                if pretend_children_are_siblings {
-                    self.move_to_actual_parent();
-                    continue;
-                }
-            }
-
-            return next;
-        }
-    }
-
-    fn traverse_children_of_this_node(&mut self) {
-        self.next_direction = TreeDirection::FirstChild;
-        self.ancestor_stack.push(false);
-    }
-
-    fn pretend_children_are_siblings(&mut self) {
-        self.next_direction = TreeDirection::FirstChild;
-        self.ancestor_stack.push(true);
-    }
-
-    fn move_to_actual_parent(&mut self) {
-        self.ancestor_stack.pop();
-        match self.next_direction {
-            TreeDirection::NextSibling => {
-                let node = &self.document[self.node_id];
-                self.node_id = node.parent.expect("child node without a parent");
-                debug_assert!(
-                    node.next_sibling.is_none(),
-                    "missed some nodes in DOM tree traversal"
-                );
-            }
-            TreeDirection::FirstChild => {
-                self.next_direction = TreeDirection::NextSibling;
-                debug_assert!(
-                    self.document[self.node_id].first_child.is_none(),
-                    "missed some nodes in DOM tree traversal"
-                );
-            }
-        }
-    }
-
-    fn move_to_parent(&mut self) -> Result<(), ()> {
-        loop {
-            let pretend_children_are_siblings = self.ancestor_stack.last().ok_or(())?;
-            self.move_to_actual_parent();
-            if !pretend_children_are_siblings {
-                return Ok(());
-            }
-        }
-    }
-}
-
 enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
@@ -152,7 +66,7 @@ enum IntermediateBlockContainer {
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
-    cursor: DomSubtreeCursor<'a>,
+    cursor: dom::SubtreeCursor<'a>,
 
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
@@ -260,7 +174,7 @@ impl<'a> BlockContainerBuilder<'a> {
     ) -> (BlockContainer, ContainsFloats) {
         let mut builder = Self {
             context,
-            cursor: DomSubtreeCursor::for_descendendants_of(parent_node, context.document),
+            cursor: dom::SubtreeCursor::for_descendendants_of(parent_node, context.document),
             parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
