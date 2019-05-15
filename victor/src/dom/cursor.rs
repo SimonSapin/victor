@@ -1,5 +1,6 @@
 use super::{Document, NodeId};
 
+#[derive(PartialEq)]
 enum TreeDirection {
     NextSibling,
     FirstChild,
@@ -22,6 +23,9 @@ impl<'a> SubtreeCursor<'a> {
         }
     }
 
+    /// Move to the next node an return its ID.
+    ///
+    /// Return `None` if there are no more nodes at this (apparent) nesting level.
     pub fn next(&mut self) -> Option<NodeId> {
         loop {
             let node = &self.document[self.node_id];
@@ -44,12 +48,17 @@ impl<'a> SubtreeCursor<'a> {
         }
     }
 
+    /// Move one nesting level deeper, to the child nodes on the current node
     pub fn traverse_children_of_this_node(&mut self) {
+        assert!(self.next_direction == TreeDirection::NextSibling);
         self.next_direction = TreeDirection::FirstChild;
         self.ancestor_stack.push(false);
     }
 
+    /// Behave as if the children of this node were following siblings.
+    /// Do not change the apparent nesting level.
     pub fn pretend_children_are_siblings(&mut self) {
+        assert!(self.next_direction == TreeDirection::NextSibling);
         self.next_direction = TreeDirection::FirstChild;
         self.ancestor_stack.push(true);
     }
@@ -75,6 +84,10 @@ impl<'a> SubtreeCursor<'a> {
         }
     }
 
+    /// After traversing the current apparent nesting level, resume one level up
+    /// with the following siblings of the parent node (if any).
+    ///
+    /// Return `Err(())` if we were already at the initial (apparent) nesting level.
     pub fn move_to_parent(&mut self) -> Result<(), ()> {
         loop {
             let pretend_children_are_siblings = self.ancestor_stack.last().ok_or(())?;
