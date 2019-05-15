@@ -7,6 +7,7 @@ use std::sync::Arc;
 #[derive(Copy, Clone, Eq, PartialEq, SpecifiedAsComputed)]
 pub(crate) enum Display {
     None,
+    Contents,
     Other {
         outside: DisplayOutside,
         inside: DisplayInside,
@@ -48,8 +49,10 @@ impl Display {
     pub fn fixup(style: &mut ComputedValues) {
         style.specified_display = style.box_.display;
         if style.box_.position.is_absolutely_positioned() || style.box_.float.is_floating() {
-            let box_ = Arc::make_mut(&mut style.box_);
-            box_.display = box_.display.blockify()
+            let display = style.box_.display.blockify();
+            if display != style.box_.display {
+                Arc::make_mut(&mut style.box_).display = display
+            }
         }
     }
 }
@@ -59,6 +62,7 @@ impl super::Parse for Display {
         let ident = parser.expect_ident()?;
         match &**ident {
             "none" => Ok(Display::None),
+            "contents" => Ok(Display::Contents),
             "block" => Ok(Display::Other {
                 outside: DisplayOutside::Block,
                 inside: DisplayInside::Flow,

@@ -87,7 +87,10 @@ impl InlineFormattingContext {
                                 inline: Length::zero(),
                                 block: ifc.line_boxes.next_line_block_position,
                             },
-                            Display::None => panic!("abspos box cannot be display:none"),
+                            Display::Contents => {
+                                panic!("display:contents does not generate an abspos box")
+                            }
+                            Display::None => panic!("display:none does not generate an abspos box"),
                         };
                         ifc.absolutely_positioned_fragments
                             .push(box_.layout(initial_start_corner, tree_rank));

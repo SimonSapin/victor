@@ -24,7 +24,7 @@ parking_lot = "0.6"
 rayon = "1"
 rayon_croissant = "0.1.1"
 selectors = "0.21"
-smallbitvec = "2.3"
+smallbitvec = "2.4"
 smallvec = "0.6"
 victor-internal-proc-macros = {path = "../proc-macros"}
 xi-unicode = "0.1"

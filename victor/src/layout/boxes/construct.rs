@@ -40,7 +40,7 @@ struct DomSubtreeCursor<'a> {
     document: &'a dom::Document,
     node_id: dom::NodeId,
     next_direction: TreeDirection,
-    depth: usize,
+    ancestor_stack: smallbitvec::SmallBitVec,
 }
 
 impl<'a> DomSubtreeCursor<'a> {
@@ -49,49 +49,71 @@ impl<'a> DomSubtreeCursor<'a> {
             node_id,
             next_direction: TreeDirection::FirstChild,
             document,
-            depth: 0,
+            ancestor_stack: smallbitvec::SmallBitVec::new(),
         }
     }
 
     fn next(&mut self) -> Option<dom::NodeId> {
-        let node = &self.document[self.node_id];
-        let next = match self.next_direction {
-            TreeDirection::NextSibling => node.next_sibling,
-            TreeDirection::FirstChild => node.first_child,
-        };
-        if let Some(id) = next {
-            self.next_direction = TreeDirection::NextSibling;
-            self.node_id = id
+        loop {
+            let node = &self.document[self.node_id];
+            let next = match self.next_direction {
+                TreeDirection::NextSibling => node.next_sibling,
+                TreeDirection::FirstChild => node.first_child,
+            };
+            if let Some(id) = next {
+                self.next_direction = TreeDirection::NextSibling;
+                self.node_id = id
+            } else {
+                let pretend_children_are_siblings = self.ancestor_stack.last()?;
+                if pretend_children_are_siblings {
+                    self.move_to_actual_parent();
+                    continue;
+                }
+            }
+
+            return next;
         }
-        next
     }
 
     fn traverse_children_of_this_node(&mut self) {
         self.next_direction = TreeDirection::FirstChild;
-        self.depth += 1;
+        self.ancestor_stack.push(false);
+    }
+
+    fn pretend_children_are_siblings(&mut self) {
+        self.next_direction = TreeDirection::FirstChild;
+        self.ancestor_stack.push(true);
+    }
+
+    fn move_to_actual_parent(&mut self) {
+        self.ancestor_stack.pop();
+        match self.next_direction {
+            TreeDirection::NextSibling => {
+                let node = &self.document[self.node_id];
+                self.node_id = node.parent.expect("child node without a parent");
+                debug_assert!(
+                    node.next_sibling.is_none(),
+                    "missed some nodes in DOM tree traversal"
+                );
+            }
+            TreeDirection::FirstChild => {
+                self.next_direction = TreeDirection::NextSibling;
+                debug_assert!(
+                    self.document[self.node_id].first_child.is_none(),
+                    "missed some nodes in DOM tree traversal"
+                );
+            }
+        }
     }
 
     fn move_to_parent(&mut self) -> Result<(), ()> {
-        self.depth.checked_sub(1).ok_or(()).map(|new_depth| {
-            self.depth = new_depth;
-            match self.next_direction {
-                TreeDirection::NextSibling => {
-                    let node = &self.document[self.node_id];
-                    self.node_id = node.parent.expect("child node without a parent");
-                    debug_assert!(
-                        node.next_sibling.is_none(),
-                        "missed some nodes in DOM tree traversal"
-                    );
-                }
-                TreeDirection::FirstChild => {
-                    self.next_direction = TreeDirection::NextSibling;
-                    debug_assert!(
-                        self.document[self.node_id].first_child.is_none(),
-                        "missed some nodes in DOM tree traversal"
-                    );
-                }
+        loop {
+            let pretend_children_are_siblings = self.ancestor_stack.last().ok_or(())?;
+            self.move_to_actual_parent();
+            if !pretend_children_are_siblings {
+                return Ok(());
             }
-        })
+        }
     }
 }
 
@@ -393,24 +415,23 @@ impl<'a> BlockContainerBuilder<'a> {
         let box_ = &style.box_;
         match box_.display {
             Display::None => {}
-            Display::Other {
-                outside: DisplayOutside::Inline,
-                inside,
-            } => self.handle_inline_level_element(style, inside),
-            Display::Other {
-                outside: DisplayOutside::Block,
-                inside,
-            } => {
-                // Floats and abspos cause blockification, so they only happen in this case.
-                // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
-                if box_.position.is_absolutely_positioned() {
-                    self.handle_absolutely_positioned_element(element, style, inside)
-                } else if box_.float.is_floating() {
-                    self.handle_float_element(element, style, inside)
-                } else {
-                    self.handle_block_level_element(element, style, inside)
+            Display::Contents => self.cursor.pretend_children_are_siblings(),
+            Display::Other { outside, inside } => match outside {
+                DisplayOutside::Inline => {
+                    self.handle_inline_level_element(style, inside);
                 }
-            }
+                DisplayOutside::Block => {
+                    // Floats and abspos cause blockification, so they only happen in this case.
+                    // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
+                    if box_.position.is_absolutely_positioned() {
+                        self.handle_absolutely_positioned_element(element, style, inside)
+                    } else if box_.float.is_floating() {
+                        self.handle_float_element(element, style, inside)
+                    } else {
+                        self.handle_block_level_element(element, style, inside)
+                    }
+                }
+            },
         }
     }
 
