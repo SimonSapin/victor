@@ -25,9 +25,74 @@ impl dom::Document {
 /// The context.
 ///
 /// Used by the block container builder.
+#[derive(Copy, Clone)]
 struct Context<'a> {
     document: &'a dom::Document,
     author_styles: &'a StyleSet,
+}
+
+enum TreeDirection {
+    NextSibling,
+    FirstChild,
+}
+
+struct DomSubtreeCursor<'a> {
+    document: &'a dom::Document,
+    node_id: dom::NodeId,
+    next_direction: TreeDirection,
+    depth: usize,
+}
+
+impl<'a> DomSubtreeCursor<'a> {
+    fn for_descendendants_of(node_id: dom::NodeId, document: &'a dom::Document) -> Self {
+        DomSubtreeCursor {
+            node_id,
+            next_direction: TreeDirection::FirstChild,
+            document,
+            depth: 0,
+        }
+    }
+
+    fn next(&mut self) -> Option<dom::NodeId> {
+        let node = &self.document[self.node_id];
+        let next = match self.next_direction {
+            TreeDirection::NextSibling => node.next_sibling,
+            TreeDirection::FirstChild => node.first_child,
+        };
+        if let Some(id) = next {
+            self.next_direction = TreeDirection::NextSibling;
+            self.node_id = id
+        }
+        next
+    }
+
+    fn traverse_children_of_this_node(&mut self) {
+        self.next_direction = TreeDirection::FirstChild;
+        self.depth += 1;
+    }
+
+    fn move_to_parent(&mut self) -> Result<(), ()> {
+        self.depth.checked_sub(1).ok_or(()).map(|new_depth| {
+            self.depth = new_depth;
+            match self.next_direction {
+                TreeDirection::NextSibling => {
+                    let node = &self.document[self.node_id];
+                    self.node_id = node.parent.expect("child node without a parent");
+                    debug_assert!(
+                        node.next_sibling.is_none(),
+                        "missed some nodes in DOM tree traversal"
+                    );
+                }
+                TreeDirection::FirstChild => {
+                    self.next_direction = TreeDirection::NextSibling;
+                    debug_assert!(
+                        self.document[self.node_id].first_child.is_none(),
+                        "missed some nodes in DOM tree traversal"
+                    );
+                }
+            }
+        })
+    }
 }
 
 enum IntermediateBlockLevelBox {
@@ -65,6 +130,7 @@ enum IntermediateBlockContainer {
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
+    cursor: DomSubtreeCursor<'a>,
 
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
@@ -167,11 +233,12 @@ impl BlockFormattingContext {
 impl<'a> BlockContainerBuilder<'a> {
     fn build(
         context: &'a Context<'a>,
-        node: dom::NodeId,
+        parent_node: dom::NodeId,
         parent_style: Option<&'a Arc<ComputedValues>>,
     ) -> (BlockContainer, ContainsFloats) {
         let mut builder = Self {
             context,
+            cursor: DomSubtreeCursor::for_descendendants_of(parent_node, context.document),
             parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
@@ -180,27 +247,24 @@ impl<'a> BlockContainerBuilder<'a> {
             contains_floats: Default::default(),
         };
 
-        let mut next_descendant = context.document[node].first_child;
-        while let Some(descendant) = next_descendant.take() {
-            match &builder.context.document[descendant].data {
-                dom::NodeData::Document
-                | dom::NodeData::Doctype { .. }
-                | dom::NodeData::Comment { .. }
-                | dom::NodeData::ProcessingInstruction { .. } => {
-                    next_descendant = builder.move_to_next_sibling(descendant);
+        loop {
+            if let Some(node_id) = builder.cursor.next() {
+                match &context.document[node_id].data {
+                    dom::NodeData::Document
+                    | dom::NodeData::Doctype { .. }
+                    | dom::NodeData::Comment { .. }
+                    | dom::NodeData::ProcessingInstruction { .. } => {}
+                    dom::NodeData::Text { contents } => builder.handle_text(contents),
+                    dom::NodeData::Element(_) => builder.handle_element(node_id),
                 }
-                dom::NodeData::Text { contents } => {
-                    next_descendant = builder.handle_text(descendant, contents);
-                }
-                dom::NodeData::Element(_) => {
-                    next_descendant = builder.handle_element(descendant);
-                }
+            } else if let Ok(()) = builder.cursor.move_to_parent() {
+                builder.end_ongoing_inline_box()
+            } else {
+                break;
             }
         }
 
-        while !builder.ongoing_inline_boxes_stack.is_empty() {
-            builder.end_ongoing_inline_box();
-        }
+        debug_assert!(builder.ongoing_inline_boxes_stack.is_empty());
 
         if !builder
             .ongoing_inline_formatting_context
@@ -235,7 +299,7 @@ impl<'a> BlockContainerBuilder<'a> {
         (container, contains_floats)
     }
 
-    fn handle_text(&mut self, descendant: dom::NodeId, input: &str) -> Option<dom::NodeId> {
+    fn handle_text(&mut self, input: &str) {
         let (leading_whitespace, mut input) = self.handle_leading_whitespace(input);
         if leading_whitespace || !input.is_empty() {
             // This text node should be pushed either to the next ongoing
@@ -281,10 +345,6 @@ impl<'a> BlockContainerBuilder<'a> {
                 inlines.push(InlineLevelBox::TextRun(TextRun { parent_style, text }))
             }
         }
-
-        // Let .build continue the traversal from the next sibling of
-        // the text node.
-        self.move_to_next_sibling(descendant)
     }
 
     /// Returns:
@@ -322,21 +382,21 @@ impl<'a> BlockContainerBuilder<'a> {
         (preserved, text)
     }
 
-    fn handle_element(&mut self, descendant: dom::NodeId) -> Option<dom::NodeId> {
+    fn handle_element(&mut self, element: dom::NodeId) {
         let parent_style = self.current_parent_style();
-        let descendant_style = style_for_element(
+        let style = style_for_element(
             self.context.author_styles,
             self.context.document,
-            descendant,
+            element,
             parent_style.map(|style| &**style),
         );
-        let box_ = &descendant_style.box_;
+        let box_ = &style.box_;
         match box_.display {
-            Display::None => self.move_to_next_sibling(descendant),
+            Display::None => {}
             Display::Other {
                 outside: DisplayOutside::Inline,
                 inside,
-            } => self.handle_inline_level_element(descendant, descendant_style, inside),
+            } => self.handle_inline_level_element(style, inside),
             Display::Other {
                 outside: DisplayOutside::Block,
                 inside,
@@ -344,11 +404,11 @@ impl<'a> BlockContainerBuilder<'a> {
                 // Floats and abspos cause blockification, so they only happen in this case.
                 // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
                 if box_.position.is_absolutely_positioned() {
-                    self.handle_absolutely_positioned_element(descendant, descendant_style, inside)
+                    self.handle_absolutely_positioned_element(element, style, inside)
                 } else if box_.float.is_floating() {
-                    self.handle_float_element(descendant, descendant_style, inside)
+                    self.handle_float_element(element, style, inside)
                 } else {
-                    self.handle_block_level_element(descendant, descendant_style, inside)
+                    self.handle_block_level_element(element, style, inside)
                 }
             }
         }
@@ -356,44 +416,31 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn handle_inline_level_element(
         &mut self,
-        descendant: dom::NodeId,
-        descendant_style: Arc<ComputedValues>,
+        style: Arc<ComputedValues>,
         display_inside: DisplayInside,
-    ) -> Option<dom::NodeId> {
+    ) {
         match display_inside {
             DisplayInside::Flow => {
                 // Whatever happened before, we just found an inline level element, so
                 // all we need to do is to remember this ongoing inline level box.
                 self.ongoing_inline_boxes_stack.push(InlineBox {
-                    style: descendant_style,
+                    style,
                     first_fragment: true,
                     last_fragment: false,
                     children: vec![],
                 });
 
-                if let Some(first_child) = self.context.document[descendant].first_child {
-                    // This inline level element has children, let .build continue
-                    // the traversal from there.
-                    return Some(first_child);
-                }
-
-                // This inline level element didn't have any children, so we end
-                // the ongoing inline level box we just pushed.
-                self.end_ongoing_inline_box();
+                self.cursor.traverse_children_of_this_node()
             }
         }
-
-        // Let .build continue the traversal from the next sibling of
-        // the element.
-        self.move_to_next_sibling(descendant)
     }
 
     fn handle_block_level_element(
         &mut self,
-        descendant: dom::NodeId,
-        descendant_style: Arc<ComputedValues>,
+        element: dom::NodeId,
+        style: Arc<ComputedValues>,
         display_inside: DisplayInside,
-    ) -> Option<dom::NodeId> {
+    ) {
         // We just found a block level element, all ongoing inline level boxes
         // need to be split around it. We iterate on the fragmented inline
         // level box stack to take their contents and set their first_fragment
@@ -439,101 +486,68 @@ impl<'a> BlockContainerBuilder<'a> {
 
         self.block_level_boxes.push(match display_inside {
             DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
-                style: descendant_style,
+                style,
                 contents: IntermediateBlockContainer::Deferred {
-                    from_children_of: descendant,
+                    from_children_of: element,
                 },
             },
-        });
-
-        self.move_to_next_sibling(descendant)
+        })
     }
 
     fn handle_absolutely_positioned_element(
         &mut self,
-        descendant: dom::NodeId,
-        descendant_style: Arc<ComputedValues>,
+        element: dom::NodeId,
+        style: Arc<ComputedValues>,
         display_inside: DisplayInside,
-    ) -> Option<dom::NodeId> {
+    ) {
         if !self.has_ongoing_inline_formatting_context() {
-            self.block_level_boxes.push(
-                IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
-                    style: descendant_style,
-                    element: descendant,
-                    display_inside,
-                },
-            )
+            let box_ = IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
+                style,
+                element,
+                display_inside,
+            };
+            self.block_level_boxes.push(box_)
         } else {
             let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
                 contents: IndependentFormattingContext::build(
                     self.context,
-                    descendant,
-                    &descendant_style,
+                    element,
+                    &style,
                     display_inside,
                 ),
-                style: descendant_style,
+                style,
             });
             self.current_inline_level_boxes().push(box_)
         }
-        self.move_to_next_sibling(descendant)
     }
 
     fn handle_float_element(
         &mut self,
-        descendant: dom::NodeId,
-        descendant_style: Arc<ComputedValues>,
+        element: dom::NodeId,
+        style: Arc<ComputedValues>,
         display_inside: DisplayInside,
-    ) -> Option<dom::NodeId> {
-        if !self.has_ongoing_inline_formatting_context() {
-            self.block_level_boxes
-                .push(IntermediateBlockLevelBox::OutOfFlowFloatBox {
-                    style: descendant_style,
-                    element: descendant,
-                    display_inside,
-                });
-        } else {
-            let contents = IndependentFormattingContext::build(
-                self.context,
-                descendant,
-                &descendant_style,
-                display_inside,
-            );
-            self.current_inline_level_boxes()
-                .push(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
-                    contents,
-                    style: descendant_style,
-                }));
-            self.contains_floats = ContainsFloats::Yes;
-        }
+    ) {
         self.contains_floats = ContainsFloats::Yes;
-        self.move_to_next_sibling(descendant)
-    }
 
-    fn move_to_next_sibling(&mut self, descendant: dom::NodeId) -> Option<dom::NodeId> {
-        let mut descendant_node = &self.context.document[descendant];
-        if let Some(next_sibling) = descendant_node.next_sibling {
-            // This descendant has a next sibling, just let .build continue
-            // the traversal from there.
-            return Some(next_sibling);
+        if !self.has_ongoing_inline_formatting_context() {
+            let box_ = IntermediateBlockLevelBox::OutOfFlowFloatBox {
+                style,
+                element,
+                display_inside,
+            };
+            self.block_level_boxes.push(box_);
+        } else {
+            let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
+                contents: IndependentFormattingContext::build(
+                    self.context,
+                    element,
+                    &style,
+                    display_inside,
+                ),
+                style,
+            });
+            self.current_inline_level_boxes().push(box_);
         }
-
-        // This descendant has no next sibling, so it was the last child of its
-        // parent, we go up the stack of ongoing inline level boxes, ending them
-        // until we find one with a next sibling to let .build continue.
-        while !self.ongoing_inline_boxes_stack.is_empty() {
-            self.end_ongoing_inline_box();
-
-            descendant_node = &self.context.document[descendant_node
-                .parent
-                .expect("found a descendant without a parent")];
-            if let Some(next_sibling) = descendant_node.next_sibling {
-                return Some(next_sibling);
-            }
-        }
-
-        // There are no ongoing inline level boxes anymore, this descendant is
-        // the last child of the root of this builder, the traversal will stop.
-        None
     }
 
     fn end_ongoing_inline_formatting_context(&mut self) {
