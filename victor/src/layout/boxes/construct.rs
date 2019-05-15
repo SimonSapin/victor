@@ -65,11 +65,6 @@ enum IntermediateBlockContainer {
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
-    /// The first child of the DOM node whose block container we are building.
-    ///
-    /// In the rest of the comments, the DOM node whose block container we
-    /// are building is called the container root.
-    first_child: Option<dom::NodeId>,
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
     /// The list of block-level boxes of the final block container.
@@ -172,7 +167,6 @@ impl<'a> BlockContainerBuilder<'a> {
     ) -> (BlockContainer, ContainsFloats) {
         let mut builder = Self {
             context,
-            first_child: context.document[node].first_child,
             parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
@@ -181,7 +175,7 @@ impl<'a> BlockContainerBuilder<'a> {
             contains_floats: Default::default(),
         };
 
-        let mut next_descendant = builder.first_child;
+        let mut next_descendant = context.document[node].first_child;
         while let Some(descendant) = next_descendant.take() {
             match &builder.context.document[descendant].data {
                 dom::NodeData::Document
