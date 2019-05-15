@@ -65,6 +65,7 @@ enum IntermediateBlockContainer {
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
+
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
     /// The list of block-level boxes of the final block container.
@@ -81,6 +82,7 @@ struct BlockContainerBuilder<'a> {
     /// root or there are ongoing inline-level boxes
     /// (see `handle_block_level_element`).
     block_level_boxes: Vec<IntermediateBlockLevelBox>,
+
     /// The ongoing inline formatting context of the builder.
     ///
     /// Contains all the complete inline level boxes we found traversing the
@@ -89,23 +91,26 @@ struct BlockContainerBuilder<'a> {
     /// the list of block-level boxes of the builder
     /// (see `end_ongoing_inline_formatting_context`).
     ongoing_inline_formatting_context: InlineFormattingContext,
-    /// The ongoing inline-level box stack of the builder.
+
+    /// The ongoing stack of inline boxes stack of the builder.
     ///
-    /// Contains all the currently ongoing inline-level boxes we entered so far.
+    /// Contains all the currently ongoing inline boxes we entered so far.
     /// The traversal is at all times as deep in the tree as this stack is,
     /// which is why the code doesn't need to keep track of the actual
     /// container root (see `handle_inline_level_element`).
     ///
-    /// Whenever the end of a DOM element that represents an inline-level box is
+    /// Whenever the end of a DOM element that represents an inline box is
     /// reached, the inline box at the top of this stack is complete and ready
-    /// to be pushed to the children of the next last ongoing inline
-    /// level box or the ongoing inline formatting context if the stack is
-    /// now empty, which means we reached the end of a child of the actual
+    /// to be pushed to the children of the next last ongoing inline box
+    /// the ongoing inline formatting context if the stack is now empty,
+    /// which means we reached the end of a child of the actual
     /// container root (see `move_to_next_sibling`).
-    ongoing_inline_level_box_stack: Vec<InlineBox>,
+    ongoing_inline_boxes_stack: Vec<InlineBox>,
+
     /// The style of the anonymous block boxes pushed to the list of block-level
     /// boxes, if any (see `end_ongoing_inline_formatting_context`).
     anonymous_style: Option<Arc<ComputedValues>>,
+
     /// Whether the resulting block container contains any float box.
     contains_floats: ContainsFloats,
 }
@@ -170,7 +175,7 @@ impl<'a> BlockContainerBuilder<'a> {
             parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
-            ongoing_inline_level_box_stack: Default::default(),
+            ongoing_inline_boxes_stack: Default::default(),
             anonymous_style: Default::default(),
             contains_floats: Default::default(),
         };
@@ -193,8 +198,8 @@ impl<'a> BlockContainerBuilder<'a> {
             }
         }
 
-        while !builder.ongoing_inline_level_box_stack.is_empty() {
-            builder.end_ongoing_inline_level_box();
+        while !builder.ongoing_inline_boxes_stack.is_empty() {
+            builder.end_ongoing_inline_box();
         }
 
         if !builder
@@ -359,7 +364,7 @@ impl<'a> BlockContainerBuilder<'a> {
             DisplayInside::Flow => {
                 // Whatever happened before, we just found an inline level element, so
                 // all we need to do is to remember this ongoing inline level box.
-                self.ongoing_inline_level_box_stack.push(InlineBox {
+                self.ongoing_inline_boxes_stack.push(InlineBox {
                     style: descendant_style,
                     first_fragment: true,
                     last_fragment: false,
@@ -374,7 +379,7 @@ impl<'a> BlockContainerBuilder<'a> {
 
                 // This inline level element didn't have any children, so we end
                 // the ongoing inline level box we just pushed.
-                self.end_ongoing_inline_level_box();
+                self.end_ongoing_inline_box();
             }
         }
 
@@ -394,39 +399,38 @@ impl<'a> BlockContainerBuilder<'a> {
         // level box stack to take their contents and set their first_fragment
         // field to false, for the fragmented inline level boxes that will
         // come after the block level element.
-        let mut fragmented_inline_level_boxes = self
-            .ongoing_inline_level_box_stack
-            .iter_mut()
-            .rev()
-            .map(|ongoing| {
-                let fragmented = InlineBox {
-                    style: ongoing.style.clone(),
-                    first_fragment: ongoing.first_fragment,
-                    // The fragmented boxes before the block level element
-                    // are obviously not the last fragment.
-                    last_fragment: false,
-                    children: ongoing.children.take(),
-                };
-                ongoing.first_fragment = false;
-                fragmented
-            });
+        let mut fragmented_inline_boxes =
+            self.ongoing_inline_boxes_stack
+                .iter_mut()
+                .rev()
+                .map(|ongoing| {
+                    let fragmented = InlineBox {
+                        style: ongoing.style.clone(),
+                        first_fragment: ongoing.first_fragment,
+                        // The fragmented boxes before the block level element
+                        // are obviously not the last fragment.
+                        last_fragment: false,
+                        children: ongoing.children.take(),
+                    };
+                    ongoing.first_fragment = false;
+                    fragmented
+                });
 
-        if let Some(last) = fragmented_inline_level_boxes.next() {
+        if let Some(last) = fragmented_inline_boxes.next() {
             // There were indeed some ongoing inline level boxes before
             // the block, we accumulate them as a single inline level box
             // to be pushed to the ongoing inline formatting context.
-            let mut fragmented_inline_level = InlineLevelBox::InlineBox(last);
-            for mut fragmented_parent_inline_level_box in fragmented_inline_level_boxes {
-                fragmented_parent_inline_level_box
+            let mut fragmented_inline = InlineLevelBox::InlineBox(last);
+            for mut fragmented_parent_inline_box in fragmented_inline_boxes {
+                fragmented_parent_inline_box
                     .children
-                    .push(fragmented_inline_level);
-                fragmented_inline_level =
-                    InlineLevelBox::InlineBox(fragmented_parent_inline_level_box);
+                    .push(fragmented_inline);
+                fragmented_inline = InlineLevelBox::InlineBox(fragmented_parent_inline_box);
             }
 
             self.ongoing_inline_formatting_context
                 .inline_level_boxes
-                .push(fragmented_inline_level);
+                .push(fragmented_inline);
         }
 
         // We found a block level element, so the ongoing inline formatting
@@ -516,8 +520,8 @@ impl<'a> BlockContainerBuilder<'a> {
         // This descendant has no next sibling, so it was the last child of its
         // parent, we go up the stack of ongoing inline level boxes, ending them
         // until we find one with a next sibling to let .build continue.
-        while !self.ongoing_inline_level_box_stack.is_empty() {
-            self.end_ongoing_inline_level_box();
+        while !self.ongoing_inline_boxes_stack.is_empty() {
+            self.end_ongoing_inline_box();
 
             descendant_node = &self.context.document[descendant_node
                 .parent
@@ -534,7 +538,7 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn end_ongoing_inline_formatting_context(&mut self) {
         assert!(
-            self.ongoing_inline_level_box_stack.is_empty(),
+            self.ongoing_inline_boxes_stack.is_empty(),
             "there should be no ongoing inline level boxes",
         );
 
@@ -564,20 +568,20 @@ impl<'a> BlockContainerBuilder<'a> {
             });
     }
 
-    fn end_ongoing_inline_level_box(&mut self) {
-        let mut last_ongoing_inline_level_box = self
-            .ongoing_inline_level_box_stack
+    fn end_ongoing_inline_box(&mut self) {
+        let mut last_ongoing_inline_box = self
+            .ongoing_inline_boxes_stack
             .pop()
             .expect("no ongoing inline level box found");
-        last_ongoing_inline_level_box.last_fragment = true;
+        last_ongoing_inline_box.last_fragment = true;
         self.current_inline_level_boxes()
-            .push(InlineLevelBox::InlineBox(last_ongoing_inline_level_box));
+            .push(InlineLevelBox::InlineBox(last_ongoing_inline_box));
     }
 
     fn current_inline_level_boxes_and_parent_style(
         &mut self,
     ) -> (&mut Vec<InlineLevelBox>, Option<&Arc<ComputedValues>>) {
-        match self.ongoing_inline_level_box_stack.last_mut() {
+        match self.ongoing_inline_boxes_stack.last_mut() {
             Some(last) => (&mut last.children, Some(&last.style)),
             None => (
                 &mut self.ongoing_inline_formatting_context.inline_level_boxes,
@@ -587,14 +591,14 @@ impl<'a> BlockContainerBuilder<'a> {
     }
 
     fn current_inline_level_boxes(&mut self) -> &mut Vec<InlineLevelBox> {
-        match self.ongoing_inline_level_box_stack.last_mut() {
+        match self.ongoing_inline_boxes_stack.last_mut() {
             Some(last) => &mut last.children,
             None => &mut self.ongoing_inline_formatting_context.inline_level_boxes,
         }
     }
 
     fn current_parent_style(&self) -> Option<&Arc<ComputedValues>> {
-        self.ongoing_inline_level_box_stack
+        self.ongoing_inline_boxes_stack
             .last()
             .map(|last| &last.style)
             .or(self.parent_style)
@@ -605,7 +609,7 @@ impl<'a> BlockContainerBuilder<'a> {
             .ongoing_inline_formatting_context
             .inline_level_boxes
             .is_empty()
-            || !self.ongoing_inline_level_box_stack.is_empty()
+            || !self.ongoing_inline_boxes_stack.is_empty()
     }
 }
 
