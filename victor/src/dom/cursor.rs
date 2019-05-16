@@ -2,6 +2,7 @@ use super::{Document, NodeId};
 
 pub(crate) struct PseudoElements<P> {
     pub before: Option<P>,
+    pub after: Option<P>,
 }
 
 enum TreeDirection<P> {
@@ -15,22 +16,24 @@ pub(crate) enum TreeItem<P> {
     PseudoElement(P),
 }
 
-struct Cursor<'a, P> {
+struct SubtreeCursor<'a, P> {
     document: &'a Document,
     node_id: NodeId,
     next_direction: TreeDirection<P>,
+    after_pseudo_elements_for_ancestors: smallvec::SmallVec<[Option<P>; 8]>,
 }
 
-impl<'a, P> Cursor<'a, P> {
-    fn starting_at_first_child_of(
+impl<'a, P> SubtreeCursor<'a, P> {
+    fn for_descendendants_of(
         node_id: NodeId,
         pseudos: PseudoElements<P>,
         document: &'a Document,
     ) -> Self {
-        let PseudoElements { before } = pseudos;
+        let PseudoElements { before, after } = pseudos;
         Self {
             node_id,
             document,
+            after_pseudo_elements_for_ancestors: std::iter::once(after).collect(),
             next_direction: match before {
                 Some(p) => TreeDirection::PseudoBeforeThenFirstChild(p),
                 None => TreeDirection::FirstChild,
@@ -53,15 +56,22 @@ impl<'a, P> Cursor<'a, P> {
             }
         };
         if let Some(TreeItem::Node(id)) = next_item {
-            self.node_id = id;
+            self.node_id = id
         }
-        next_item
+        next_item.or_else(|| {
+            self.after_pseudo_elements_for_ancestors
+                .last_mut()
+                .expect("called next after move_to_parent returned Err")
+                .take()
+                .map(TreeItem::PseudoElement)
+        })
     }
 
     /// Move one nesting level deeper, to the child nodes on the current node
     fn traverse_children_of_this_node(&mut self, pseudos: PseudoElements<P>) {
         assert!(matches!(self.next_direction, TreeDirection::NextSibling));
-        let PseudoElements { before } = pseudos;
+        let PseudoElements { before, after } = pseudos;
+        self.after_pseudo_elements_for_ancestors.push(after);
         self.next_direction = match before {
             Some(p) => TreeDirection::PseudoBeforeThenFirstChild(p),
             None => TreeDirection::FirstChild,
@@ -71,8 +81,17 @@ impl<'a, P> Cursor<'a, P> {
     /// Move back “up” one nesting level.
     ///
     /// To be called after `self.next()` returns `None`.
-    /// There is no check preventing move higher than the initial node.
-    fn move_to_parent(&mut self) {
+    ///
+    /// Return `Err(())` if we were already at the initial nesting level.
+    fn move_to_parent(&mut self) -> Result<(), ()> {
+        if self.after_pseudo_elements_for_ancestors.len() <= 1 {
+            return Err(());
+        }
+        debug_assert!(self
+            .after_pseudo_elements_for_ancestors
+            .pop()
+            .unwrap()
+            .is_none());
         match self.next_direction {
             TreeDirection::NextSibling => {
                 let node = &self.document[self.node_id];
@@ -94,11 +113,12 @@ impl<'a, P> Cursor<'a, P> {
                 debug_assert!(false, "missed some nodes in DOM tree traversal")
             }
         }
+        Ok(())
     }
 }
 
 pub(crate) struct SubtreeCursorWithDisplayContents<'a, P> {
-    cursor: Cursor<'a, P>,
+    cursor: SubtreeCursor<'a, P>,
     ancestor_stack: smallbitvec::SmallBitVec,
 }
 
@@ -109,7 +129,7 @@ impl<'a, P> SubtreeCursorWithDisplayContents<'a, P> {
         document: &'a Document,
     ) -> Self {
         Self {
-            cursor: Cursor::starting_at_first_child_of(node_id, pseudos, document),
+            cursor: SubtreeCursor::for_descendendants_of(node_id, pseudos, document),
             ancestor_stack: smallbitvec::SmallBitVec::new(),
         }
     }
@@ -131,7 +151,7 @@ impl<'a, P> SubtreeCursorWithDisplayContents<'a, P> {
                 if pretend_children_are_siblings {
                     // This parent had `display: contents`: move the actual nesting level up
                     // without changing the apparent nesting level.
-                    self.cursor.move_to_parent();
+                    self.cursor.move_to_parent().unwrap();
                     continue;
                 }
             }
@@ -160,13 +180,11 @@ impl<'a, P> SubtreeCursorWithDisplayContents<'a, P> {
     /// Return `Err(())` if we were already at the initial nesting level.
     pub fn move_to_parent(&mut self) -> Result<(), ()> {
         loop {
-            // Empty stack means we’re done with the subtree
-            // of the node passed to `for_descendendants_of`.
-            let pretend_children_are_siblings = self.ancestor_stack.last().ok_or(())?;
-
-            self.cursor.move_to_parent();
-            self.ancestor_stack.pop();
-
+            self.cursor.move_to_parent().map_err(|()| {
+                // We’re done with the subtree of the node passed to `for_descendendants_of`.
+                debug_assert!(self.ancestor_stack.is_empty());
+            })?;
+            let pretend_children_are_siblings = self.ancestor_stack.pop().unwrap();
             if !pretend_children_are_siblings {
                 // Found a nesting level that was not `display: contents`.
                 return Ok(());

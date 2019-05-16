@@ -178,7 +178,10 @@ impl<'a> BlockContainerBuilder<'a> {
             context,
             cursor: dom::SubtreeCursorWithDisplayContents::for_descendendants_of(
                 parent_node,
-                dom::PseudoElements { before: None },
+                dom::PseudoElements {
+                    before: None,
+                    after: None,
+                },
                 context.document,
             ),
             parent_style,
@@ -340,7 +343,10 @@ impl<'a> BlockContainerBuilder<'a> {
             Display::None => {}
             Display::Contents => self
                 .cursor
-                .pretend_children_are_siblings(dom::PseudoElements { before: None }),
+                .pretend_children_are_siblings(dom::PseudoElements {
+                    before: None,
+                    after: None,
+                }),
             Display::Other { outside, inside } => match outside {
                 DisplayOutside::Inline => {
                     self.handle_inline_level_element(style, inside);
@@ -377,7 +383,10 @@ impl<'a> BlockContainerBuilder<'a> {
                 });
 
                 self.cursor
-                    .traverse_children_of_this_node(dom::PseudoElements { before: None })
+                    .traverse_children_of_this_node(dom::PseudoElements {
+                        before: None,
+                        after: None,
+                    })
             }
         }
     }
