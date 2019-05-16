@@ -66,7 +66,7 @@ enum IntermediateBlockContainer {
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
-    cursor: dom::SubtreeCursor<'a>,
+    cursor: dom::SubtreeCursorWithDisplayContents<'a>,
 
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
@@ -174,7 +174,10 @@ impl<'a> BlockContainerBuilder<'a> {
     ) -> (BlockContainer, ContainsFloats) {
         let mut builder = Self {
             context,
-            cursor: dom::SubtreeCursor::for_descendendants_of(parent_node, context.document),
+            cursor: dom::SubtreeCursorWithDisplayContents::for_descendendants_of(
+                parent_node,
+                context.document,
+            ),
             parent_style,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),

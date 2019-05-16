@@ -9,7 +9,7 @@ use html5ever::{LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
 
-pub(crate) use self::cursor::SubtreeCursor;
+pub(crate) use self::cursor::*;
 pub use self::xml::XmlError;
 
 pub struct Document {
