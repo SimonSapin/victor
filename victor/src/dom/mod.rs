@@ -8,6 +8,7 @@ use crate::style::StyleSetBuilder;
 use html5ever::{LocalName, QualName};
 use std::borrow::Cow;
 use std::fmt;
+use std::iter::successors;
 
 pub(crate) use self::cursor::*;
 pub use self::xml::XmlError;
@@ -302,43 +303,5 @@ impl fmt::Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ptr: *const Node = self;
         f.debug_tuple("Node").field(&ptr).finish()
-    }
-}
-
-fn successors<T, F>(first: Option<T>, mut succ: F) -> impl Iterator<Item = T>
-where
-    F: FnMut(&T) -> Option<T>,
-{
-    unfold(first, move |next| {
-        next.take().map(|item| {
-            *next = succ(&item);
-            item
-        })
-    })
-}
-
-fn unfold<T, St, F>(initial_state: St, f: F) -> Unfold<St, F>
-where
-    F: FnMut(&mut St) -> Option<T>,
-{
-    Unfold {
-        state: initial_state,
-        f,
-    }
-}
-
-struct Unfold<St, F> {
-    state: St,
-    f: F,
-}
-
-impl<T, St, F> Iterator for Unfold<St, F>
-where
-    F: FnMut(&mut St) -> Option<T>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (self.f)(&mut self.state)
     }
 }
