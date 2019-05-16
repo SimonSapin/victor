@@ -74,6 +74,30 @@ impl Document {
             })
     }
 
+    pub(crate) fn root_element(&self) -> NodeId {
+        let document_node = &self[Document::document_node_id()];
+        assert!(matches!(document_node.data, NodeData::Document));
+        assert!(document_node.parent.is_none());
+        assert!(document_node.next_sibling.is_none());
+        assert!(document_node.previous_sibling.is_none());
+        let mut root = None;
+        for child in self.node_and_following_siblings(document_node.first_child.unwrap()) {
+            match &self[child].data {
+                NodeData::Doctype { .. }
+                | NodeData::Comment { .. }
+                | NodeData::ProcessingInstruction { .. } => {}
+                NodeData::Document | NodeData::Text { .. } => {
+                    panic!("Unexpected node type under document node")
+                }
+                NodeData::Element(_) => {
+                    assert!(root.is_none(), "Found two root elements");
+                    root = Some(child)
+                }
+            }
+        }
+        root.unwrap()
+    }
+
     fn push_node(&mut self, node: Node) -> NodeId {
         let next_index = self.nodes.len();
         self.nodes.push(node);
@@ -148,6 +172,13 @@ impl Document {
         text.unwrap_or_else(|| Cow::Owned(String::new()))
     }
 
+    pub(crate) fn node_and_following_siblings<'a>(
+        &'a self,
+        node: NodeId,
+    ) -> impl Iterator<Item = NodeId> + 'a {
+        successors(Some(node), move |&node| self[node].next_sibling)
+    }
+
     pub(crate) fn node_and_ancestors<'a>(
         &'a self,
         node: NodeId,
@@ -155,7 +186,7 @@ impl Document {
         successors(Some(node), move |&node| self[node].parent)
     }
 
-    pub(crate) fn next_in_tree_order(&self, node: NodeId) -> Option<NodeId> {
+    fn next_in_tree_order(&self, node: NodeId) -> Option<NodeId> {
         self[node].first_child.or_else(|| {
             self.node_and_ancestors(node)
                 .find_map(|ancestor| self[ancestor].next_sibling)
