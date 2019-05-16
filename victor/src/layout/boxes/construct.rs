@@ -60,13 +60,15 @@ enum IntermediateBlockContainer {
     Deferred { from_children_of: dom::NodeId },
 }
 
+enum PseudoElement {}
+
 /// A builder for a block container.
 ///
 /// This builder starts from the first child of a given DOM node
 /// and does a preorder traversal of all of its inclusive siblings.
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
-    cursor: dom::SubtreeCursorWithDisplayContents<'a>,
+    cursor: dom::SubtreeCursorWithDisplayContents<'a, PseudoElement>,
 
     /// The style of the container root, if any.
     parent_style: Option<&'a Arc<ComputedValues>>,
@@ -176,6 +178,7 @@ impl<'a> BlockContainerBuilder<'a> {
             context,
             cursor: dom::SubtreeCursorWithDisplayContents::for_descendendants_of(
                 parent_node,
+                dom::PseudoElements { before: None },
                 context.document,
             ),
             parent_style,
@@ -187,14 +190,17 @@ impl<'a> BlockContainerBuilder<'a> {
         };
 
         loop {
-            if let Some(node_id) = builder.cursor.next() {
-                match &context.document[node_id].data {
-                    dom::NodeData::Document
-                    | dom::NodeData::Doctype { .. }
-                    | dom::NodeData::Comment { .. }
-                    | dom::NodeData::ProcessingInstruction { .. } => {}
-                    dom::NodeData::Text { contents } => builder.handle_text(contents),
-                    dom::NodeData::Element(_) => builder.handle_element(node_id),
+            if let Some(item) = builder.cursor.next() {
+                match item {
+                    dom::TreeItem::PseudoElement(pseudo) => match pseudo {},
+                    dom::TreeItem::Node(node_id) => match &context.document[node_id].data {
+                        dom::NodeData::Document
+                        | dom::NodeData::Doctype { .. }
+                        | dom::NodeData::Comment { .. }
+                        | dom::NodeData::ProcessingInstruction { .. } => {}
+                        dom::NodeData::Text { contents } => builder.handle_text(contents),
+                        dom::NodeData::Element(_) => builder.handle_element(node_id),
+                    },
                 }
             } else if let Ok(()) = builder.cursor.move_to_parent() {
                 builder.end_ongoing_inline_box()
@@ -332,7 +338,9 @@ impl<'a> BlockContainerBuilder<'a> {
         let box_ = &style.box_;
         match box_.display {
             Display::None => {}
-            Display::Contents => self.cursor.pretend_children_are_siblings(),
+            Display::Contents => self
+                .cursor
+                .pretend_children_are_siblings(dom::PseudoElements { before: None }),
             Display::Other { outside, inside } => match outside {
                 DisplayOutside::Inline => {
                     self.handle_inline_level_element(style, inside);
@@ -368,7 +376,8 @@ impl<'a> BlockContainerBuilder<'a> {
                     children: vec![],
                 });
 
-                self.cursor.traverse_children_of_this_node()
+                self.cursor
+                    .traverse_children_of_this_node(dom::PseudoElements { before: None })
             }
         }
     }
