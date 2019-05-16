@@ -18,7 +18,11 @@ impl dom::Document {
             author_styles: &author_styles,
         };
 
-        BlockFormattingContext::build(&context, dom::Document::document_node_id(), None)
+        BlockFormattingContext::build(
+            &context,
+            None,
+            Contents::OfElement(dom::Document::document_node_id()),
+        )
     }
 }
 
@@ -31,6 +35,14 @@ struct Context<'a> {
     author_styles: &'a StyleSet,
 }
 
+enum PseudoElement {}
+enum PseudoElementContent {}
+
+enum Contents {
+    OfElement(dom::NodeId),
+    OfPseudoElement(PseudoElementContent),
+}
+
 enum IntermediateBlockLevelBox {
     SameFormattingContextBlock {
         style: Arc<ComputedValues>,
@@ -38,13 +50,13 @@ enum IntermediateBlockLevelBox {
     },
     OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
-        element: dom::NodeId,
         display_inside: DisplayInside,
+        contents: Contents,
     },
     OutOfFlowFloatBox {
         style: Arc<ComputedValues>,
-        element: dom::NodeId,
         display_inside: DisplayInside,
+        contents: Contents,
     },
 }
 
@@ -57,10 +69,8 @@ enum IntermediateBlockLevelBox {
 /// Deferring allows using rayon’s `into_par_iter`.
 enum IntermediateBlockContainer {
     InlineFormattingContext(InlineFormattingContext),
-    Deferred { from_children_of: dom::NodeId },
+    Deferred { contents: Contents },
 }
-
-enum PseudoElement {}
 
 /// A builder for a block container.
 ///
@@ -142,13 +152,13 @@ impl Default for ContainsFloats {
 impl IndependentFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
-        node: dom::NodeId,
         style: &'a Arc<ComputedValues>,
         display_inside: DisplayInside,
+        contents: Contents,
     ) -> Self {
         match display_inside {
             DisplayInside::Flow => IndependentFormattingContext::Flow(
-                BlockFormattingContext::build(context, node, Some(style)),
+                BlockFormattingContext::build(context, Some(style), contents),
             ),
         }
     }
@@ -157,10 +167,11 @@ impl IndependentFormattingContext {
 impl BlockFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
-        node: dom::NodeId,
         parent_style: Option<&'a Arc<ComputedValues>>,
+        contents: Contents,
     ) -> Self {
-        let (contents, contains_floats) = BlockContainerBuilder::build(context, node, parent_style);
+        let (contents, contains_floats) =
+            BlockContainerBuilder::build(context, parent_style, contents);
         Self {
             contents,
             contains_floats: contains_floats == ContainsFloats::Yes,
@@ -171,13 +182,17 @@ impl BlockFormattingContext {
 impl<'a> BlockContainerBuilder<'a> {
     fn build(
         context: &'a Context<'a>,
-        parent_node: dom::NodeId,
         parent_style: Option<&'a Arc<ComputedValues>>,
+        contents: Contents,
     ) -> (BlockContainer, ContainsFloats) {
+        let element = match contents {
+            Contents::OfElement(id) => id,
+            Contents::OfPseudoElement(pseudo_content) => match pseudo_content {},
+        };
         let mut builder = Self {
             context,
             cursor: dom::SubtreeCursorWithDisplayContents::for_descendendants_of(
-                parent_node,
+                element,
                 dom::PseudoElements {
                     before: None,
                     after: None,
@@ -195,14 +210,29 @@ impl<'a> BlockContainerBuilder<'a> {
         loop {
             if let Some(item) = builder.cursor.next() {
                 match item {
-                    dom::TreeItem::PseudoElement(pseudo) => match pseudo {},
+                    dom::TreeItem::PseudoElement(pseudo) => {
+                        #[allow(unused)]
+                        let (style, contents) = match pseudo {};
+                        #[allow(unreachable_code)]
+                        builder
+                            .handle_non_replaced_element(style, Contents::OfPseudoElement(contents))
+                    }
                     dom::TreeItem::Node(node_id) => match &context.document[node_id].data {
                         dom::NodeData::Document
                         | dom::NodeData::Doctype { .. }
                         | dom::NodeData::Comment { .. }
                         | dom::NodeData::ProcessingInstruction { .. } => {}
                         dom::NodeData::Text { contents } => builder.handle_text(contents),
-                        dom::NodeData::Element(_) => builder.handle_element(node_id),
+                        dom::NodeData::Element(_) => {
+                            let parent_style = builder.current_parent_style();
+                            let style = style_for_element(
+                                context.author_styles,
+                                context.document,
+                                node_id,
+                                parent_style.map(|style| &**style),
+                            );
+                            builder.handle_non_replaced_element(style, Contents::OfElement(node_id))
+                        }
                     },
                 }
             } else if let Ok(()) = builder.cursor.move_to_parent() {
@@ -330,14 +360,7 @@ impl<'a> BlockContainerBuilder<'a> {
         (preserved, text)
     }
 
-    fn handle_element(&mut self, element: dom::NodeId) {
-        let parent_style = self.current_parent_style();
-        let style = style_for_element(
-            self.context.author_styles,
-            self.context.document,
-            element,
-            parent_style.map(|style| &**style),
-        );
+    fn handle_non_replaced_element(&mut self, style: Arc<ComputedValues>, contents: Contents) {
         let box_ = &style.box_;
         match box_.display {
             Display::None => {}
@@ -349,17 +372,17 @@ impl<'a> BlockContainerBuilder<'a> {
                 }),
             Display::Other { outside, inside } => match outside {
                 DisplayOutside::Inline => {
-                    self.handle_inline_level_element(style, inside);
+                    self.handle_inline_level_element(style, inside, contents);
                 }
                 DisplayOutside::Block => {
                     // Floats and abspos cause blockification, so they only happen in this case.
                     // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
                     if box_.position.is_absolutely_positioned() {
-                        self.handle_absolutely_positioned_element(element, style, inside)
+                        self.handle_absolutely_positioned_element(style, inside, contents)
                     } else if box_.float.is_floating() {
-                        self.handle_float_element(element, style, inside)
+                        self.handle_float_element(style, inside, contents)
                     } else {
-                        self.handle_block_level_element(element, style, inside)
+                        self.handle_block_level_element(style, inside, contents)
                     }
                 }
             },
@@ -370,6 +393,7 @@ impl<'a> BlockContainerBuilder<'a> {
         &mut self,
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
+        contents: Contents,
     ) {
         match display_inside {
             DisplayInside::Flow => {
@@ -382,20 +406,25 @@ impl<'a> BlockContainerBuilder<'a> {
                     children: vec![],
                 });
 
-                self.cursor
-                    .traverse_children_of_this_node(dom::PseudoElements {
-                        before: None,
-                        after: None,
-                    })
+                match contents {
+                    Contents::OfElement(_) => {
+                        self.cursor
+                            .traverse_children_of_this_node(dom::PseudoElements {
+                                before: None,
+                                after: None,
+                            })
+                    }
+                    Contents::OfPseudoElement(pseudo_content) => match pseudo_content {},
+                }
             }
         }
     }
 
     fn handle_block_level_element(
         &mut self,
-        element: dom::NodeId,
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
+        contents: Contents,
     ) {
         // We just found a block level element, all ongoing inline level boxes
         // need to be split around it. We iterate on the fragmented inline
@@ -443,23 +472,21 @@ impl<'a> BlockContainerBuilder<'a> {
         self.block_level_boxes.push(match display_inside {
             DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style,
-                contents: IntermediateBlockContainer::Deferred {
-                    from_children_of: element,
-                },
+                contents: IntermediateBlockContainer::Deferred { contents },
             },
         })
     }
 
     fn handle_absolutely_positioned_element(
         &mut self,
-        element: dom::NodeId,
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
+        contents: Contents,
     ) {
         if !self.has_ongoing_inline_formatting_context() {
             let box_ = IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                 style,
-                element,
+                contents,
                 display_inside,
             };
             self.block_level_boxes.push(box_)
@@ -467,9 +494,9 @@ impl<'a> BlockContainerBuilder<'a> {
             let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
                 contents: IndependentFormattingContext::build(
                     self.context,
-                    element,
                     &style,
                     display_inside,
+                    contents,
                 ),
                 style,
             });
@@ -479,16 +506,16 @@ impl<'a> BlockContainerBuilder<'a> {
 
     fn handle_float_element(
         &mut self,
-        element: dom::NodeId,
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
+        contents: Contents,
     ) {
         self.contains_floats = ContainsFloats::Yes;
 
         if !self.has_ongoing_inline_formatting_context() {
             let box_ = IntermediateBlockLevelBox::OutOfFlowFloatBox {
                 style,
-                element,
+                contents,
                 display_inside,
             };
             self.block_level_boxes.push(box_);
@@ -496,9 +523,9 @@ impl<'a> BlockContainerBuilder<'a> {
             let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents: IndependentFormattingContext::build(
                     self.context,
-                    element,
                     &style,
                     display_inside,
+                    contents,
                 ),
                 style,
             });
@@ -593,16 +620,16 @@ impl IntermediateBlockLevelBox {
             }
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                 style,
-                element,
                 display_inside,
+                contents,
             } => {
                 let block_level_box =
                     BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
                         contents: IndependentFormattingContext::build(
                             context,
-                            element,
                             &style,
                             display_inside,
+                            contents,
                         ),
                         style: style,
                     });
@@ -610,11 +637,11 @@ impl IntermediateBlockLevelBox {
             }
             IntermediateBlockLevelBox::OutOfFlowFloatBox {
                 style,
-                element,
                 display_inside,
+                contents,
             } => {
                 let contents =
-                    IndependentFormattingContext::build(context, element, &style, display_inside);
+                    IndependentFormattingContext::build(context, &style, display_inside, contents);
                 let block_level_box =
                     BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
                 (block_level_box, ContainsFloats::Yes)
@@ -630,8 +657,8 @@ impl IntermediateBlockContainer {
         style: &Arc<ComputedValues>,
     ) -> (BlockContainer, ContainsFloats) {
         match self {
-            IntermediateBlockContainer::Deferred { from_children_of } => {
-                BlockContainerBuilder::build(context, from_children_of, Some(style))
+            IntermediateBlockContainer::Deferred { contents } => {
+                BlockContainerBuilder::build(context, Some(style), contents)
             }
             IntermediateBlockContainer::InlineFormattingContext(ifc) => {
                 // If that inline formatting context contained any float, those
