@@ -8,39 +8,56 @@ use std::sync::Arc;
 pub(crate) enum Display {
     None,
     Contents,
-    Other {
-        outside: DisplayOutside,
-        inside: DisplayInside,
-    },
+    GeneratingBox(DisplayGeneratingBox),
 }
 
+#[allow(dead_code)]
+fn _static_assert_size_of() {
+    let _ = std::mem::transmute::<Display, [u8; 1]>;
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub(crate) enum DisplayGeneratingBox {
+    OutsideInside {
+        outside: DisplayOutside,
+        inside: DisplayInside,
+        // list_item: bool,
+    },
+    // Layout-internal display types go here:
+    // https://drafts.csswg.org/css-display-3/#layout-specific-display
+}
+
+/// https://drafts.csswg.org/css-display-3/#outer-role
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum DisplayOutside {
     Inline,
     Block,
 }
 
+/// https://drafts.csswg.org/css-display-3/#inner-model
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum DisplayInside {
     Flow,
 }
 
 impl Display {
-    pub const INITIAL: Self = Display::Other {
+    pub const INITIAL: Self = Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {
         outside: DisplayOutside::Inline,
         inside: DisplayInside::Flow,
-    };
+    });
 
     /// https://drafts.csswg.org/css-display-3/#blockify
     pub fn blockify(&self) -> Self {
         match *self {
-            Display::Other {
-                outside: DisplayOutside::Inline,
-                inside,
-            } => Display::Other {
-                outside: DisplayOutside::Block,
-                inside,
-            },
+            Display::GeneratingBox(value) => Display::GeneratingBox(match value {
+                DisplayGeneratingBox::OutsideInside { outside: _, inside } => {
+                    DisplayGeneratingBox::OutsideInside {
+                        outside: DisplayOutside::Block,
+                        inside,
+                    }
+                }
+                // other => other,
+            }),
             other => other,
         }
     }
@@ -63,14 +80,18 @@ impl super::Parse for Display {
         match &**ident {
             "none" => Ok(Display::None),
             "contents" => Ok(Display::Contents),
-            "block" => Ok(Display::Other {
-                outside: DisplayOutside::Block,
-                inside: DisplayInside::Flow,
-            }),
-            "inline" => Ok(Display::Other {
-                outside: DisplayOutside::Inline,
-                inside: DisplayInside::Flow,
-            }),
+            "block" => Ok(Display::GeneratingBox(
+                DisplayGeneratingBox::OutsideInside {
+                    outside: DisplayOutside::Block,
+                    inside: DisplayInside::Flow,
+                },
+            )),
+            "inline" => Ok(Display::GeneratingBox(
+                DisplayGeneratingBox::OutsideInside {
+                    outside: DisplayOutside::Inline,
+                    inside: DisplayInside::Flow,
+                },
+            )),
             _ => {
                 let token = cssparser::Token::Ident(ident.clone());
                 Err(parser.new_unexpected_token_error(token))

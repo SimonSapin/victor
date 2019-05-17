@@ -5,7 +5,7 @@ use super::{relative_adjustement, ContainingBlock, Take};
 use crate::fonts::BITSTREAM_VERA_SANS;
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
-use crate::style::values::{Display, DisplayInside, DisplayOutside};
+use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::ComputedValues;
 use crate::text::ShapedSegment;
 use std::sync::Arc;
@@ -73,18 +73,14 @@ impl InlineFormattingContext {
                     InlineLevelBox::TextRun(run) => run.layout(&mut ifc),
                     InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                         let initial_start_corner = match box_.style.specified_display {
-                            Display::Other {
-                                outside: DisplayOutside::Inline,
+                            Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {
+                                outside,
                                 inside: DisplayInside::Flow,
-                            } => Vec2 {
-                                inline: ifc.inline_position,
-                                block: ifc.line_boxes.next_line_block_position,
-                            },
-                            Display::Other {
-                                outside: DisplayOutside::Block,
-                                inside: DisplayInside::Flow,
-                            } => Vec2 {
-                                inline: Length::zero(),
+                            }) => Vec2 {
+                                inline: match outside {
+                                    DisplayOutside::Inline => ifc.inline_position,
+                                    DisplayOutside::Block => Length::zero(),
+                                },
                                 block: ifc.line_boxes.next_line_block_position,
                             },
                             Display::Contents => {

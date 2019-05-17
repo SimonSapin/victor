@@ -1,5 +1,6 @@
 use super::{Document, ElementData, NodeData, NodeId};
 use crate::layout::ReplacedContent;
+use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, ComputedValues, StyleSet};
 use std::sync::Arc;
 
@@ -30,18 +31,19 @@ pub(crate) trait Handler {
     fn handle_text(&mut self, text: &str, parent_style: &Arc<ComputedValues>);
 
     /// Or pseudo-element
-    fn handle_element(&mut self, style: &Arc<ComputedValues>, contents: Contents) -> TreeDirection;
+    fn handle_element(
+        &mut self,
+        style: &Arc<ComputedValues>,
+        display: DisplayGeneratingBox,
+        contents: Contents,
+    ) -> TreeDirection;
 
     fn move_to_parent(&mut self);
 }
 
 pub(crate) enum TreeDirection {
     SkipThisSubtree,
-
     TraverseChildren,
-
-    /// `display: contents`
-    PretendChildrenAreSiblings,
 }
 
 #[allow(unused)]
@@ -69,32 +71,8 @@ pub(crate) fn traverse_children_of(
             NodeData::Text { contents } => {
                 handler.handle_text(contents, parent_element_style);
             }
-            NodeData::Element(element_data) => {
-                let style = style_for_element(
-                    context.author_styles,
-                    context.document,
-                    child,
-                    Some(parent_element_style),
-                );
-                match ReplacedContent::for_element(child, element_data, context) {
-                    Some(replaced) => {
-                        let dir = handler.handle_element(&style, Contents::Replaced(replaced));
-                        assert!(
-                            matches!(dir, TreeDirection::SkipThisSubtree),
-                            "children of a replaced element should be ignored"
-                        );
-                    }
-                    None => match handler.handle_element(&style, Contents::OfElement(child)) {
-                        TreeDirection::SkipThisSubtree => {}
-                        TreeDirection::TraverseChildren => {
-                            traverse_children_of(child, &style, context, handler);
-                            handler.move_to_parent()
-                        }
-                        TreeDirection::PretendChildrenAreSiblings => {
-                            traverse_children_of(child, &style, context, handler);
-                        }
-                    },
-                }
+            NodeData::Element(data) => {
+                traverse_element(child, data, parent_element_style, context, handler)
             }
         }
         next = context.document[child].next_sibling
@@ -109,6 +87,53 @@ pub(crate) fn traverse_children_of(
     );
 }
 
+fn traverse_element(
+    element_id: NodeId,
+    element_data: &ElementData,
+    parent_element_style: &ComputedValues,
+    context: &Context,
+    handler: &mut impl Handler,
+) {
+    let style = style_for_element(
+        context.author_styles,
+        context.document,
+        element_id,
+        Some(parent_element_style),
+    );
+    let display_self = match style.box_.display {
+        Display::None => return,
+        Display::Contents => None,
+        Display::GeneratingBox(display) => Some(display),
+    };
+    if let Some(replaced) = ReplacedContent::for_element(element_id, element_data, context) {
+        if let Some(display) = display_self {
+            let dir = handler.handle_element(&style, display, Contents::Replaced(replaced));
+            assert!(
+                matches!(dir, TreeDirection::SkipThisSubtree),
+                "children of a replaced element should be ignored"
+            );
+        } else {
+            // `display: content` on a replaced element computes to `display: none`
+            // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
+        }
+    } else {
+        // Non-replaced element
+        if let Some(display) = display_self {
+            let dir = handler.handle_element(&style, display, Contents::OfElement(element_id));
+            match dir {
+                TreeDirection::SkipThisSubtree => {}
+                TreeDirection::TraverseChildren => {
+                    traverse_children_of(element_id, &style, context, handler);
+                    handler.move_to_parent()
+                }
+            }
+        } else {
+            // `display: content`
+            traverse_children_of(element_id, &style, context, handler);
+        }
+    }
+}
+
 fn traverse_pseudo_element(
     which: WhichPseudoElement,
     element: NodeId,
@@ -118,17 +143,25 @@ fn traverse_pseudo_element(
 ) {
     let result = pseudo_element_style(which, element, element_style, context);
     if let Some(pseudo_element_style) = &result {
+        let display_self = match pseudo_element_style.box_.display {
+            Display::None => return,
+            Display::Contents => None,
+            Display::GeneratingBox(display) => Some(display),
+        };
         let items = generate_pseudo_element_content(pseudo_element_style, element, context);
         let contents = Contents::OfPseudoElement(items.clone());
-        let direction = handler.handle_element(pseudo_element_style, contents);
-        let pretend_children_are_siblings = match direction {
-            TreeDirection::SkipThisSubtree => return,
-            TreeDirection::TraverseChildren => false,
-            TreeDirection::PretendChildrenAreSiblings => true,
-        };
-        traverse_pseudo_element_contents(pseudo_element_style, items, handler);
-        if !pretend_children_are_siblings {
-            handler.move_to_parent()
+        if let Some(display) = display_self {
+            let direction = handler.handle_element(pseudo_element_style, display, contents);
+            match direction {
+                TreeDirection::SkipThisSubtree => {}
+                TreeDirection::TraverseChildren => {
+                    traverse_pseudo_element_contents(pseudo_element_style, items, handler);
+                    handler.move_to_parent()
+                }
+            }
+        } else {
+            // `display: contents`
+            traverse_pseudo_element_contents(pseudo_element_style, items, handler);
         }
     }
 }
@@ -148,16 +181,30 @@ pub(crate) fn traverse_pseudo_element_contents(
                 let item_style = anonymous_style.get_or_insert_with(|| {
                     ComputedValues::anonymous_inheriting_from(Some(pseudo_element_style))
                 });
-                let direction =
-                    handler.handle_element(item_style, Contents::Replaced(contents.clone()));
-                // There are no children
-                match direction {
-                    TreeDirection::SkipThisSubtree => {}
-                    TreeDirection::PretendChildrenAreSiblings => {}
-                    TreeDirection::TraverseChildren => handler.move_to_parent(),
-                }
+                let display_inline = DisplayGeneratingBox::OutsideInside {
+                    outside: DisplayOutside::Inline,
+                    inside: DisplayInside::Flow,
+                };
+                // `display` is not inherited, so we get the initial value
+                debug_assert!(item_style.box_.display == Display::GeneratingBox(display_inline));
+                let direction = handler.handle_element(
+                    item_style,
+                    display_inline,
+                    Contents::Replaced(contents.clone()),
+                );
+                assert!(
+                    matches!(direction, TreeDirection::SkipThisSubtree),
+                    "children of a replaced element should be ignored"
+                );
             }
         }
+    }
+}
+
+impl ReplacedContent {
+    fn for_element(_element: NodeId, _data: &ElementData, _context: &Context) -> Option<Arc<Self>> {
+        // FIXME: implement <img> etc.
+        None
     }
 }
 

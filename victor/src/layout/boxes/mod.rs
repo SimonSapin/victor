@@ -87,10 +87,3 @@ pub(super) struct TextRun {
 pub(crate) enum ReplacedContent {
     // Not implemented yet
 }
-
-impl ReplacedContent {
-    fn for_element(_element: NodeId, _data: &ElementData, _context: &Context) -> Option<Arc<Self>> {
-        // FIXME: implement <img> etc.
-        None
-    }
-}

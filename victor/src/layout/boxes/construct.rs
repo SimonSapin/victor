@@ -3,7 +3,7 @@ use crate::dom;
 use crate::dom::traversal::{traverse_children_of, traverse_pseudo_element_contents};
 use crate::dom::traversal::{Contents, Context, TreeDirection};
 use crate::layout::Take;
-use crate::style::values::{Display, DisplayInside, DisplayOutside};
+use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon_croissant::ParallelIteratorExt;
@@ -40,10 +40,10 @@ fn build_for_root_element(
 ) -> ContainsFloats {
     let display_inside = match style.box_.display {
         Display::None => return ContainsFloats::No,
-        // The root element is blockified, ignore DisplayOutside
-        Display::Other { inside, .. } => inside,
         // https://drafts.csswg.org/css-display-3/#transformations
         Display::Contents => DisplayInside::Flow,
+        // The root element is blockified, ignore DisplayOutside
+        Display::GeneratingBox(DisplayGeneratingBox::OutsideInside { inside, .. }) => inside,
     };
 
     if style.box_.position.is_absolutely_positioned() {
@@ -291,11 +291,14 @@ impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
             .push(InlineLevelBox::InlineBox(last_ongoing_inline_box));
     }
 
-    fn handle_element(&mut self, style: &Arc<ComputedValues>, contents: Contents) -> TreeDirection {
-        match style.box_.display {
-            Display::None => TreeDirection::SkipThisSubtree,
-            Display::Contents => TreeDirection::PretendChildrenAreSiblings,
-            Display::Other { outside, inside } => match outside {
+    fn handle_element(
+        &mut self,
+        style: &Arc<ComputedValues>,
+        display: DisplayGeneratingBox,
+        contents: Contents,
+    ) -> TreeDirection {
+        match display {
+            DisplayGeneratingBox::OutsideInside { outside, inside } => match outside {
                 DisplayOutside::Inline => self.handle_inline_level_element(style, inside, contents),
                 DisplayOutside::Block => {
                     // Floats and abspos cause blockification, so they only happen in this case.
