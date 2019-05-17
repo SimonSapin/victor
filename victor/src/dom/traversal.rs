@@ -202,7 +202,11 @@ pub(crate) fn traverse_pseudo_element_contents(
 }
 
 impl ReplacedContent {
-    fn for_element(_element: NodeId, _data: &ElementData, _context: &Context) -> Option<Arc<Self>> {
+    pub(crate) fn for_element(
+        _element: NodeId,
+        _data: &ElementData,
+        _context: &Context,
+    ) -> Option<Arc<Self>> {
         // FIXME: implement <img> etc.
         None
     }

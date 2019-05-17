@@ -38,13 +38,28 @@ fn build_for_root_element(
     style: Arc<ComputedValues>,
     boxes: &mut Vec<BlockLevelBox>,
 ) -> ContainsFloats {
+    let element_data = context.document[root_element].as_element().unwrap();
+    let replaced = ReplacedContent::for_element(root_element, element_data, context);
+
     let display_inside = match style.box_.display {
         Display::None => return ContainsFloats::No,
+        Display::Contents if replaced.is_some() => {
+            // 'display: contents' computes to 'none' for replaced elements
+            return ContainsFloats::No;
+        }
         // https://drafts.csswg.org/css-display-3/#transformations
         Display::Contents => DisplayInside::Flow,
         // The root element is blockified, ignore DisplayOutside
         Display::GeneratingBox(DisplayGeneratingBox::OutsideInside { inside, .. }) => inside,
     };
+
+    if let Some(replaced) = replaced {
+        match *replaced {}
+        #[allow(unreachable_code)]
+        {
+            return ContainsFloats::No;
+        }
+    }
 
     if style.box_.position.is_absolutely_positioned() {
         boxes.push(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
