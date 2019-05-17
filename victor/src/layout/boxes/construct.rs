@@ -107,6 +107,11 @@ enum IntermediateBlockLevelBox {
         style: Arc<ComputedValues>,
         contents: IntermediateBlockContainer,
     },
+    Independent {
+        style: Arc<ComputedValues>,
+        // FIXME: this should be IndependentFormattingContext:
+        contents: Arc<ReplacedContent>,
+    },
     OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
@@ -511,8 +516,10 @@ impl<'a> BlockContainerBuilder<'a> {
         let contents = match contents {
             Contents::OfElement(id) => NonReplacedContents::OfElement(id),
             Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
-            Contents::Replaced(replaced) => {
-                match *replaced {};
+            Contents::Replaced(contents) => {
+                self.block_level_boxes
+                    .push(IntermediateBlockLevelBox::Independent { style, contents });
+                return;
             }
         };
         self.block_level_boxes.push(match display_inside {
@@ -635,6 +642,10 @@ impl IntermediateBlockLevelBox {
                 let block_level_box = BlockLevelBox::SameFormattingContextBlock { contents, style };
                 (block_level_box, contains_floats)
             }
+            IntermediateBlockLevelBox::Independent { style, contents } => (
+                BlockLevelBox::Independent { style, contents },
+                ContainsFloats::No,
+            ),
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                 style,
                 display_inside,

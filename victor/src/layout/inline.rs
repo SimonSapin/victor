@@ -71,7 +71,10 @@ impl InlineFormattingContext {
                         ifc.partial_inline_boxes_stack.push(partial)
                     }
                     InlineLevelBox::TextRun(run) => run.layout(&mut ifc),
-                    InlineLevelBox::Atomic { style: _, contents } => match **contents {},
+                    InlineLevelBox::Atomic { style: _, contents } => {
+                        // FIXME
+                        match **contents {}
+                    }
                     InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                         let initial_start_corner = match box_.style.specified_display {
                             Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {

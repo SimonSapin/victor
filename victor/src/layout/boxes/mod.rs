@@ -35,10 +35,11 @@ pub(super) enum BlockLevelBox {
     },
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     OutOfFlowFloatBox(FloatBox),
-    // Independent {
-    //     style: Arc<ComputedValues>,
-    //     contents: IndependentFormattingContext,
-    // },
+    Independent {
+        style: Arc<ComputedValues>,
+        // FIXME: this should be IndependentFormattingContext:
+        contents: Arc<ReplacedContent>,
+    },
 }
 
 #[derive(Debug)]
