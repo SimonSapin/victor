@@ -12,6 +12,8 @@ use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAu
 use crate::style::ComputedValues;
 use std::sync::Arc;
 
+pub(crate) use self::boxes::ReplacedContent;
+
 impl crate::dom::Document {
     pub(crate) fn layout(
         &self,
