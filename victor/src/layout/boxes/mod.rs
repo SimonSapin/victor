@@ -9,8 +9,9 @@ pub(super) type BoxTreeRoot = BlockFormattingContext;
 #[derive(Debug)]
 pub(super) enum IndependentFormattingContext {
     Flow(BlockFormattingContext),
-    // Replaced(ReplacedElement), // Not called FC in specs, but behaves close enough
-    // Table(Table),
+
+    // Not called FC in specs, but behaves close enough
+    Replaced(Arc<ReplacedContent>),
     // Other layout modes go here
 }
 
@@ -84,6 +85,7 @@ pub(super) struct TextRun {
     pub text: String,
 }
 
+#[derive(Debug)]
 pub(crate) enum ReplacedContent {
     // Not implemented yet
 }

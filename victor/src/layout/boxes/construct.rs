@@ -167,8 +167,7 @@ impl IndependentFormattingContext {
             Contents::OfElement(id) => NonReplacedContents::OfElement(id),
             Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
             Contents::Replaced(replaced) => {
-                #[allow(unreachable_code)]
-                return match *replaced {};
+                return IndependentFormattingContext::Replaced(replaced)
             }
         };
         match display_inside {
