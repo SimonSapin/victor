@@ -408,7 +408,7 @@ impl<'a> BlockContainerBuilder<'a> {
         let preserved = loop {
             match inline_level_boxes.next() {
                 Some(InlineLevelBox::TextRun(r)) => break !r.text.ends_with(' '),
-                // Some(InlineLevelBox::Atomic(_)) => break false,
+                Some(InlineLevelBox::Atomic { .. }) => break false,
                 Some(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_))
                 | Some(InlineLevelBox::OutOfFlowFloatBox(_)) => {}
                 Some(InlineLevelBox::InlineBox(b)) => {
@@ -434,25 +434,28 @@ impl<'a> BlockContainerBuilder<'a> {
         display_inside: DisplayInside,
         contents: Contents,
     ) -> TreeDirection {
-        if let Contents::Replaced(replaced) = contents {
-            match *replaced {}
-            #[allow(unreachable_code)]
-            {
-                return TreeDirection::SkipThisSubtree;
+        match contents {
+            Contents::Replaced(replaced) => {
+                self.current_inline_level_boxes()
+                    .push(InlineLevelBox::Atomic {
+                        style: style.clone(),
+                        contents: replaced,
+                    });
+                TreeDirection::SkipThisSubtree
             }
-        }
-        match display_inside {
-            DisplayInside::Flow => {
-                // Whatever happened before, we just found an inline level element, so
-                // all we need to do is to remember this ongoing inline level box.
-                self.ongoing_inline_boxes_stack.push(InlineBox {
-                    style: style.clone(),
-                    first_fragment: true,
-                    last_fragment: false,
-                    children: vec![],
-                });
-                TreeDirection::TraverseChildren
-            }
+            Contents::OfElement(_) | Contents::OfPseudoElement(_) => match display_inside {
+                DisplayInside::Flow => {
+                    // Whatever happened before, we just found an inline level element, so
+                    // all we need to do is to remember this ongoing inline level box.
+                    self.ongoing_inline_boxes_stack.push(InlineBox {
+                        style: style.clone(),
+                        first_fragment: true,
+                        last_fragment: false,
+                        children: vec![],
+                    });
+                    TreeDirection::TraverseChildren
+                }
+            },
         }
     }
 

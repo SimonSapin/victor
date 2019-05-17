@@ -64,10 +64,11 @@ pub(super) enum InlineLevelBox {
     TextRun(TextRun),
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
     OutOfFlowFloatBox(FloatBox),
-    // Atomic {
-    //     style: Arc<ComputedValues>,
-    //     contents: IndependentFormattingContext,
-    // },
+    Atomic {
+        style: Arc<ComputedValues>,
+        // FIXME: this should be IndependentFormattingContext:
+        contents: Arc<ReplacedContent>,
+    },
 }
 
 #[derive(Debug)]
