@@ -1,7 +1,7 @@
 use super::*;
 use crate::dom;
 use crate::dom::traversal::{traverse_children_of, traverse_pseudo_element_contents};
-use crate::dom::traversal::{Contents, Context, TreeDirection};
+use crate::dom::traversal::{Contents, Context, PseudoElementContentItem, TreeDirection};
 use crate::layout::Take;
 use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSetBuilder};
@@ -75,8 +75,11 @@ fn build_for_root_element(
         // once layout is implemented for the latter
         match display_inside {
             DisplayInside::Flow => {
-                let (contents, contains_floats) =
-                    BlockContainer::build(context, &style, Contents::OfElement(root_element));
+                let (contents, contains_floats) = BlockContainer::build(
+                    context,
+                    &style,
+                    NonReplacedContents::OfElement(root_element),
+                );
                 boxes.push(BlockLevelBox::SameFormattingContextBlock { style, contents });
                 contains_floats
             }
@@ -110,7 +113,7 @@ enum IntermediateBlockLevelBox {
 /// Deferring allows using rayon’s `into_par_iter`.
 enum IntermediateBlockContainer {
     InlineFormattingContext(InlineFormattingContext),
-    Deferred { contents: Contents },
+    Deferred { contents: NonReplacedContents },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -133,6 +136,11 @@ impl Default for ContainsFloats {
     }
 }
 
+enum NonReplacedContents {
+    OfElement(dom::NodeId),
+    OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
+}
+
 impl IndependentFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
@@ -140,6 +148,14 @@ impl IndependentFormattingContext {
         display_inside: DisplayInside,
         contents: Contents,
     ) -> Self {
+        let contents = match contents {
+            Contents::OfElement(id) => NonReplacedContents::OfElement(id),
+            Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
+            Contents::Replaced(replaced) => {
+                #[allow(unreachable_code)]
+                return match *replaced {};
+            }
+        };
         match display_inside {
             DisplayInside::Flow => IndependentFormattingContext::Flow(
                 BlockFormattingContext::build(context, style, contents),
@@ -152,7 +168,7 @@ impl BlockFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
         style: &'a Arc<ComputedValues>,
-        contents: Contents,
+        contents: NonReplacedContents,
     ) -> Self {
         let (contents, contains_floats) = BlockContainer::build(context, style, contents);
         Self {
@@ -221,7 +237,7 @@ impl BlockContainer {
     fn build<'a>(
         context: &'a Context<'a>,
         block_container_style: &'a Arc<ComputedValues>,
-        contents: Contents,
+        contents: NonReplacedContents,
     ) -> (BlockContainer, ContainsFloats) {
         let mut builder = BlockContainerBuilder {
             context,
@@ -234,13 +250,12 @@ impl BlockContainer {
         };
 
         match contents {
-            Contents::OfElement(id) => {
+            NonReplacedContents::OfElement(id) => {
                 traverse_children_of(id, block_container_style, context, &mut builder)
             }
-            Contents::OfPseudoElement(items) => {
+            NonReplacedContents::OfPseudoElement(items) => {
                 traverse_pseudo_element_contents(block_container_style, items, &mut builder)
             }
-            Contents::Replaced(_) => unreachable!(),
         }
 
         debug_assert!(builder.ongoing_inline_boxes_stack.is_empty());
@@ -476,6 +491,13 @@ impl<'a> BlockContainerBuilder<'a> {
         // context needs to be ended.
         self.end_ongoing_inline_formatting_context();
 
+        let contents = match contents {
+            Contents::OfElement(id) => NonReplacedContents::OfElement(id),
+            Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
+            Contents::Replaced(replaced) => {
+                match *replaced {};
+            }
+        };
         self.block_level_boxes.push(match display_inside {
             DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style,
