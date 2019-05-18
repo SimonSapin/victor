@@ -11,7 +11,7 @@ pub(super) enum IndependentFormattingContext {
     Flow(BlockFormattingContext),
 
     // Not called FC in specs, but behaves close enough
-    Replaced(Arc<ReplacedContent>),
+    Replaced(ReplacedContent),
     // Other layout modes go here
 }
 
@@ -38,7 +38,7 @@ pub(super) enum BlockLevelBox {
     Independent {
         style: Arc<ComputedValues>,
         // FIXME: this should be IndependentFormattingContext:
-        contents: Arc<ReplacedContent>,
+        contents: ReplacedContent,
     },
 }
 
@@ -68,7 +68,7 @@ pub(super) enum InlineLevelBox {
     Atomic {
         style: Arc<ComputedValues>,
         // FIXME: this should be IndependentFormattingContext:
-        contents: Arc<ReplacedContent>,
+        contents: ReplacedContent,
     },
 }
 

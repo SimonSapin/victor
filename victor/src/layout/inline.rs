@@ -73,7 +73,7 @@ impl InlineFormattingContext {
                     InlineLevelBox::TextRun(run) => run.layout(&mut ifc),
                     InlineLevelBox::Atomic { style: _, contents } => {
                         // FIXME
-                        match **contents {}
+                        match *contents {}
                     }
                     InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                         let initial_start_corner = match box_.style.specified_display {

@@ -15,21 +15,21 @@ pub(crate) enum Contents {
 
     /// Example: an `<img src=…>` element.
     /// <https://drafts.csswg.org/css2/conform.html#replaced-element>
-    Replaced(Arc<ReplacedContent>),
+    Replaced(ReplacedContent),
 
     /// Content of a `::before` or `::after` pseudo-element this is being generated.
     /// <https://drafts.csswg.org/css2/generate.html#content>
-    OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
+    OfPseudoElement(Vec<PseudoElementContentItem>),
 }
 
 pub(crate) enum NonReplacedContents {
     OfElement(NodeId),
-    OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
+    OfPseudoElement(Vec<PseudoElementContentItem>),
 }
 
 pub(crate) enum PseudoElementContentItem {
     Text(String),
-    Replaced(Arc<ReplacedContent>),
+    Replaced(ReplacedContent),
 }
 
 pub(crate) trait Handler {
@@ -145,11 +145,11 @@ fn traverse_pseudo_element(
 
 fn traverse_pseudo_element_contents(
     pseudo_element_style: &Arc<ComputedValues>,
-    items: Arc<Vec<PseudoElementContentItem>>,
+    items: Vec<PseudoElementContentItem>,
     handler: &mut impl Handler,
 ) {
     let mut anonymous_style = None;
-    for item in &*items {
+    for item in items {
         match item {
             PseudoElementContentItem::Text(text) => {
                 handler.handle_text(&text, pseudo_element_style)
@@ -164,18 +164,14 @@ fn traverse_pseudo_element_contents(
                 };
                 // `display` is not inherited, so we get the initial value
                 debug_assert!(item_style.box_.display == Display::GeneratingBox(display_inline));
-                handler.handle_element(
-                    item_style,
-                    display_inline,
-                    Contents::Replaced(contents.clone()),
-                )
+                handler.handle_element(item_style, display_inline, Contents::Replaced(contents))
             }
         }
     }
 }
 
 impl std::convert::TryFrom<Contents> for NonReplacedContents {
-    type Error = Arc<ReplacedContent>;
+    type Error = ReplacedContent;
 
     fn try_from(contents: Contents) -> Result<Self, Self::Error> {
         match contents {
@@ -205,7 +201,7 @@ impl NonReplacedContents {
 }
 
 impl ReplacedContent {
-    pub(crate) fn for_element(_element: NodeId, _context: &Context) -> Option<Arc<Self>> {
+    pub(crate) fn for_element(_element: NodeId, _context: &Context) -> Option<Self> {
         // FIXME: implement <img> etc.
         None
     }
@@ -228,10 +224,10 @@ fn pseudo_element_style(
 }
 
 fn generate_pseudo_element_content(
-    _style: &ComputedValues,
+    _pseudo_element_style: &ComputedValues,
     _element: NodeId,
     _context: &Context,
-) -> Arc<Vec<PseudoElementContentItem>> {
+) -> Vec<PseudoElementContentItem> {
     let _ = PseudoElementContentItem::Text;
     let _ = PseudoElementContentItem::Replaced;
     unimplemented!()

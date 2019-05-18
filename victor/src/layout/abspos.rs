@@ -263,7 +263,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             IndependentFormattingContext::Flow(bfc) => bfc
                 .contents
                 .layout_into_absolute_containing_block(&containing_block_for_children, &padding),
-            IndependentFormattingContext::Replaced(replaced) => match **replaced {},
+            IndependentFormattingContext::Replaced(replaced) => match *replaced {},
         };
 
         let inline_start = match inline_anchor {

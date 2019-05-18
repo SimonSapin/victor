@@ -160,7 +160,7 @@ impl BlockLevelBox {
             }
             BlockLevelBox::Independent { style: _, contents } => {
                 // FIXME
-                match **contents {}
+                match *contents {}
             }
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));

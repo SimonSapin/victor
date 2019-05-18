@@ -53,7 +53,7 @@ fn build_for_root_element(
     };
 
     if let Some(replaced) = replaced {
-        match *replaced {}
+        match replaced {}
         #[allow(unreachable_code)]
         {
             return ContainsFloats::No;
@@ -109,7 +109,7 @@ enum IntermediateBlockLevelBox {
     Independent {
         style: Arc<ComputedValues>,
         // FIXME: this should be IndependentFormattingContext:
-        contents: Arc<ReplacedContent>,
+        contents: ReplacedContent,
     },
     OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
