@@ -1,12 +1,12 @@
 use super::*;
 use crate::dom;
-use crate::dom::traversal::{traverse_children_of, traverse_pseudo_element_contents};
-use crate::dom::traversal::{Contents, Context, PseudoElementContentItem, TreeDirection};
+use crate::dom::traversal::{Contents, Context, NonReplacedContents, TreeDirection};
 use crate::layout::Take;
 use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSetBuilder};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon_croissant::ParallelIteratorExt;
+use std::convert::TryInto;
 use std::ops::BitOrAssign;
 
 impl dom::Document {
@@ -38,8 +38,7 @@ fn build_for_root_element(
     style: Arc<ComputedValues>,
     boxes: &mut Vec<BlockLevelBox>,
 ) -> ContainsFloats {
-    let element_data = context.document[root_element].as_element().unwrap();
-    let replaced = ReplacedContent::for_element(root_element, element_data, context);
+    let replaced = ReplacedContent::for_element(root_element, context);
 
     let display_inside = match style.box_.display {
         Display::None => return ContainsFloats::No,
@@ -156,11 +155,6 @@ impl Default for ContainsFloats {
     }
 }
 
-enum NonReplacedContents {
-    OfElement(dom::NodeId),
-    OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
-}
-
 impl IndependentFormattingContext {
     fn build<'a>(
         context: &'a Context<'a>,
@@ -168,17 +162,13 @@ impl IndependentFormattingContext {
         display_inside: DisplayInside,
         contents: Contents,
     ) -> Self {
-        let contents = match contents {
-            Contents::OfElement(id) => NonReplacedContents::OfElement(id),
-            Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
-            Contents::Replaced(replaced) => {
-                return IndependentFormattingContext::Replaced(replaced)
-            }
-        };
-        match display_inside {
-            DisplayInside::Flow => IndependentFormattingContext::Flow(
-                BlockFormattingContext::build(context, style, contents),
-            ),
+        match contents.try_into() {
+            Ok(non_replaced) => match display_inside {
+                DisplayInside::Flow => IndependentFormattingContext::Flow(
+                    BlockFormattingContext::build(context, style, non_replaced),
+                ),
+            },
+            Err(replaced) => IndependentFormattingContext::Replaced(replaced),
         }
     }
 }
@@ -268,14 +258,7 @@ impl BlockContainer {
             contains_floats: Default::default(),
         };
 
-        match contents {
-            NonReplacedContents::OfElement(id) => {
-                traverse_children_of(id, block_container_style, context, &mut builder)
-            }
-            NonReplacedContents::OfPseudoElement(items) => {
-                traverse_pseudo_element_contents(block_container_style, items, &mut builder)
-            }
-        }
+        contents.traverse(block_container_style, context, &mut builder);
 
         debug_assert!(builder.ongoing_inline_boxes_stack.is_empty());
 
@@ -513,20 +496,14 @@ impl<'a> BlockContainerBuilder<'a> {
         // context needs to be ended.
         self.end_ongoing_inline_formatting_context();
 
-        let contents = match contents {
-            Contents::OfElement(id) => NonReplacedContents::OfElement(id),
-            Contents::OfPseudoElement(items) => NonReplacedContents::OfPseudoElement(items),
-            Contents::Replaced(contents) => {
-                self.block_level_boxes
-                    .push(IntermediateBlockLevelBox::Independent { style, contents });
-                return;
-            }
-        };
-        self.block_level_boxes.push(match display_inside {
-            DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
-                style,
-                contents: IntermediateBlockContainer::Deferred { contents },
+        self.block_level_boxes.push(match contents.try_into() {
+            Ok(contents) => match display_inside {
+                DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
+                    style,
+                    contents: IntermediateBlockContainer::Deferred { contents },
+                },
             },
+            Err(contents) => IntermediateBlockLevelBox::Independent { style, contents },
         })
     }
 

@@ -1,4 +1,4 @@
-use super::{Document, ElementData, NodeData, NodeId};
+use super::{Document, NodeData, NodeId};
 use crate::layout::ReplacedContent;
 use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, ComputedValues, StyleSet};
@@ -19,6 +19,11 @@ pub(crate) enum Contents {
 
     /// Content of a `::before` or `::after` pseudo-element this is being generated.
     /// <https://drafts.csswg.org/css2/generate.html#content>
+    OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
+}
+
+pub(crate) enum NonReplacedContents {
+    OfElement(NodeId),
     OfPseudoElement(Arc<Vec<PseudoElementContentItem>>),
 }
 
@@ -47,7 +52,7 @@ pub(crate) enum TreeDirection {
 }
 
 #[allow(unused)]
-pub(crate) fn traverse_children_of(
+fn traverse_children_of(
     parent_element: NodeId,
     parent_element_style: &Arc<ComputedValues>,
     context: &Context,
@@ -71,9 +76,7 @@ pub(crate) fn traverse_children_of(
             NodeData::Text { contents } => {
                 handler.handle_text(contents, parent_element_style);
             }
-            NodeData::Element(data) => {
-                traverse_element(child, data, parent_element_style, context, handler)
-            }
+            NodeData::Element(_) => traverse_element(child, parent_element_style, context, handler),
         }
         next = context.document[child].next_sibling
     }
@@ -89,7 +92,6 @@ pub(crate) fn traverse_children_of(
 
 fn traverse_element(
     element_id: NodeId,
-    element_data: &ElementData,
     parent_element_style: &ComputedValues,
     context: &Context,
     handler: &mut impl Handler,
@@ -105,7 +107,7 @@ fn traverse_element(
         Display::Contents => None,
         Display::GeneratingBox(display) => Some(display),
     };
-    if let Some(replaced) = ReplacedContent::for_element(element_id, element_data, context) {
+    if let Some(replaced) = ReplacedContent::for_element(element_id, context) {
         if let Some(display) = display_self {
             let dir = handler.handle_element(&style, display, Contents::Replaced(replaced));
             assert!(
@@ -166,7 +168,7 @@ fn traverse_pseudo_element(
     }
 }
 
-pub(crate) fn traverse_pseudo_element_contents(
+fn traverse_pseudo_element_contents(
     pseudo_element_style: &Arc<ComputedValues>,
     items: Arc<Vec<PseudoElementContentItem>>,
     handler: &mut impl Handler,
@@ -201,12 +203,38 @@ pub(crate) fn traverse_pseudo_element_contents(
     }
 }
 
+impl std::convert::TryFrom<Contents> for NonReplacedContents {
+    type Error = Arc<ReplacedContent>;
+
+    fn try_from(contents: Contents) -> Result<Self, Self::Error> {
+        match contents {
+            Contents::OfElement(id) => Ok(NonReplacedContents::OfElement(id)),
+            Contents::OfPseudoElement(items) => Ok(NonReplacedContents::OfPseudoElement(items)),
+            Contents::Replaced(replaced) => Err(replaced),
+        }
+    }
+}
+
+impl NonReplacedContents {
+    pub fn traverse(
+        self,
+        inherited_style: &Arc<ComputedValues>,
+        context: &Context,
+        handler: &mut impl Handler,
+    ) {
+        match self {
+            NonReplacedContents::OfElement(id) => {
+                traverse_children_of(id, inherited_style, context, handler)
+            }
+            NonReplacedContents::OfPseudoElement(items) => {
+                traverse_pseudo_element_contents(inherited_style, items, handler)
+            }
+        }
+    }
+}
+
 impl ReplacedContent {
-    pub(crate) fn for_element(
-        _element: NodeId,
-        _data: &ElementData,
-        _context: &Context,
-    ) -> Option<Arc<Self>> {
+    pub(crate) fn for_element(_element: NodeId, _context: &Context) -> Option<Arc<Self>> {
         // FIXME: implement <img> etc.
         None
     }
