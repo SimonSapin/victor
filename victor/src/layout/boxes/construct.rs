@@ -1,6 +1,6 @@
 use super::*;
 use crate::dom;
-use crate::dom::traversal::{Contents, Context, NonReplacedContents, TreeDirection};
+use crate::dom::traversal::{Contents, Context, NonReplacedContents};
 use crate::layout::Take;
 use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
 use crate::style::{style_for_element, StyleSetBuilder};
@@ -297,23 +297,12 @@ impl BlockContainer {
 }
 
 impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
-    /// End ongoing inline box
-    fn move_to_parent(&mut self) {
-        let mut last_ongoing_inline_box = self
-            .ongoing_inline_boxes_stack
-            .pop()
-            .expect("no ongoing inline level box found");
-        last_ongoing_inline_box.last_fragment = true;
-        self.current_inline_level_boxes()
-            .push(InlineLevelBox::InlineBox(last_ongoing_inline_box));
-    }
-
     fn handle_element(
         &mut self,
         style: &Arc<ComputedValues>,
         display: DisplayGeneratingBox,
         contents: Contents,
-    ) -> TreeDirection {
+    ) {
         match display {
             DisplayGeneratingBox::OutsideInside { outside, inside } => match outside {
                 DisplayOutside::Inline => self.handle_inline_level_element(style, inside, contents),
@@ -327,7 +316,6 @@ impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
                     } else {
                         self.handle_block_level_element(style.clone(), inside, contents)
                     }
-                    TreeDirection::SkipThisSubtree
                 }
             },
         }
@@ -421,17 +409,16 @@ impl<'a> BlockContainerBuilder<'a> {
         style: &Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
-    ) -> TreeDirection {
-        match contents {
-            Contents::Replaced(replaced) => {
+    ) {
+        match contents.try_into() {
+            Err(replaced) => {
                 self.current_inline_level_boxes()
                     .push(InlineLevelBox::Atomic {
                         style: style.clone(),
                         contents: replaced,
                     });
-                TreeDirection::SkipThisSubtree
             }
-            Contents::OfElement(_) | Contents::OfPseudoElement(_) => match display_inside {
+            Ok(non_replaced) => match display_inside {
                 DisplayInside::Flow => {
                     // Whatever happened before, we just found an inline level element, so
                     // all we need to do is to remember this ongoing inline level box.
@@ -441,7 +428,16 @@ impl<'a> BlockContainerBuilder<'a> {
                         last_fragment: false,
                         children: vec![],
                     });
-                    TreeDirection::TraverseChildren
+
+                    NonReplacedContents::traverse(non_replaced, &style, self.context, self);
+
+                    let mut inline_box = self
+                        .ongoing_inline_boxes_stack
+                        .pop()
+                        .expect("no ongoing inline level box found");
+                    inline_box.last_fragment = true;
+                    self.current_inline_level_boxes()
+                        .push(InlineLevelBox::InlineBox(inline_box));
                 }
             },
         }
