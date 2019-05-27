@@ -104,7 +104,7 @@ impl InlineFormattingContext {
                         let initial_start_corner = match box_.style.specified_display {
                             Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {
                                 outside,
-                                inside: DisplayInside::Flow,
+                                inside: _,
                             }) => Vec2 {
                                 inline: match outside {
                                     DisplayOutside::Inline => ifc.inline_position,

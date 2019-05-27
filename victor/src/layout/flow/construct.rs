@@ -21,7 +21,8 @@ enum IntermediateBlockLevelBox {
     },
     Independent {
         style: Arc<ComputedValues>,
-        contents: IndependentFormattingContext,
+        display_inside: DisplayInside,
+        contents: Contents,
     },
     OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
@@ -299,6 +300,10 @@ impl<'a> BlockContainerBuilder<'a> {
                     self.current_inline_level_boxes()
                         .push(InlineLevelBox::InlineBox(inline_box));
                 }
+                DisplayInside::FlowRoot => {
+                    // a.k.a. `inline-block`
+                    unimplemented!()
+                }
             },
         }
     }
@@ -358,10 +363,19 @@ impl<'a> BlockContainerBuilder<'a> {
                     style,
                     contents: IntermediateBlockContainer::Deferred { contents },
                 },
+                _ => IntermediateBlockLevelBox::Independent {
+                    style,
+                    display_inside,
+                    contents: contents.into(),
+                },
             },
             Err(contents) => {
-                let contents = IndependentFormattingContext::Replaced(contents);
-                IntermediateBlockLevelBox::Independent { style, contents }
+                let contents = Contents::Replaced(contents);
+                IntermediateBlockLevelBox::Independent {
+                    style,
+                    display_inside,
+                    contents,
+                }
             }
         })
     }
@@ -478,10 +492,22 @@ impl IntermediateBlockLevelBox {
                 let block_level_box = BlockLevelBox::SameFormattingContextBlock { contents, style };
                 (block_level_box, contains_floats)
             }
-            IntermediateBlockLevelBox::Independent { style, contents } => (
-                BlockLevelBox::Independent { style, contents },
-                ContainsFloats::No,
-            ),
+            IntermediateBlockLevelBox::Independent {
+                style,
+                display_inside,
+                contents,
+            } => {
+                let contents = IndependentFormattingContext::construct(
+                    context,
+                    &style,
+                    display_inside,
+                    contents,
+                );
+                (
+                    BlockLevelBox::Independent { style, contents },
+                    ContainsFloats::No,
+                )
+            }
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                 style,
                 display_inside,

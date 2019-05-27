@@ -55,13 +55,13 @@ fn construct_for_root_element(
         }
     }
 
+    let contents = IndependentFormattingContext::construct(
+        context,
+        &style,
+        display_inside,
+        Contents::OfElement(root_element),
+    );
     if style.box_.position.is_absolutely_positioned() {
-        let contents = IndependentFormattingContext::construct(
-            context,
-            &style,
-            display_inside,
-            Contents::OfElement(root_element),
-        );
         (
             ContainsFloats::No,
             vec![BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
@@ -69,12 +69,6 @@ fn construct_for_root_element(
             )],
         )
     } else if style.box_.float.is_floating() {
-        let contents = IndependentFormattingContext::construct(
-            context,
-            &style,
-            display_inside,
-            Contents::OfElement(root_element),
-        );
         (
             ContainsFloats::Yes,
             vec![BlockLevelBox::OutOfFlowFloatBox(FloatBox {
@@ -83,21 +77,10 @@ fn construct_for_root_element(
             })],
         )
     } else {
-        // FIXME: use `IndependentFormattingContext::build` and `BlockLevelBox::Independent`
-        // once layout is implemented for the latter
-        match display_inside {
-            DisplayInside::Flow => {
-                let (contents, contains_floats) = BlockContainer::construct(
-                    context,
-                    &style,
-                    NonReplacedContents::OfElement(root_element),
-                );
-                (
-                    contains_floats,
-                    vec![BlockLevelBox::SameFormattingContextBlock { style, contents }],
-                )
-            }
-        }
+        (
+            ContainsFloats::No,
+            vec![BlockLevelBox::Independent { style, contents }],
+        )
     }
 }
 
