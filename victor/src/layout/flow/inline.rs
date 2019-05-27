@@ -180,11 +180,12 @@ impl InlineBox {
     ) -> PartialInlineBoxFragment<'box_tree> {
         let style = self.style.clone();
         let cbis = ifc.containing_block.inline_size;
-        let mut padding = style.padding().map(|v| v.percentage_relative_to(cbis));
-        let mut border = style.border_width().map(|v| v.percentage_relative_to(cbis));
+        let mut padding = style.padding().percentages_relative_to(cbis);
+        let mut border = style.border_width().percentages_relative_to(cbis);
         let mut margin = style
             .margin()
-            .map(|v| v.auto_is(Length::zero).percentage_relative_to(cbis));
+            .percentages_relative_to(cbis)
+            .auto_is(Length::zero);
         if self.first_fragment {
             ifc.inline_position += padding.inline_start + border.inline_start + margin.inline_start;
         } else {

@@ -50,6 +50,12 @@ pub(crate) enum LengthOrPercentageOrAuto {
     Auto,
 }
 
+#[derive(Debug, Copy, Clone, FromVariants)]
+pub(crate) enum LengthOrAuto {
+    Length(Length),
+    Auto,
+}
+
 impl Parse for SpecifiedLength {
     fn parse<'i, 't>(parser: &mut Parser<'i, 't>) -> Result<Self, PropertyParseError<'i>> {
         match parser.next()? {
@@ -207,19 +213,35 @@ impl From<LengthOrPercentage> for LengthOrPercentageOrAuto {
 }
 
 impl LengthOrPercentageOrAuto {
-    pub(crate) fn auto_is(&self, auto_value: impl FnOnce() -> Length) -> LengthOrPercentage {
-        match *self {
-            LengthOrPercentageOrAuto::Length(l) => LengthOrPercentage::Length(l),
-            LengthOrPercentageOrAuto::Percentage(p) => LengthOrPercentage::Percentage(p),
-            LengthOrPercentageOrAuto::Auto => LengthOrPercentage::Length(auto_value()),
-        }
-    }
-
     pub(crate) fn non_auto(&self) -> Option<LengthOrPercentage> {
         match *self {
             LengthOrPercentageOrAuto::Length(l) => Some(LengthOrPercentage::Length(l)),
             LengthOrPercentageOrAuto::Percentage(p) => Some(LengthOrPercentage::Percentage(p)),
             LengthOrPercentageOrAuto::Auto => None,
+        }
+    }
+
+    pub(crate) fn percentage_relative_to(&self, reference: Length) -> LengthOrAuto {
+        match *self {
+            LengthOrPercentageOrAuto::Length(l) => LengthOrAuto::Length(l),
+            LengthOrPercentageOrAuto::Percentage(p) => LengthOrAuto::Length(reference * p),
+            LengthOrPercentageOrAuto::Auto => LengthOrAuto::Auto,
+        }
+    }
+}
+
+impl LengthOrAuto {
+    pub(crate) fn auto_is(&self, auto_value: impl FnOnce() -> Length) -> Length {
+        match *self {
+            LengthOrAuto::Length(l) => l,
+            LengthOrAuto::Auto => auto_value(),
+        }
+    }
+
+    pub(crate) fn map(&self, f: impl FnOnce(Length) -> Length) -> Self {
+        match *self {
+            LengthOrAuto::Length(l) => LengthOrAuto::Length(f(l)),
+            LengthOrAuto::Auto => LengthOrAuto::Auto,
         }
     }
 }

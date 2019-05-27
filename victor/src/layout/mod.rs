@@ -57,7 +57,7 @@ impl IndependentFormattingContext {
 
 struct ContainingBlock {
     inline_size: Length,
-    block_size: Option<Length>,
+    block_size: LengthOrAuto,
     mode: (WritingMode, Direction),
 }
 
@@ -70,22 +70,22 @@ struct DefiniteContainingBlock {
 fn relative_adjustement(
     style: &ComputedValues,
     inline_size: Length,
-    block_size: Option<Length>,
+    block_size: LengthOrAuto,
 ) -> Vec2<Length> {
     if !style.box_.position.is_relatively_positioned() {
         return Vec2::zero();
     }
-    fn adjust(start: Option<Length>, end: Option<Length>) -> Length {
+    fn adjust(start: LengthOrAuto, end: LengthOrAuto) -> Length {
         match (start, end) {
-            (None, None) => Length::zero(),
-            (Some(start), _) => start,
-            (None, Some(end)) => -end,
+            (LengthOrAuto::Auto, LengthOrAuto::Auto) => Length::zero(),
+            (LengthOrAuto::Auto, LengthOrAuto::Length(end)) => -end,
+            (LengthOrAuto::Length(start), _) => start,
         }
     }
-    let block_size = block_size.unwrap_or(Length::zero());
+    let block_size = block_size.auto_is(Length::zero);
     let box_offsets = style.box_offsets().map_inline_and_block_axes(
-        |v| v.non_auto().map(|v| v.percentage_relative_to(inline_size)),
-        |v| v.non_auto().map(|v| v.percentage_relative_to(block_size)),
+        |v| v.percentage_relative_to(inline_size),
+        |v| v.percentage_relative_to(block_size),
     );
     Vec2 {
         inline: adjust(box_offsets.inline_start, box_offsets.inline_end),

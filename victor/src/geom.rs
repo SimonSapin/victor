@@ -1,4 +1,5 @@
 pub(crate) use crate::style::values::Length;
+use crate::style::values::{LengthOrAuto, LengthOrPercentage, LengthOrPercentageOrAuto};
 
 pub(crate) mod physical {
     #[derive(Debug, Clone)]
@@ -225,6 +226,24 @@ impl<T> flow_relative::Sides<T> {
             inline: self.inline_start.clone(),
             block: self.block_start.clone(),
         }
+    }
+}
+
+impl flow_relative::Sides<LengthOrPercentage> {
+    pub fn percentages_relative_to(&self, basis: Length) -> flow_relative::Sides<Length> {
+        self.map(|s| s.percentage_relative_to(basis))
+    }
+}
+
+impl flow_relative::Sides<LengthOrPercentageOrAuto> {
+    pub fn percentages_relative_to(&self, basis: Length) -> flow_relative::Sides<LengthOrAuto> {
+        self.map(|s| s.percentage_relative_to(basis))
+    }
+}
+
+impl flow_relative::Sides<LengthOrAuto> {
+    pub fn auto_is(&self, f: impl Fn() -> Length) -> flow_relative::Sides<Length> {
+        self.map(|s| s.auto_is(&f))
     }
 }
 

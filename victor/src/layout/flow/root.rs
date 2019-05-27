@@ -112,7 +112,7 @@ impl BoxTreeRoot {
 
         let initial_containing_block = ContainingBlock {
             inline_size: initial_containing_block_size.inline,
-            block_size: Some(initial_containing_block_size.block),
+            block_size: LengthOrAuto::Length(initial_containing_block_size.block),
             // FIXME: use the document’s mode:
             // https://drafts.csswg.org/css-writing-modes/#principal-flow
             mode: (WritingMode::HorizontalTb, Direction::Ltr),

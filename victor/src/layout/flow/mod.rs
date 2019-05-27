@@ -100,7 +100,7 @@ impl BlockContainer {
                     }
                 }
 
-                let block_size = containing_block.block_size.unwrap_or(content_block_size);
+                let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
                 (child_fragments, absolutely_positioned_fragments, block_size)
             }
@@ -172,53 +172,44 @@ fn same_formatting_context_block<'a>(
     contents: &'a BlockContainer,
 ) -> Fragment {
     let cbis = containing_block.inline_size;
-    let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
-    let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
+    let padding = style.padding().percentages_relative_to(cbis);
+    let border = style.border_width().percentages_relative_to(cbis);
+    let mut computed_margin = style.margin().percentages_relative_to(cbis);
     let pb = &padding + &border;
     let box_size = style.box_size();
-    let mut computed_margin = style.margin();
-    let inline_size;
-    let margin;
-    if let Some(is) = box_size.inline.non_auto() {
-        let is = is.percentage_relative_to(cbis);
+    let inline_size = box_size.inline.percentage_relative_to(cbis);
+    if let LengthOrAuto::Length(is) = inline_size {
         let inline_margins = cbis - is - pb.inline_sum();
-        inline_size = Some(is);
-        use LengthOrPercentageOrAuto as LPA;
+        use LengthOrAuto::*;
         match (
             &mut computed_margin.inline_start,
             &mut computed_margin.inline_end,
         ) {
-            (s @ &mut LPA::Auto, e @ &mut LPA::Auto) => {
-                *s = LPA::Length(inline_margins / 2.);
-                *e = LPA::Length(inline_margins / 2.);
+            (s @ &mut Auto, e @ &mut Auto) => {
+                *s = Length(inline_margins / 2.);
+                *e = Length(inline_margins / 2.);
             }
-            (s @ &mut LPA::Auto, _) => {
-                *s = LPA::Length(inline_margins);
+            (s @ &mut Auto, _) => {
+                *s = Length(inline_margins);
             }
-            (_, e @ &mut LPA::Auto) => {
-                *e = LPA::Length(inline_margins);
+            (_, e @ &mut Auto) => {
+                *e = Length(inline_margins);
             }
             (_, e @ _) => {
                 // Either the inline-end margin is auto,
                 // or we’re over-constrained and we do as if it were.
-                *e = LPA::Length(inline_margins);
+                *e = Length(inline_margins);
             }
         }
-        margin = computed_margin.map_inline_and_block_axes(
-            |v| v.auto_is(|| unreachable!()),
-            |v| v.auto_is(Length::zero),
-        );
-    } else {
-        inline_size = None; // auto
-        margin = computed_margin.map(|v| v.auto_is(Length::zero));
     }
-    let margin = margin.map(|v| v.percentage_relative_to(cbis));
+    let margin = computed_margin.auto_is(Length::zero);
     let pbm = &pb + &margin;
-    let inline_size = inline_size.unwrap_or_else(|| cbis - pbm.inline_sum());
-    let block_size = box_size.block.non_auto().and_then(|b| match b {
-        LengthOrPercentage::Length(l) => Some(l),
-        LengthOrPercentage::Percentage(p) => containing_block.block_size.map(|cbbs| cbbs * p),
-    });
+    let inline_size = inline_size.auto_is(|| cbis - pbm.inline_sum());
+    let block_size = match box_size.block {
+        LengthOrPercentageOrAuto::Length(l) => LengthOrAuto::Length(l),
+        LengthOrPercentageOrAuto::Percentage(p) => containing_block.block_size.map(|cbbs| cbbs * p),
+        LengthOrPercentageOrAuto::Auto => LengthOrAuto::Auto,
+    };
     let containing_block_for_children = ContainingBlock {
         inline_size,
         block_size,
@@ -232,7 +223,7 @@ fn same_formatting_context_block<'a>(
     let (mut children, nested_abspos, content_block_size) =
         contents.layout(&containing_block_for_children, tree_rank);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
-    let block_size = block_size.unwrap_or(content_block_size);
+    let block_size = block_size.auto_is(|| content_block_size);
     let content_rect = Rect {
         start_corner: &pbm.start_corner() + &relative_adjustement,
         size: Vec2 {
