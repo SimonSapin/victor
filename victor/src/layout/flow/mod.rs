@@ -40,6 +40,16 @@ pub(super) enum BlockLevelBox {
     },
 }
 
+impl BlockFormattingContext {
+    pub(super) fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+        let dummy_tree_rank = 0;
+        self.contents.layout(containing_block, dummy_tree_rank)
+    }
+}
+
 impl BlockContainer {
     pub(super) fn layout(
         &self,
@@ -219,14 +229,8 @@ fn same_formatting_context_block<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
-    let (children, content_block_size) = if !style.box_.position.is_relatively_positioned() {
-        let (children, abspos_children, content_block_size) =
-            contents.layout(&containing_block_for_children, tree_rank);
-        absolutely_positioned_fragments.extend(abspos_children);
-        (children, content_block_size)
-    } else {
-        contents.layout_into_absolute_containing_block(&containing_block_for_children, &padding)
-    };
+    let (mut children, nested_abspos, content_block_size) =
+        contents.layout(&containing_block_for_children, tree_rank);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.unwrap_or(content_block_size);
     let content_rect = Rect {
@@ -235,6 +239,17 @@ fn same_formatting_context_block<'a>(
             block: block_size,
             inline: inline_size,
         },
+    };
+    if style.box_.position.is_relatively_positioned() {
+        AbsolutelyPositionedFragment::in_positioned_containing_block(
+            &nested_abspos,
+            &mut children,
+            &content_rect.size,
+            &padding,
+            containing_block_for_children.mode,
+        )
+    } else {
+        absolutely_positioned_fragments.extend(nested_abspos);
     };
     Fragment::Box(BoxFragment {
         style: style.clone(),

@@ -43,11 +43,26 @@ impl IndependentFormattingContext {
             Err(replaced) => IndependentFormattingContext::Replaced(replaced),
         }
     }
+
+    fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+        match self {
+            IndependentFormattingContext::Flow(bfc) => bfc.layout(containing_block),
+            IndependentFormattingContext::Replaced(replaced) => match *replaced {},
+        }
+    }
 }
 
 struct ContainingBlock {
     inline_size: Length,
     block_size: Option<Length>,
+    mode: (WritingMode, Direction),
+}
+
+struct DefiniteContainingBlock {
+    size: Vec2<Length>,
     mode: (WritingMode, Direction),
 }
 

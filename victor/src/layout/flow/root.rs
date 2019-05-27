@@ -103,23 +103,32 @@ fn construct_for_root_element(
 
 impl BoxTreeRoot {
     fn layout(&self, viewport: crate::primitives::Size<crate::primitives::CssPx>) -> Vec<Fragment> {
-        let inline_size = Length { px: viewport.width };
-        // FIXME: use the document’s mode:
-        // https://drafts.csswg.org/css-writing-modes/#principal-flow
-        let initial_containing_block = ContainingBlock {
-            inline_size,
-            block_size: Some(Length {
+        let initial_containing_block_size = Vec2 {
+            inline: Length { px: viewport.width },
+            block: Length {
                 px: viewport.height,
-            }),
-            mode: (WritingMode::HorizontalTb, Direction::Ltr),
+            },
         };
 
-        let initial_containing_block_padding = Sides::zero();
+        let initial_containing_block = ContainingBlock {
+            inline_size: initial_containing_block_size.inline,
+            block_size: Some(initial_containing_block_size.block),
+            // FIXME: use the document’s mode:
+            // https://drafts.csswg.org/css-writing-modes/#principal-flow
+            mode: (WritingMode::HorizontalTb, Direction::Ltr),
+        };
+        let (mut fragments, abspos, _) = self.0.layout(&initial_containing_block);
 
-        let (fragments, _) = self.0.contents.layout_into_absolute_containing_block(
-            &initial_containing_block,
-            &initial_containing_block_padding,
+        let initial_containing_block = DefiniteContainingBlock {
+            size: initial_containing_block_size,
+            mode: initial_containing_block.mode,
+        };
+        fragments.par_extend(
+            abspos
+                .par_iter()
+                .map(|a| a.layout(&initial_containing_block)),
         );
+
         fragments
     }
 }

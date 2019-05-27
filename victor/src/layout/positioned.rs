@@ -1,4 +1,5 @@
 use super::*;
+use rayon::prelude::*;
 
 #[derive(Debug)]
 pub(super) struct AbsolutelyPositionedBox {
@@ -28,42 +29,6 @@ pub(super) enum AbsoluteBoxOffsets<NonStatic> {
     Start { start: NonStatic },
     End { end: NonStatic },
     Both { start: NonStatic, end: NonStatic },
-}
-
-struct AbsoluteContainingBlock {
-    size: Vec2<Length>,
-    padding_start: Vec2<Length>,
-    mode: (WritingMode, Direction),
-}
-
-impl BlockContainer {
-    pub(super) fn layout_into_absolute_containing_block(
-        &self,
-        containing_block: &ContainingBlock,
-        containing_block_padding: &Sides<Length>,
-    ) -> (Vec<Fragment>, Length) {
-        let (mut fragments, absolutely_positioned_fragments, block_size) =
-            self.layout(containing_block, 0);
-        let absolute_containing_block = AbsoluteContainingBlock {
-            size: Vec2 {
-                inline: containing_block.inline_size + containing_block_padding.inline_sum(),
-                block: block_size + containing_block_padding.block_sum(),
-            },
-            padding_start: Vec2 {
-                inline: containing_block_padding.inline_start,
-                block: containing_block_padding.block_start,
-            },
-            mode: containing_block.mode,
-        };
-        // FIXME(nox): Should we do that with parallel iterators, too? It's
-        // trivial to do so at the very least.
-        fragments.extend(
-            absolutely_positioned_fragments
-                .iter()
-                .map(|f| f.layout(&absolute_containing_block)),
-        );
-        (fragments, block_size)
-    }
 }
 
 impl AbsolutelyPositionedBox {
@@ -117,10 +82,40 @@ impl AbsolutelyPositionedBox {
 }
 
 impl<'a> AbsolutelyPositionedFragment<'a> {
-    fn layout(&self, absolute_containing_block: &AbsoluteContainingBlock) -> Fragment {
+    pub(super) fn in_positioned_containing_block(
+        absolute: &[Self],
+        fragments: &mut Vec<Fragment>,
+        content_rect_size: &Vec2<Length>,
+        padding: &Sides<Length>,
+        mode: (WritingMode, Direction),
+    ) {
+        if absolute.is_empty() {
+            return;
+        }
+        let padding_rect = Rect {
+            size: content_rect_size.clone(),
+            // Ignore the content rect’s position in its own containing block:
+            start_corner: Vec2::zero(),
+        }
+        .inflate(&padding);
+        let containing_block = DefiniteContainingBlock {
+            size: padding_rect.size.clone(),
+            mode,
+        };
+        fragments.push(Fragment::Anonymous(AnonymousFragment {
+            children: absolute
+                .par_iter()
+                .map(|a| a.layout(&containing_block))
+                .collect(),
+            rect: padding_rect,
+            mode,
+        }))
+    }
+
+    pub(super) fn layout(&self, containing_block: &DefiniteContainingBlock) -> Fragment {
         let style = &self.absolutely_positioned_box.style;
-        let cbis = absolute_containing_block.size.inline;
-        let cbbs = absolute_containing_block.size.block;
+        let cbis = containing_block.size.inline;
+        let cbbs = containing_block.size.block;
 
         let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
         let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
@@ -137,7 +132,6 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         fn solve_axis(
             containing_size: Length,
-            containing_padding_start: Length,
             padding_border_sum: Length,
             computed_margin_start: Option<Length>,
             computed_margin_end: Option<Length>,
@@ -148,7 +142,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             let size = size.map(|v| v.percentage_relative_to(containing_size));
             match box_offsets {
                 AbsoluteBoxOffsets::StaticStart { start } => (
-                    Anchor::Start(start + containing_padding_start),
+                    Anchor::Start(start),
                     size,
                     computed_margin_start.unwrap_or(Length::zero()),
                     computed_margin_end.unwrap_or(Length::zero()),
@@ -205,7 +199,6 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         let (inline_anchor, inline_size, margin_inline_start, margin_inline_end) = solve_axis(
             cbis,
-            absolute_containing_block.padding_start.inline,
             pb.inline_sum(),
             computed_margin.inline_start,
             computed_margin.inline_end,
@@ -222,7 +215,6 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         let (block_anchor, block_size, margin_block_start, margin_block_end) = solve_axis(
             cbis,
-            absolute_containing_block.padding_start.block,
             pb.block_sum(),
             computed_margin.block_start,
             computed_margin.block_end,
@@ -255,15 +247,13 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         };
         // https://drafts.csswg.org/css-writing-modes/#orthogonal-flows
         assert_eq!(
-            absolute_containing_block.mode, containing_block_for_children.mode,
+            containing_block.mode, containing_block_for_children.mode,
             "Mixed writing modes are not supported yet"
         );
-        let (children, block_size) = match &self.absolutely_positioned_box.contents {
-            IndependentFormattingContext::Flow(bfc) => bfc
-                .contents
-                .layout_into_absolute_containing_block(&containing_block_for_children, &padding),
-            IndependentFormattingContext::Replaced(replaced) => match *replaced {},
-        };
+        let (mut children, nested_abspos, block_size) = self
+            .absolutely_positioned_box
+            .contents
+            .layout(&containing_block_for_children);
 
         let inline_start = match inline_anchor {
             Anchor::Start(start) => start + pb.inline_start + margin.inline_start,
@@ -277,14 +267,22 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         let content_rect = Rect {
             start_corner: Vec2 {
-                inline: inline_start - absolute_containing_block.padding_start.inline,
-                block: block_start - absolute_containing_block.padding_start.block,
+                inline: inline_start,
+                block: block_start,
             },
             size: Vec2 {
                 inline: inline_size,
                 block: block_size,
             },
         };
+
+        AbsolutelyPositionedFragment::in_positioned_containing_block(
+            &nested_abspos,
+            &mut children,
+            &content_rect.size,
+            &padding,
+            containing_block_for_children.mode,
+        );
 
         Fragment::Box(BoxFragment {
             style: style.clone(),
