@@ -27,6 +27,10 @@ enum IndependentFormattingContext {
     // Other layout modes go here
 }
 
+enum NonReplacedIFC<'a> {
+    Flow(&'a BlockFormattingContext),
+}
+
 impl IndependentFormattingContext {
     fn construct<'a>(
         context: &'a Context<'a>,
@@ -44,13 +48,31 @@ impl IndependentFormattingContext {
         }
     }
 
+    fn as_replaced(&self) -> Result<&ReplacedContent, NonReplacedIFC> {
+        match self {
+            IndependentFormattingContext::Replaced(r) => Ok(r),
+            IndependentFormattingContext::Flow(f) => Err(NonReplacedIFC::Flow(f)),
+        }
+    }
+
     fn layout(
         &self,
         containing_block: &ContainingBlock,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
+        match self.as_replaced() {
+            Ok(replaced) => match *replaced {},
+            Err(ifc) => ifc.layout(containing_block),
+        }
+    }
+}
+
+impl<'a> NonReplacedIFC<'a> {
+    fn layout(
+        &self,
+        containing_block: &ContainingBlock,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
         match self {
-            IndependentFormattingContext::Flow(bfc) => bfc.layout(containing_block),
-            IndependentFormattingContext::Replaced(replaced) => match *replaced {},
+            NonReplacedIFC::Flow(bfc) => bfc.layout(containing_block),
         }
     }
 }

@@ -21,8 +21,7 @@ enum IntermediateBlockLevelBox {
     },
     Independent {
         style: Arc<ComputedValues>,
-        // FIXME: this should be IndependentFormattingContext:
-        contents: ReplacedContent,
+        contents: IndependentFormattingContext,
     },
     OutOfFlowAbsolutelyPositionedBox {
         style: Arc<ComputedValues>,
@@ -360,7 +359,10 @@ impl<'a> BlockContainerBuilder<'a> {
                     contents: IntermediateBlockContainer::Deferred { contents },
                 },
             },
-            Err(contents) => IntermediateBlockLevelBox::Independent { style, contents },
+            Err(contents) => {
+                let contents = IndependentFormattingContext::Replaced(contents);
+                IntermediateBlockLevelBox::Independent { style, contents }
+            }
         })
     }
 

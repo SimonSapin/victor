@@ -35,8 +35,7 @@ pub(super) enum BlockLevelBox {
     OutOfFlowFloatBox(FloatBox),
     Independent {
         style: Arc<ComputedValues>,
-        // FIXME: this should be IndependentFormattingContext:
-        contents: ReplacedContent,
+        contents: IndependentFormattingContext,
     },
 }
 
@@ -139,19 +138,24 @@ impl BlockLevelBox {
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     ) -> Fragment {
         match self {
-            BlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                same_formatting_context_block(
+            BlockLevelBox::SameFormattingContextBlock { style, contents } => in_flow_non_replaced(
+                containing_block,
+                absolutely_positioned_fragments,
+                style,
+                move |containing_block| contents.layout(containing_block, tree_rank),
+            ),
+            BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
+                Ok(replaced) => {
+                    // FIXME
+                    match *replaced {}
+                }
+                Err(contents) => in_flow_non_replaced(
                     containing_block,
-                    tree_rank,
                     absolutely_positioned_fragments,
                     style,
-                    contents,
-                )
-            }
-            BlockLevelBox::Independent { style: _, contents } => {
-                // FIXME
-                match *contents {}
-            }
+                    move |containing_block| contents.layout(containing_block),
+                ),
+            },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
                 Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
@@ -164,12 +168,15 @@ impl BlockLevelBox {
     }
 }
 
-fn same_formatting_context_block<'a>(
+/// https://drafts.csswg.org/css2/visudet.html#blockwidth
+/// https://drafts.csswg.org/css2/visudet.html#normal-block
+fn in_flow_non_replaced<'a>(
     containing_block: &ContainingBlock,
-    tree_rank: usize,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     style: &Arc<ComputedValues>,
-    contents: &'a BlockContainer,
+    layout_contents: impl FnOnce(
+        &ContainingBlock,
+    ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length),
 ) -> Fragment {
     let cbis = containing_block.inline_size;
     let padding = style.padding().percentages_relative_to(cbis);
@@ -221,7 +228,7 @@ fn same_formatting_context_block<'a>(
         "Mixed writing modes are not supported yet"
     );
     let (mut children, nested_abspos, content_block_size) =
-        contents.layout(&containing_block_for_children, tree_rank);
+        layout_contents(&containing_block_for_children);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.auto_is(|| content_block_size);
     let content_rect = Rect {
