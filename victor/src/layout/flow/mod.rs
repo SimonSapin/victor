@@ -53,21 +53,25 @@ impl BlockContainer {
 
                 let mut content_block_size = Length::zero();
                 for child in &mut child_fragments {
-                    let child = match child {
-                        Fragment::Box(b) => b,
+                    let (bpm, rect) = match child {
+                        Fragment::Box(child) => (
+                            child.padding.block_sum()
+                                + child.border.block_sum()
+                                + child.margin.block_sum(),
+                            &mut child.content_rect,
+                        ),
+                        Fragment::Anonymous(child) => (Length::zero(), &mut child.rect),
                         _ => unreachable!(),
                     };
                     // FIXME: margin collapsing
-                    child.content_rect.start_corner.block += content_block_size;
-                    content_block_size += child.padding.block_sum()
-                        + child.border.block_sum()
-                        + child.margin.block_sum()
-                        + child.content_rect.size.block;
+                    rect.start_corner.block += content_block_size;
+                    content_block_size += bpm + rect.size.block;
                 }
 
                 for abspos_fragment in &mut absolutely_positioned_fragments {
-                    let child_fragment = match &child_fragments[abspos_fragment.tree_rank] {
-                        Fragment::Box(b) => b,
+                    let child_fragment_rect = match &child_fragments[abspos_fragment.tree_rank] {
+                        Fragment::Box(b) => &b.content_rect,
+                        Fragment::Anonymous(a) => &a.rect,
                         _ => unreachable!(),
                     };
 
@@ -76,13 +80,13 @@ impl BlockContainer {
                     if let AbsoluteBoxOffsets::StaticStart { start } =
                         &mut abspos_fragment.inline_start
                     {
-                        *start += child_fragment.content_rect.start_corner.inline;
+                        *start += child_fragment_rect.start_corner.inline;
                     }
 
                     if let AbsoluteBoxOffsets::StaticStart { start } =
                         &mut abspos_fragment.block_start
                     {
-                        *start += child_fragment.content_rect.start_corner.block;
+                        *start += child_fragment_rect.start_corner.block;
                     }
                 }
 
@@ -140,11 +144,11 @@ impl BlockLevelBox {
             }
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
-                Fragment::Box(BoxFragment::no_op())
+                Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
             }
             BlockLevelBox::OutOfFlowFloatBox(_box_) => {
                 // TODO
-                Fragment::Box(BoxFragment::no_op())
+                Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
             }
         }
     }

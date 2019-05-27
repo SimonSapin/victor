@@ -37,6 +37,15 @@ impl Fragment {
     fn paint_onto(&self, page: &mut Page, containing_block: &Rect<Length>) {
         match self {
             Fragment::Box(b) => b.paint_onto(page, containing_block),
+            Fragment::Anonymous(a) => {
+                let rect = a
+                    .rect
+                    .to_physical(a.mode, containing_block)
+                    .translate(&containing_block.top_left);
+                for child in &a.children {
+                    child.paint_onto(page, &rect)
+                }
+            }
             Fragment::Text(t) => {
                 let mut origin = t
                     .content_rect

@@ -120,6 +120,15 @@ impl flow_relative::Sides<Length> {
     }
 }
 
+impl flow_relative::Rect<Length> {
+    pub fn zero() -> Self {
+        Self {
+            start_corner: flow_relative::Vec2::zero(),
+            size: flow_relative::Vec2::zero(),
+        }
+    }
+}
+
 impl<T: Clone> flow_relative::Vec2<T> {
     pub fn size_to_physical(&self, mode: (WritingMode, Direction)) -> physical::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical

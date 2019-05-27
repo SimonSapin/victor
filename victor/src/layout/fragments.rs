@@ -3,6 +3,7 @@ use crate::text::ShapedSegment;
 
 pub(crate) enum Fragment {
     Box(BoxFragment),
+    Anonymous(AnonymousFragment),
     Text(TextFragment),
 }
 
@@ -20,28 +21,30 @@ pub(crate) struct BoxFragment {
     pub margin: Sides<Length>,
 }
 
+/// Can contain child fragments with relative coordinates, but does not contribute to painting itself.
+pub(crate) struct AnonymousFragment {
+    pub rect: Rect<Length>,
+    pub children: Vec<Fragment>,
+    pub mode: (WritingMode, Direction),
+}
+
 pub(crate) struct TextFragment {
     pub parent_style: Arc<ComputedValues>,
     pub content_rect: Rect<Length>,
     pub text: ShapedSegment,
 }
 
-impl BoxFragment {
-    /// Create a fragment that does not contribute any painting operation.
-    pub fn no_op() -> Self {
+impl AnonymousFragment {
+    pub fn no_op(mode: (WritingMode, Direction)) -> Self {
         Self {
-            style: ComputedValues::anonymous_inheriting_from(None),
             children: vec![],
-            content_rect: Rect {
-                start_corner: Vec2::zero(),
-                size: Vec2::zero(),
-            },
-            padding: Sides::zero(),
-            border: Sides::zero(),
-            margin: Sides::zero(),
+            rect: Rect::zero(),
+            mode,
         }
     }
+}
 
+impl BoxFragment {
     pub fn border_rect(&self) -> Rect<Length> {
         self.content_rect
             .inflate(&self.padding)

@@ -135,7 +135,8 @@ impl InlineFormattingContext {
                 );
                 ifc.current_nesting_level = partial.parent_nesting_level
             } else {
-                ifc.line_boxes.finish_line(&mut ifc.current_nesting_level);
+                ifc.line_boxes
+                    .finish_line(&mut ifc.current_nesting_level, containing_block);
                 return (
                     ifc.line_boxes.boxes,
                     ifc.absolutely_positioned_fragments,
@@ -147,16 +148,28 @@ impl InlineFormattingContext {
 }
 
 impl LinesBoxes {
-    fn finish_line(&mut self, top_nesting_level: &mut InlineNestingLevelState) {
-        let mut line_box = BoxFragment::no_op();
-        line_box.content_rect.start_corner.block = self.next_line_block_position;
-        line_box.content_rect.size.block = std::mem::replace(
-            &mut top_nesting_level.max_block_size_of_fragments_so_far,
-            Length::zero(),
-        );
-        line_box.children = top_nesting_level.fragments_so_far.take();
-        self.next_line_block_position += line_box.content_rect.size.block;
-        self.boxes.push(Fragment::Box(line_box));
+    fn finish_line(
+        &mut self,
+        top_nesting_level: &mut InlineNestingLevelState,
+        containing_block: &ContainingBlock,
+    ) {
+        let start_corner = Vec2 {
+            inline: Length::zero(),
+            block: self.next_line_block_position,
+        };
+        let size = Vec2 {
+            inline: containing_block.inline_size,
+            block: std::mem::replace(
+                &mut top_nesting_level.max_block_size_of_fragments_so_far,
+                Length::zero(),
+            ),
+        };
+        self.next_line_block_position += size.block;
+        self.boxes.push(Fragment::Anonymous(AnonymousFragment {
+            children: top_nesting_level.fragments_so_far.take(),
+            rect: Rect { start_corner, size },
+            mode: containing_block.mode,
+        }))
     }
 }
 
@@ -322,7 +335,8 @@ impl TextRun {
                     partial.parent_nesting_level.inline_start = Length::zero();
                     nesting_level = &mut partial.parent_nesting_level;
                 }
-                ifc.line_boxes.finish_line(nesting_level);
+                ifc.line_boxes
+                    .finish_line(nesting_level, ifc.containing_block);
                 ifc.inline_position = Length::zero();
             }
         }
