@@ -114,13 +114,7 @@ impl BoxTreeRoot {
             mode: (WritingMode::HorizontalTb, Direction::Ltr),
         };
 
-        let zero = Length::zero();
-        let initial_containing_block_padding = Sides {
-            inline_start: zero,
-            inline_end: zero,
-            block_start: zero,
-            block_end: zero,
-        };
+        let initial_containing_block_padding = Sides::zero();
 
         let (fragments, _) = self.0.contents.layout_into_absolute_containing_block(
             &initial_containing_block,

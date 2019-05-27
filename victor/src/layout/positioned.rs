@@ -121,7 +121,6 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         let style = &self.absolutely_positioned_box.style;
         let cbis = absolute_containing_block.size.inline;
         let cbbs = absolute_containing_block.size.block;
-        let zero = Length::zero();
 
         let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
         let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
@@ -146,33 +145,32 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             box_offsets: AbsoluteBoxOffsets<LengthOrPercentage>,
             size: Option<LengthOrPercentage>,
         ) -> (Anchor, Option<Length>, Length, Length) {
-            let zero = Length::zero();
             let size = size.map(|v| v.percentage_relative_to(containing_size));
             match box_offsets {
                 AbsoluteBoxOffsets::StaticStart { start } => (
                     Anchor::Start(start + containing_padding_start),
                     size,
-                    computed_margin_start.unwrap_or(zero),
-                    computed_margin_end.unwrap_or(zero),
+                    computed_margin_start.unwrap_or(Length::zero()),
+                    computed_margin_end.unwrap_or(Length::zero()),
                 ),
                 AbsoluteBoxOffsets::Start { start } => (
                     Anchor::Start(start.percentage_relative_to(containing_size)),
                     size,
-                    computed_margin_start.unwrap_or(zero),
-                    computed_margin_end.unwrap_or(zero),
+                    computed_margin_start.unwrap_or(Length::zero()),
+                    computed_margin_end.unwrap_or(Length::zero()),
                 ),
                 AbsoluteBoxOffsets::End { end } => (
                     Anchor::End(end.percentage_relative_to(containing_size)),
                     size,
-                    computed_margin_start.unwrap_or(zero),
-                    computed_margin_end.unwrap_or(zero),
+                    computed_margin_start.unwrap_or(Length::zero()),
+                    computed_margin_end.unwrap_or(Length::zero()),
                 ),
                 AbsoluteBoxOffsets::Both { start, end } => {
                     let start = start.percentage_relative_to(containing_size);
                     let end = end.percentage_relative_to(containing_size);
 
-                    let mut margin_start = computed_margin_start.unwrap_or(zero);
-                    let mut margin_end = computed_margin_end.unwrap_or(zero);
+                    let mut margin_start = computed_margin_start.unwrap_or(Length::zero());
+                    let mut margin_end = computed_margin_end.unwrap_or(Length::zero());
 
                     let size = if let Some(size) = size {
                         let margins = containing_size - start - end - padding_border_sum - size;
@@ -215,7 +213,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
                 if margins.px >= 0. {
                     (margins / 2., margins / 2.)
                 } else {
-                    (zero, margins)
+                    (Length::zero(), margins)
                 }
             },
             self.inline_start,

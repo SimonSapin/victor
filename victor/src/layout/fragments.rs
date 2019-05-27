@@ -29,26 +29,16 @@ pub(crate) struct TextFragment {
 impl BoxFragment {
     /// Create a fragment that does not contribute any painting operation.
     pub fn no_op() -> Self {
-        let zero_vec = Vec2 {
-            inline: Length::zero(),
-            block: Length::zero(),
-        };
-        let zero_sides = Sides {
-            inline_start: Length::zero(),
-            inline_end: Length::zero(),
-            block_start: Length::zero(),
-            block_end: Length::zero(),
-        };
         Self {
             style: ComputedValues::anonymous_inheriting_from(None),
             children: vec![],
             content_rect: Rect {
-                start_corner: zero_vec.clone(),
-                size: zero_vec,
+                start_corner: Vec2::zero(),
+                size: Vec2::zero(),
             },
-            padding: zero_sides.clone(),
-            border: zero_sides.clone(),
-            margin: zero_sides,
+            padding: Sides::zero(),
+            border: Sides::zero(),
+            margin: Sides::zero(),
         }
     }
 

@@ -109,6 +109,17 @@ impl flow_relative::Vec2<Length> {
     }
 }
 
+impl flow_relative::Sides<Length> {
+    pub fn zero() -> Self {
+        Self {
+            inline_start: Length::zero(),
+            inline_end: Length::zero(),
+            block_start: Length::zero(),
+            block_end: Length::zero(),
+        }
+    }
+}
+
 impl<T: Clone> flow_relative::Vec2<T> {
     pub fn size_to_physical(&self, mode: (WritingMode, Direction)) -> physical::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical

@@ -158,7 +158,6 @@ fn same_formatting_context_block<'a>(
     contents: &'a BlockContainer,
 ) -> Fragment {
     let cbis = containing_block.inline_size;
-    let zero = Length::zero();
     let padding = style.padding().map(|v| v.percentage_relative_to(cbis));
     let border = style.border_width().map(|v| v.percentage_relative_to(cbis));
     let pb = &padding + &border;
@@ -191,11 +190,13 @@ fn same_formatting_context_block<'a>(
                 *e = LPA::Length(inline_margins);
             }
         }
-        margin = computed_margin
-            .map_inline_and_block_axes(|v| v.auto_is(|| unreachable!()), |v| v.auto_is(|| zero));
+        margin = computed_margin.map_inline_and_block_axes(
+            |v| v.auto_is(|| unreachable!()),
+            |v| v.auto_is(Length::zero),
+        );
     } else {
         inline_size = None; // auto
-        margin = computed_margin.map(|v| v.auto_is(|| zero));
+        margin = computed_margin.map(|v| v.auto_is(Length::zero));
     }
     let margin = margin.map(|v| v.percentage_relative_to(cbis));
     let pbm = &pb + &margin;
