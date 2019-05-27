@@ -1,9 +1,10 @@
-use super::boxes::{AbsolutelyPositionedBox, BlockContainer, IndependentFormattingContext};
-use super::fragments::{BoxFragment, Fragment};
-use super::ContainingBlock;
-use crate::geom::flow_relative::{Rect, Sides, Vec2};
-use crate::geom::Length;
-use crate::style::values::{Direction, LengthOrPercentage, LengthOrPercentageOrAuto, WritingMode};
+use super::*;
+
+#[derive(Debug)]
+pub(super) struct AbsolutelyPositionedBox {
+    pub style: Arc<ComputedValues>,
+    pub contents: IndependentFormattingContext,
+}
 
 #[derive(Debug)]
 pub(super) struct AbsolutelyPositionedFragment<'box_> {

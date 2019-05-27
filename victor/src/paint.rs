@@ -1,6 +1,6 @@
 use crate::geom::physical::{Rect, Vec2};
 use crate::geom::Length;
-use crate::layout::fragments::{BoxFragment, Fragment};
+use crate::layout::{BoxFragment, Fragment};
 use crate::pdf::Page;
 use crate::primitives::{CssPx, Size, TextRun};
 

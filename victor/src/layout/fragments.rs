@@ -1,8 +1,5 @@
-use crate::geom::flow_relative::{Rect, Sides, Vec2};
-use crate::geom::Length;
-use crate::style::ComputedValues;
+use super::*;
 use crate::text::ShapedSegment;
-use std::sync::Arc;
 
 pub(crate) enum Fragment {
     Box(BoxFragment),

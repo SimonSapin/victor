@@ -1,102 +1,15 @@
 use super::*;
-use crate::dom;
-use crate::dom::traversal::{Contents, Context, NonReplacedContents};
-use crate::layout::Take;
-use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
-use crate::style::{style_for_element, StyleSetBuilder};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rayon_croissant::ParallelIteratorExt;
-use std::convert::TryInto;
-use std::ops::BitOrAssign;
 
-impl dom::Document {
-    pub(in crate::layout) fn box_tree(&self) -> BoxTreeRoot {
-        let mut builder = StyleSetBuilder::new();
-        self.parse_stylesheets(&mut builder);
-        let author_styles = builder.finish();
-
-        let context = Context {
-            document: self,
-            author_styles: &author_styles,
-        };
-
-        let root_element = self.root_element();
-        let style = style_for_element(context.author_styles, context.document, root_element, None);
-
-        let mut boxes = Vec::new();
-        let contains_floats = build_for_root_element(&context, root_element, style, &mut boxes);
-        BlockFormattingContext {
+impl BlockFormattingContext {
+    pub fn construct<'a>(
+        context: &'a Context<'a>,
+        style: &'a Arc<ComputedValues>,
+        contents: NonReplacedContents,
+    ) -> Self {
+        let (contents, contains_floats) = BlockContainer::construct(context, style, contents);
+        Self {
+            contents,
             contains_floats: contains_floats == ContainsFloats::Yes,
-            contents: BlockContainer::BlockLevelBoxes(boxes),
-        }
-    }
-}
-
-fn build_for_root_element(
-    context: &Context,
-    root_element: dom::NodeId,
-    style: Arc<ComputedValues>,
-    boxes: &mut Vec<BlockLevelBox>,
-) -> ContainsFloats {
-    let replaced = ReplacedContent::for_element(root_element, context);
-
-    let display_inside = match style.box_.display {
-        Display::None => return ContainsFloats::No,
-        Display::Contents if replaced.is_some() => {
-            // 'display: contents' computes to 'none' for replaced elements
-            return ContainsFloats::No;
-        }
-        // https://drafts.csswg.org/css-display-3/#transformations
-        Display::Contents => DisplayInside::Flow,
-        // The root element is blockified, ignore DisplayOutside
-        Display::GeneratingBox(DisplayGeneratingBox::OutsideInside { inside, .. }) => inside,
-    };
-
-    if let Some(replaced) = replaced {
-        match replaced {}
-        #[allow(unreachable_code)]
-        {
-            return ContainsFloats::No;
-        }
-    }
-
-    if style.box_.position.is_absolutely_positioned() {
-        boxes.push(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
-            AbsolutelyPositionedBox {
-                contents: IndependentFormattingContext::build(
-                    context,
-                    &style,
-                    display_inside,
-                    Contents::OfElement(root_element),
-                ),
-                style,
-            },
-        ));
-        ContainsFloats::No
-    } else if style.box_.float.is_floating() {
-        boxes.push(BlockLevelBox::OutOfFlowFloatBox(FloatBox {
-            contents: IndependentFormattingContext::build(
-                context,
-                &style,
-                display_inside,
-                Contents::OfElement(root_element),
-            ),
-            style,
-        }));
-        ContainsFloats::Yes
-    } else {
-        // FIXME: use `IndependentFormattingContext::build` and `BlockLevelBox::Independent`
-        // once layout is implemented for the latter
-        match display_inside {
-            DisplayInside::Flow => {
-                let (contents, contains_floats) = BlockContainer::build(
-                    context,
-                    &style,
-                    NonReplacedContents::OfElement(root_element),
-                );
-                boxes.push(BlockLevelBox::SameFormattingContextBlock { style, contents });
-                contains_floats
-            }
         }
     }
 }
@@ -133,58 +46,6 @@ enum IntermediateBlockLevelBox {
 enum IntermediateBlockContainer {
     InlineFormattingContext(InlineFormattingContext),
     Deferred { contents: NonReplacedContents },
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ContainsFloats {
-    No,
-    Yes,
-}
-
-impl BitOrAssign for ContainsFloats {
-    fn bitor_assign(&mut self, other: Self) {
-        if other == ContainsFloats::Yes {
-            *self = ContainsFloats::Yes;
-        }
-    }
-}
-
-impl Default for ContainsFloats {
-    fn default() -> Self {
-        ContainsFloats::No
-    }
-}
-
-impl IndependentFormattingContext {
-    fn build<'a>(
-        context: &'a Context<'a>,
-        style: &'a Arc<ComputedValues>,
-        display_inside: DisplayInside,
-        contents: Contents,
-    ) -> Self {
-        match contents.try_into() {
-            Ok(non_replaced) => match display_inside {
-                DisplayInside::Flow => IndependentFormattingContext::Flow(
-                    BlockFormattingContext::build(context, style, non_replaced),
-                ),
-            },
-            Err(replaced) => IndependentFormattingContext::Replaced(replaced),
-        }
-    }
-}
-
-impl BlockFormattingContext {
-    fn build<'a>(
-        context: &'a Context<'a>,
-        style: &'a Arc<ComputedValues>,
-        contents: NonReplacedContents,
-    ) -> Self {
-        let (contents, contains_floats) = BlockContainer::build(context, style, contents);
-        Self {
-            contents,
-            contains_floats: contains_floats == ContainsFloats::Yes,
-        }
-    }
 }
 
 /// A builder for a block container.
@@ -243,7 +104,7 @@ struct BlockContainerBuilder<'a> {
 }
 
 impl BlockContainer {
-    fn build<'a>(
+    pub fn construct<'a>(
         context: &'a Context<'a>,
         block_container_style: &'a Arc<ComputedValues>,
         contents: NonReplacedContents,
@@ -518,7 +379,7 @@ impl<'a> BlockContainerBuilder<'a> {
             self.block_level_boxes.push(box_)
         } else {
             let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                contents: IndependentFormattingContext::build(
+                contents: IndependentFormattingContext::construct(
                     self.context,
                     &style,
                     display_inside,
@@ -547,7 +408,7 @@ impl<'a> BlockContainerBuilder<'a> {
             self.block_level_boxes.push(box_);
         } else {
             let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
-                contents: IndependentFormattingContext::build(
+                contents: IndependentFormattingContext::construct(
                     self.context,
                     &style,
                     display_inside,
@@ -626,7 +487,7 @@ impl IntermediateBlockLevelBox {
             } => {
                 let block_level_box =
                     BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                        contents: IndependentFormattingContext::build(
+                        contents: IndependentFormattingContext::construct(
                             context,
                             &style,
                             display_inside,
@@ -641,8 +502,12 @@ impl IntermediateBlockLevelBox {
                 display_inside,
                 contents,
             } => {
-                let contents =
-                    IndependentFormattingContext::build(context, &style, display_inside, contents);
+                let contents = IndependentFormattingContext::construct(
+                    context,
+                    &style,
+                    display_inside,
+                    contents,
+                );
                 let block_level_box =
                     BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
                 (block_level_box, ContainsFloats::Yes)
@@ -659,7 +524,7 @@ impl IntermediateBlockContainer {
     ) -> (BlockContainer, ContainsFloats) {
         match self {
             IntermediateBlockContainer::Deferred { contents } => {
-                BlockContainer::build(context, style, contents)
+                BlockContainer::construct(context, style, contents)
             }
             IntermediateBlockContainer::InlineFormattingContext(ifc) => {
                 // If that inline formatting context contained any float, those
@@ -671,5 +536,25 @@ impl IntermediateBlockContainer {
                 )
             }
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::layout) enum ContainsFloats {
+    No,
+    Yes,
+}
+
+impl std::ops::BitOrAssign for ContainsFloats {
+    fn bitor_assign(&mut self, other: Self) {
+        if other == ContainsFloats::Yes {
+            *self = ContainsFloats::Yes;
+        }
+    }
+}
+
+impl Default for ContainsFloats {
+    fn default() -> Self {
+        ContainsFloats::No
     }
 }

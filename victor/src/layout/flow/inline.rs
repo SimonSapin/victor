@@ -1,14 +1,39 @@
-use super::abspos::AbsolutelyPositionedFragment;
-use super::boxes::{InlineBox, InlineFormattingContext, InlineLevelBox, TextRun};
-use super::fragments::{BoxFragment, Fragment, TextFragment};
-use super::{relative_adjustement, ContainingBlock, Take};
+use super::*;
 use crate::fonts::BITSTREAM_VERA_SANS;
-use crate::geom::flow_relative::{Rect, Sides, Vec2};
-use crate::geom::Length;
-use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
-use crate::style::ComputedValues;
 use crate::text::ShapedSegment;
-use std::sync::Arc;
+
+#[derive(Debug, Default)]
+pub(in crate::layout) struct InlineFormattingContext {
+    pub(super) inline_level_boxes: Vec<InlineLevelBox>,
+}
+
+#[derive(Debug)]
+pub(super) enum InlineLevelBox {
+    InlineBox(InlineBox),
+    TextRun(TextRun),
+    OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowFloatBox(FloatBox),
+    Atomic {
+        style: Arc<ComputedValues>,
+        // FIXME: this should be IndependentFormattingContext:
+        contents: ReplacedContent,
+    },
+}
+
+#[derive(Debug)]
+pub(super) struct InlineBox {
+    pub style: Arc<ComputedValues>,
+    pub first_fragment: bool,
+    pub last_fragment: bool,
+    pub children: Vec<InlineLevelBox>,
+}
+
+/// https://www.w3.org/TR/css-display-3/#css-text-run
+#[derive(Debug)]
+pub(super) struct TextRun {
+    pub parent_style: Arc<ComputedValues>,
+    pub text: String,
+}
 
 struct InlineNestingLevelState<'box_tree> {
     remaining_boxes: std::slice::Iter<'box_tree, InlineLevelBox>,
