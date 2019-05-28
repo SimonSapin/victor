@@ -1,11 +1,9 @@
-use crate::geom::flow_relative::{Rect, Sides, Vec2};
-use crate::geom::Length;
-use crate::style::ComputedValues;
+use super::*;
 use crate::text::ShapedSegment;
-use std::sync::Arc;
 
 pub(crate) enum Fragment {
     Box(BoxFragment),
+    Anonymous(AnonymousFragment),
     Text(TextFragment),
 }
 
@@ -23,38 +21,30 @@ pub(crate) struct BoxFragment {
     pub margin: Sides<Length>,
 }
 
+/// Can contain child fragments with relative coordinates, but does not contribute to painting itself.
+pub(crate) struct AnonymousFragment {
+    pub rect: Rect<Length>,
+    pub children: Vec<Fragment>,
+    pub mode: (WritingMode, Direction),
+}
+
 pub(crate) struct TextFragment {
     pub parent_style: Arc<ComputedValues>,
     pub content_rect: Rect<Length>,
     pub text: ShapedSegment,
 }
 
-impl BoxFragment {
-    /// Create a fragment that does not contribute any painting operation.
-    pub fn no_op() -> Self {
-        let zero_vec = Vec2 {
-            inline: Length::zero(),
-            block: Length::zero(),
-        };
-        let zero_sides = Sides {
-            inline_start: Length::zero(),
-            inline_end: Length::zero(),
-            block_start: Length::zero(),
-            block_end: Length::zero(),
-        };
+impl AnonymousFragment {
+    pub fn no_op(mode: (WritingMode, Direction)) -> Self {
         Self {
-            style: ComputedValues::anonymous_inheriting_from(None),
             children: vec![],
-            content_rect: Rect {
-                start_corner: zero_vec.clone(),
-                size: zero_vec,
-            },
-            padding: zero_sides.clone(),
-            border: zero_sides.clone(),
-            margin: zero_sides,
+            rect: Rect::zero(),
+            mode,
         }
     }
+}
 
+impl BoxFragment {
     pub fn border_rect(&self) -> Rect<Length> {
         self.content_rect
             .inflate(&self.padding)

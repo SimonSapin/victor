@@ -1,4 +1,5 @@
 pub(crate) use crate::style::values::Length;
+use crate::style::values::{LengthOrAuto, LengthOrPercentage, LengthOrPercentageOrAuto};
 
 pub(crate) mod physical {
     #[derive(Debug, Clone)]
@@ -109,6 +110,26 @@ impl flow_relative::Vec2<Length> {
     }
 }
 
+impl flow_relative::Sides<Length> {
+    pub fn zero() -> Self {
+        Self {
+            inline_start: Length::zero(),
+            inline_end: Length::zero(),
+            block_start: Length::zero(),
+            block_end: Length::zero(),
+        }
+    }
+}
+
+impl flow_relative::Rect<Length> {
+    pub fn zero() -> Self {
+        Self {
+            start_corner: flow_relative::Vec2::zero(),
+            size: flow_relative::Vec2::zero(),
+        }
+    }
+}
+
 impl<T: Clone> flow_relative::Vec2<T> {
     pub fn size_to_physical(&self, mode: (WritingMode, Direction)) -> physical::Vec2<T> {
         // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
@@ -205,6 +226,24 @@ impl<T> flow_relative::Sides<T> {
             inline: self.inline_start.clone(),
             block: self.block_start.clone(),
         }
+    }
+}
+
+impl flow_relative::Sides<LengthOrPercentage> {
+    pub fn percentages_relative_to(&self, basis: Length) -> flow_relative::Sides<Length> {
+        self.map(|s| s.percentage_relative_to(basis))
+    }
+}
+
+impl flow_relative::Sides<LengthOrPercentageOrAuto> {
+    pub fn percentages_relative_to(&self, basis: Length) -> flow_relative::Sides<LengthOrAuto> {
+        self.map(|s| s.percentage_relative_to(basis))
+    }
+}
+
+impl flow_relative::Sides<LengthOrAuto> {
+    pub fn auto_is(&self, f: impl Fn() -> Length) -> flow_relative::Sides<Length> {
+        self.map(|s| s.auto_is(&f))
     }
 }
 

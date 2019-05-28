@@ -13,7 +13,7 @@ pub(crate) enum Display {
 
 #[allow(dead_code)]
 fn _static_assert_size_of() {
-    let _ = std::mem::transmute::<Display, [u8; 1]>;
+    let _ = std::mem::transmute::<Display, [u8; 2]>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -38,6 +38,7 @@ pub(crate) enum DisplayOutside {
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub(crate) enum DisplayInside {
     Flow,
+    FlowRoot,
 }
 
 impl Display {
@@ -84,6 +85,12 @@ impl super::Parse for Display {
                 DisplayGeneratingBox::OutsideInside {
                     outside: DisplayOutside::Block,
                     inside: DisplayInside::Flow,
+                },
+            )),
+            "flow-root" => Ok(Display::GeneratingBox(
+                DisplayGeneratingBox::OutsideInside {
+                    outside: DisplayOutside::Block,
+                    inside: DisplayInside::FlowRoot,
                 },
             )),
             "inline" => Ok(Display::GeneratingBox(

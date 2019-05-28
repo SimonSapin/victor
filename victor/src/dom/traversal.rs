@@ -182,6 +182,15 @@ impl std::convert::TryFrom<Contents> for NonReplacedContents {
     }
 }
 
+impl std::convert::From<NonReplacedContents> for Contents {
+    fn from(contents: NonReplacedContents) -> Self {
+        match contents {
+            NonReplacedContents::OfElement(id) => Contents::OfElement(id),
+            NonReplacedContents::OfPseudoElement(items) => Contents::OfPseudoElement(items),
+        }
+    }
+}
+
 impl NonReplacedContents {
     pub fn traverse(
         self,

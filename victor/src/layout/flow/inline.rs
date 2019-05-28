@@ -1,14 +1,39 @@
-use super::abspos::AbsolutelyPositionedFragment;
-use super::boxes::{InlineBox, InlineFormattingContext, InlineLevelBox, TextRun};
-use super::fragments::{BoxFragment, Fragment, TextFragment};
-use super::{relative_adjustement, ContainingBlock, Take};
+use super::*;
 use crate::fonts::BITSTREAM_VERA_SANS;
-use crate::geom::flow_relative::{Rect, Sides, Vec2};
-use crate::geom::Length;
-use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
-use crate::style::ComputedValues;
 use crate::text::ShapedSegment;
-use std::sync::Arc;
+
+#[derive(Debug, Default)]
+pub(in crate::layout) struct InlineFormattingContext {
+    pub(super) inline_level_boxes: Vec<InlineLevelBox>,
+}
+
+#[derive(Debug)]
+pub(super) enum InlineLevelBox {
+    InlineBox(InlineBox),
+    TextRun(TextRun),
+    OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
+    OutOfFlowFloatBox(FloatBox),
+    Atomic {
+        style: Arc<ComputedValues>,
+        // FIXME: this should be IndependentFormattingContext:
+        contents: ReplacedContent,
+    },
+}
+
+#[derive(Debug)]
+pub(super) struct InlineBox {
+    pub style: Arc<ComputedValues>,
+    pub first_fragment: bool,
+    pub last_fragment: bool,
+    pub children: Vec<InlineLevelBox>,
+}
+
+/// https://www.w3.org/TR/css-display-3/#css-text-run
+#[derive(Debug)]
+pub(super) struct TextRun {
+    pub parent_style: Arc<ComputedValues>,
+    pub text: String,
+}
 
 struct InlineNestingLevelState<'box_tree> {
     remaining_boxes: std::slice::Iter<'box_tree, InlineLevelBox>,
@@ -79,7 +104,7 @@ impl InlineFormattingContext {
                         let initial_start_corner = match box_.style.specified_display {
                             Display::GeneratingBox(DisplayGeneratingBox::OutsideInside {
                                 outside,
-                                inside: DisplayInside::Flow,
+                                inside: _,
                             }) => Vec2 {
                                 inline: match outside {
                                     DisplayOutside::Inline => ifc.inline_position,
@@ -110,7 +135,8 @@ impl InlineFormattingContext {
                 );
                 ifc.current_nesting_level = partial.parent_nesting_level
             } else {
-                ifc.line_boxes.finish_line(&mut ifc.current_nesting_level);
+                ifc.line_boxes
+                    .finish_line(&mut ifc.current_nesting_level, containing_block);
                 return (
                     ifc.line_boxes.boxes,
                     ifc.absolutely_positioned_fragments,
@@ -122,16 +148,28 @@ impl InlineFormattingContext {
 }
 
 impl LinesBoxes {
-    fn finish_line(&mut self, top_nesting_level: &mut InlineNestingLevelState) {
-        let mut line_box = BoxFragment::no_op();
-        line_box.content_rect.start_corner.block = self.next_line_block_position;
-        line_box.content_rect.size.block = std::mem::replace(
-            &mut top_nesting_level.max_block_size_of_fragments_so_far,
-            Length::zero(),
-        );
-        line_box.children = top_nesting_level.fragments_so_far.take();
-        self.next_line_block_position += line_box.content_rect.size.block;
-        self.boxes.push(Fragment::Box(line_box));
+    fn finish_line(
+        &mut self,
+        top_nesting_level: &mut InlineNestingLevelState,
+        containing_block: &ContainingBlock,
+    ) {
+        let start_corner = Vec2 {
+            inline: Length::zero(),
+            block: self.next_line_block_position,
+        };
+        let size = Vec2 {
+            inline: containing_block.inline_size,
+            block: std::mem::replace(
+                &mut top_nesting_level.max_block_size_of_fragments_so_far,
+                Length::zero(),
+            ),
+        };
+        self.next_line_block_position += size.block;
+        self.boxes.push(Fragment::Anonymous(AnonymousFragment {
+            children: top_nesting_level.fragments_so_far.take(),
+            rect: Rect { start_corner, size },
+            mode: containing_block.mode,
+        }))
     }
 }
 
@@ -142,11 +180,12 @@ impl InlineBox {
     ) -> PartialInlineBoxFragment<'box_tree> {
         let style = self.style.clone();
         let cbis = ifc.containing_block.inline_size;
-        let mut padding = style.padding().map(|v| v.percentage_relative_to(cbis));
-        let mut border = style.border_width().map(|v| v.percentage_relative_to(cbis));
+        let mut padding = style.padding().percentages_relative_to(cbis);
+        let mut border = style.border_width().percentages_relative_to(cbis);
         let mut margin = style
             .margin()
-            .map(|v| v.auto_is(Length::zero).percentage_relative_to(cbis));
+            .percentages_relative_to(cbis)
+            .auto_is(Length::zero);
         if self.first_fragment {
             ifc.inline_position += padding.inline_start + border.inline_start + margin.inline_start;
         } else {
@@ -297,7 +336,8 @@ impl TextRun {
                     partial.parent_nesting_level.inline_start = Length::zero();
                     nesting_level = &mut partial.parent_nesting_level;
                 }
-                ifc.line_boxes.finish_line(nesting_level);
+                ifc.line_boxes
+                    .finish_line(nesting_level, ifc.containing_block);
                 ifc.inline_position = Length::zero();
             }
         }
