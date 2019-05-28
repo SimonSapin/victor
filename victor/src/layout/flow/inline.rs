@@ -66,6 +66,14 @@ struct LinesBoxes {
 }
 
 impl InlineFormattingContext {
+    pub(super) fn intrinsic_sizes(&self, requested: bool) -> IntrinsicSizes {
+        if requested {
+            unimplemented!()
+        } else {
+            IntrinsicSizes::WasNotRequested
+        }
+    }
+
     pub(super) fn layout<'a>(
         &'a self,
         containing_block: &ContainingBlock,

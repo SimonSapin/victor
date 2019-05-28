@@ -265,7 +265,7 @@ impl BlockLevelBox {
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
                     // FIXME
-                    match *replaced {}
+                    replaced.unimplemented()
                 }
                 Err(contents) => Fragment::Box(layout_in_flow_non_replaced_block_level(
                     containing_block,

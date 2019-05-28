@@ -12,3 +12,9 @@ impl ReplacedContent {
         None
     }
 }
+
+impl ReplacedContent {
+    pub fn unimplemented<T>(&self) -> T {
+        match *self {}
+    }
+}

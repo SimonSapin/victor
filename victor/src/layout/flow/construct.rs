@@ -5,12 +5,17 @@ impl BlockFormattingContext {
         context: &'a Context<'a>,
         style: &'a Arc<ComputedValues>,
         contents: NonReplacedContents,
-    ) -> Self {
-        let (contents, contains_floats) = BlockContainer::construct(context, style, contents);
-        Self {
-            contents,
-            contains_floats: contains_floats == ContainsFloats::Yes,
-        }
+        request_intrinsic_sizes: bool,
+    ) -> (Self, IntrinsicSizes) {
+        let (contents, contains_floats, intrinsic_sizes) =
+            BlockContainer::construct(context, style, contents, request_intrinsic_sizes);
+        (
+            Self {
+                contents,
+                contains_floats: contains_floats == ContainsFloats::Yes,
+            },
+            intrinsic_sizes,
+        )
     }
 }
 
@@ -44,7 +49,7 @@ enum IntermediateBlockLevelBox {
 ///
 /// Deferring allows using rayon’s `into_par_iter`.
 enum IntermediateBlockContainer {
-    InlineFormattingContext(InlineFormattingContext),
+    InlineFormattingContext(InlineFormattingContext, IntrinsicSizes),
     Deferred { contents: NonReplacedContents },
 }
 
@@ -55,6 +60,7 @@ enum IntermediateBlockContainer {
 struct BlockContainerBuilder<'a> {
     context: &'a Context<'a>,
     block_container_style: &'a Arc<ComputedValues>,
+    request_intrinsic_sizes: bool,
 
     /// The list of block-level boxes of the final block container.
     ///
@@ -108,10 +114,12 @@ impl BlockContainer {
         context: &'a Context<'a>,
         block_container_style: &'a Arc<ComputedValues>,
         contents: NonReplacedContents,
-    ) -> (BlockContainer, ContainsFloats) {
+        request_intrinsic_sizes: bool,
+    ) -> (BlockContainer, ContainsFloats, IntrinsicSizes) {
         let mut builder = BlockContainerBuilder {
             context,
             block_container_style,
+            request_intrinsic_sizes,
             block_level_boxes: Default::default(),
             ongoing_inline_formatting_context: Default::default(),
             ongoing_inline_boxes_stack: Default::default(),
@@ -129,32 +137,46 @@ impl BlockContainer {
             .is_empty()
         {
             if builder.block_level_boxes.is_empty() {
+                let intrinsic_sizes = builder
+                    .ongoing_inline_formatting_context
+                    .intrinsic_sizes(request_intrinsic_sizes);
                 let container = BlockContainer::InlineFormattingContext(
                     builder.ongoing_inline_formatting_context,
                 );
-                return (container, builder.contains_floats);
+                return (container, builder.contains_floats, intrinsic_sizes);
             }
             builder.end_ongoing_inline_formatting_context();
         }
 
-        let mut contains_floats = builder.contains_floats;
+        #[derive(Default)]
+        struct Accumulated(ContainsFloats, IntrinsicSizes);
+        let mut acc = Accumulated(
+            builder.contains_floats,
+            IntrinsicSizes::zero_if_requested(request_intrinsic_sizes),
+        );
         let container = BlockContainer::BlockLevelBoxes(
             builder
                 .block_level_boxes
                 .into_par_iter()
                 .mapfold_reduce_into(
-                    &mut contains_floats,
-                    |contains_floats, (intermediate, box_slot)| {
-                        let (block_level_box, box_contains_floats) = intermediate.finish(context);
+                    &mut acc,
+                    |Accumulated(contains_floats, intrinsic_sizes), (intermediate, box_slot)| {
+                        let (block_level_box, box_contains_floats, child_intrinsic_sizes) =
+                            intermediate.finish(context, request_intrinsic_sizes);
                         *contains_floats |= box_contains_floats;
+                        *intrinsic_sizes = intrinsic_sizes.max(child_intrinsic_sizes);
                         box_slot.set(LayoutBox::BlockLevel(block_level_box.clone()));
                         block_level_box
                     },
-                    |left, right| *left |= right,
+                    |left, right| {
+                        left.0 |= right.0;
+                        left.1 = left.1.max(right.1)
+                    },
                 )
                 .collect(),
         );
-        (container, contains_floats)
+        let Accumulated(contains_floats, intrinsic_sizes) = acc;
+        (container, contains_floats, intrinsic_sizes)
     }
 }
 
@@ -422,17 +444,18 @@ impl<'a> BlockContainerBuilder<'a> {
             };
             self.block_level_boxes.push((box_, box_slot))
         } else {
-            let box_ = Arc::new(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(
-                AbsolutelyPositionedBox {
-                    contents: IndependentFormattingContext::construct(
-                        self.context,
-                        &style,
-                        display_inside,
-                        contents,
-                    ),
-                    style,
-                },
-            ));
+            let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
+                self.context,
+                &style,
+                display_inside,
+                contents,
+                AbsolutelyPositionedBox::needs_intrinsic_sizes(&style),
+            );
+            let box_ = Arc::new(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
+                style,
+                contents,
+                intrinsic_sizes,
+            }));
             self.current_inline_level_boxes().push(box_.clone());
             box_slot.set(LayoutBox::InlineLevel(box_))
         }
@@ -455,14 +478,17 @@ impl<'a> BlockContainerBuilder<'a> {
             };
             self.block_level_boxes.push((box_, box_slot));
         } else {
+            let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
+                self.context,
+                &style,
+                display_inside,
+                contents,
+                FloatBox::needs_intrinsic_sizes(&style),
+            );
             let box_ = Arc::new(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
-                contents: IndependentFormattingContext::construct(
-                    self.context,
-                    &style,
-                    display_inside,
-                    contents,
-                ),
                 style,
+                contents,
+                intrinsic_sizes,
             }));
             self.current_inline_level_boxes().push(box_.clone());
             box_slot.set(LayoutBox::InlineLevel(box_))
@@ -492,12 +518,18 @@ impl<'a> BlockContainerBuilder<'a> {
             ComputedValues::anonymous_inheriting_from(Some(block_container_style))
         });
 
-        let box_ = IntermediateBlockLevelBox::SameFormattingContextBlock {
-            style: anonymous_style.clone(),
-            contents: IntermediateBlockContainer::InlineFormattingContext(take(
-                &mut self.ongoing_inline_formatting_context,
-            )),
+        let intrinsic_sizes = if self.request_intrinsic_sizes {
+            unimplemented!()
+        } else {
+            IntrinsicSizes::WasNotRequested
         };
+        let box_ = IntermediateBlockLevelBox::SameFormattingContextBlock {
+                style: anonymous_style.clone(),
+                contents: IntermediateBlockContainer::InlineFormattingContext(
+                    take(&mut self.ongoing_inline_formatting_context),
+                    intrinsic_sizes,
+                ),
+            };
         self.block_level_boxes.push((box_, BoxSlot::dummy()))
     }
 
@@ -518,64 +550,74 @@ impl<'a> BlockContainerBuilder<'a> {
 }
 
 impl IntermediateBlockLevelBox {
-    fn finish(self, context: &Context) -> (Arc<BlockLevelBox>, ContainsFloats) {
+    fn finish(
+        self,
+        context: &Context,
+        request_intrinsic_sizes: bool,
+    ) -> (Arc<BlockLevelBox>, ContainsFloats, IntrinsicSizes) {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                let (contents, contains_floats) = contents.finish(context, &style);
+                let (contents, contains_floats, intrinsic_sizes) =
+                    contents.finish(context, &style, request_intrinsic_sizes);
                 let block_level_box =
                     Arc::new(BlockLevelBox::SameFormattingContextBlock { contents, style });
-                (block_level_box, contains_floats)
+                (block_level_box, contains_floats, intrinsic_sizes)
             }
             IntermediateBlockLevelBox::Independent {
                 style,
                 display_inside,
                 contents,
             } => {
-                let contents = IndependentFormattingContext::construct(
+                let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
                     context,
                     &style,
                     display_inside,
                     contents,
+                    request_intrinsic_sizes,
                 );
-                (
-                    Arc::new(BlockLevelBox::Independent { style, contents }),
-                    ContainsFloats::No,
-                )
+                let box_ = Arc::new(BlockLevelBox::Independent { style, contents });
+                (box_, ContainsFloats::No, intrinsic_sizes)
             }
             IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
                 style,
                 display_inside,
                 contents,
             } => {
-                let block_level_box = Arc::new(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
-                    AbsolutelyPositionedBox {
-                        contents: IndependentFormattingContext::construct(
-                            context,
-                            &style,
-                            display_inside,
-                            contents,
-                        ),
-                        style: style,
-                    },
-                ));
-                (block_level_box, ContainsFloats::No)
+                let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
+                    context,
+                    &style,
+                    display_inside,
+                    contents,
+                    AbsolutelyPositionedBox::needs_intrinsic_sizes(&style),
+                );
+                let block_level_box =
+                    Arc::new(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
+                        style,
+                        contents,
+                        intrinsic_sizes,
+                    }));
+                let out_of_flow = IntrinsicSizes::zero_if_requested(request_intrinsic_sizes);
+                (block_level_box, ContainsFloats::No, out_of_flow)
             }
             IntermediateBlockLevelBox::OutOfFlowFloatBox {
                 style,
                 display_inside,
                 contents,
             } => {
-                let contents = IndependentFormattingContext::construct(
+                let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
                     context,
                     &style,
                     display_inside,
                     contents,
+                    FloatBox::needs_intrinsic_sizes(&style),
                 );
                 let block_level_box = Arc::new(BlockLevelBox::OutOfFlowFloatBox(FloatBox {
-                    contents,
                     style,
+                    contents,
+                    intrinsic_sizes,
                 }));
-                (block_level_box, ContainsFloats::Yes)
+                let out_of_flow = IntrinsicSizes::zero_if_requested(request_intrinsic_sizes);
+                (block_level_box, ContainsFloats::Yes, out_of_flow)
             }
         }
     }
@@ -586,18 +628,20 @@ impl IntermediateBlockContainer {
         self,
         context: &Context,
         style: &Arc<ComputedValues>,
-    ) -> (BlockContainer, ContainsFloats) {
+        request_intrinsic_sizes: bool,
+    ) -> (BlockContainer, ContainsFloats, IntrinsicSizes) {
         match self {
             IntermediateBlockContainer::Deferred { contents } => {
-                BlockContainer::construct(context, style, contents)
+                BlockContainer::construct(context, style, contents, request_intrinsic_sizes)
             }
-            IntermediateBlockContainer::InlineFormattingContext(ifc) => {
+            IntermediateBlockContainer::InlineFormattingContext(ifc, intrinsic_sizes) => {
                 // If that inline formatting context contained any float, those
                 // were already taken into account during the first phase of
                 // box construction.
                 (
                     BlockContainer::InlineFormattingContext(ifc),
                     ContainsFloats::No,
+                    intrinsic_sizes,
                 )
             }
         }

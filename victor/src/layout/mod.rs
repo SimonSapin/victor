@@ -41,18 +41,27 @@ impl IndependentFormattingContext {
         style: &'a Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
-    ) -> Self {
+        request_intrinsic_sizes: bool,
+    ) -> (Self, IntrinsicSizes) {
         match contents.try_into() {
             Ok(non_replaced) => match display_inside {
                 DisplayInside::Flow | DisplayInside::FlowRoot => {
-                    IndependentFormattingContext::Flow(BlockFormattingContext::construct(
+                    let (bfc, intrinsic_sizes) = BlockFormattingContext::construct(
                         context,
                         style,
                         non_replaced,
-                    ))
+                        request_intrinsic_sizes,
+                    );
+                    (IndependentFormattingContext::Flow(bfc), intrinsic_sizes)
                 }
             },
-            Err(replaced) => IndependentFormattingContext::Replaced(replaced),
+            Err(replaced) => {
+                let intrinsic_sizes = replaced.unimplemented();
+                (
+                    IndependentFormattingContext::Replaced(replaced),
+                    intrinsic_sizes,
+                )
+            }
         }
     }
 
@@ -70,7 +79,7 @@ impl IndependentFormattingContext {
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     ) -> FlowChildren {
         match self.as_replaced() {
-            Ok(replaced) => match *replaced {},
+            Ok(replaced) => replaced.unimplemented(),
             Err(ifc) => ifc.layout(containing_block, tree_rank, absolutely_positioned_fragments),
         }
     }
@@ -100,6 +109,65 @@ struct ContainingBlock {
 struct DefiniteContainingBlock {
     size: Vec2<Length>,
     mode: (WritingMode, Direction),
+}
+
+#[derive(Debug, Clone)]
+enum IntrinsicSizes {
+    WasNotRequested,
+    Available {
+        min_content: Length,
+        max_content: Length,
+    },
+}
+
+impl Default for IntrinsicSizes {
+    fn default() -> Self {
+        IntrinsicSizes::WasNotRequested
+    }
+}
+
+impl IntrinsicSizes {
+    fn shrink_to_fit(&self, available_inline_size: Length) -> Length {
+        match *self {
+            IntrinsicSizes::WasNotRequested => {
+                panic!("Using shrink-to-fit without requesting intrinsic sizes")
+            }
+            IntrinsicSizes::Available {
+                min_content,
+                max_content,
+            } => available_inline_size.max(min_content).min(max_content),
+        }
+    }
+
+    fn zero_if_requested(requested: bool) -> Self {
+        if requested {
+            IntrinsicSizes::Available {
+                min_content: Length::zero(),
+                max_content: Length::zero(),
+            }
+        } else {
+            IntrinsicSizes::WasNotRequested
+        }
+    }
+
+    fn max(&self, other: Self) -> Self {
+        match *self {
+            IntrinsicSizes::WasNotRequested => other,
+            IntrinsicSizes::Available {
+                min_content: min_self,
+                max_content: max_self,
+            } => match other {
+                IntrinsicSizes::WasNotRequested => self.clone(),
+                IntrinsicSizes::Available {
+                    min_content: min_other,
+                    max_content: max_other,
+                } => IntrinsicSizes::Available {
+                    min_content: min_self.max(min_other),
+                    max_content: max_self.max(max_other),
+                },
+            },
+        }
+    }
 }
 
 /// https://drafts.csswg.org/css2/visuren.html#relative-positioning

@@ -48,35 +48,51 @@ fn construct_for_root_element(
     };
 
     if let Some(replaced) = replaced {
-        let _box = match replaced {};
-        #[allow(unreachable_code)]
-        {
-            return (ContainsFloats::No, vec![Arc::new(_box)]);
-        }
+        return (ContainsFloats::No, vec![Arc::new(replaced.unimplemented())]);
     }
 
-    let contents = IndependentFormattingContext::construct(
-        context,
-        &style,
-        display_inside,
-        Contents::OfElement(root_element),
-    );
     if style.box_.position.is_absolutely_positioned() {
+        let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
+            context,
+            &style,
+            display_inside,
+            Contents::OfElement(root_element),
+            AbsolutelyPositionedBox::needs_intrinsic_sizes(&style),
+        );
         (
             ContainsFloats::No,
             vec![Arc::new(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
-                AbsolutelyPositionedBox { style, contents },
+                AbsolutelyPositionedBox {
+                    style,
+                    contents,
+                    intrinsic_sizes,
+                },
             ))],
         )
     } else if style.box_.float.is_floating() {
+        let (contents, intrinsic_sizes) = IndependentFormattingContext::construct(
+            context,
+            &style,
+            display_inside,
+            Contents::OfElement(root_element),
+            FloatBox::needs_intrinsic_sizes(&style),
+        );
         (
             ContainsFloats::Yes,
             vec![Arc::new(BlockLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents,
                 style,
+                intrinsic_sizes,
             }))],
         )
     } else {
+        let (contents, _) = IndependentFormattingContext::construct(
+            context,
+            &style,
+            display_inside,
+            Contents::OfElement(root_element),
+            /* request_intrinsic_sizes: */ false,
+        );
         (
             ContainsFloats::No,
             vec![Arc::new(BlockLevelBox::Independent { style, contents })],

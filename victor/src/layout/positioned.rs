@@ -5,6 +5,7 @@ use rayon::prelude::*;
 pub(super) struct AbsolutelyPositionedBox {
     pub style: Arc<ComputedValues>,
     pub contents: IndependentFormattingContext,
+    pub intrinsic_sizes: IntrinsicSizes,
 }
 
 #[derive(Debug)]
@@ -32,6 +33,14 @@ pub(super) enum AbsoluteBoxOffsets<NonStatic> {
 }
 
 impl AbsolutelyPositionedBox {
+    pub(super) fn needs_intrinsic_sizes(style: &ComputedValues) -> bool {
+        use LengthOrPercentageOrAuto::Auto;
+        matches!(style.box_size().inline, Auto) && {
+            let offsets = style.box_offsets();
+            matches!(offsets.inline_start, Auto) || matches!(offsets.inline_end, Auto)
+        }
+    }
+
     pub(super) fn layout<'a>(
         &'a self,
         initial_start_corner: Vec2<Length>,
@@ -238,9 +247,9 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
                 Anchor::Start(start) => cbis - start - pb.inline_sum() - margin.inline_sum(),
                 Anchor::End(end) => cbis - end - pb.inline_sum() - margin.inline_sum(),
             };
-
-            // FIXME(nox): shrink-to-fit.
-            available_size
+            self.absolutely_positioned_box
+                .intrinsic_sizes
+                .shrink_to_fit(available_size)
         });
 
         let containing_block_for_children = ContainingBlock {
