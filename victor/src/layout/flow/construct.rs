@@ -9,7 +9,7 @@ impl BlockFormattingContext {
         let (contents, contains_floats) = BlockContainer::construct(context, style, contents);
         Self {
             contents,
-            contains_floats: contains_floats == ContainsFloats::Yes,
+            contains_floats: contains_floats,
         }
     }
 }

@@ -16,7 +16,7 @@ use inline::*;
 #[derive(Debug)]
 pub(super) struct BlockFormattingContext {
     pub contents: BlockContainer,
-    pub contains_floats: bool,
+    pub contains_floats: ContainsFloats,
 }
 
 #[derive(Debug)]

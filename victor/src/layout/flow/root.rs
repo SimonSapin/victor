@@ -22,7 +22,7 @@ impl BoxTreeRoot {
         let style = style_for_element(context.author_styles, context.document, root_element, None);
         let (contains_floats, boxes) = construct_for_root_element(&context, root_element, style);
         Self(BlockFormattingContext {
-            contains_floats: contains_floats == ContainsFloats::Yes,
+            contains_floats,
             contents: BlockContainer::BlockLevelBoxes(boxes),
         })
     }
