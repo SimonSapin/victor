@@ -95,6 +95,22 @@ fn layout_block_level_children<'a>(
     containing_block: &ContainingBlock,
     child_boxes: &'a [BlockLevelBox],
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
+    fn adjust_block_axis(fragment: &mut Fragment, content_block_size: &mut Length) {
+        let (bpm, rect) = match fragment {
+            Fragment::Box(fragment) => (
+                fragment.padding.block_sum()
+                    + fragment.border.block_sum()
+                    + fragment.margin.block_sum(),
+                &mut fragment.content_rect,
+            ),
+            Fragment::Anonymous(fragment) => (Length::zero(), &mut fragment.rect),
+            _ => unreachable!(),
+        };
+        // FIXME: margin collapsing
+        rect.start_corner.block += *content_block_size;
+        *content_block_size += bpm + rect.size.block;
+    }
+
     let mut absolutely_positioned_fragments = vec![];
     let mut child_fragments = child_boxes
         .par_iter()
@@ -112,19 +128,7 @@ fn layout_block_level_children<'a>(
 
     let mut content_block_size = Length::zero();
     for fragment in &mut child_fragments {
-        let (bpm, rect) = match fragment {
-            Fragment::Box(fragment) => (
-                fragment.padding.block_sum()
-                    + fragment.border.block_sum()
-                    + fragment.margin.block_sum(),
-                &mut fragment.content_rect,
-            ),
-            Fragment::Anonymous(fragment) => (Length::zero(), &mut fragment.rect),
-            _ => unreachable!(),
-        };
-        // FIXME: margin collapsing
-        rect.start_corner.block += content_block_size;
-        content_block_size += bpm + rect.size.block;
+        adjust_block_axis(fragment, &mut content_block_size);
     }
 
     (child_fragments, absolutely_positioned_fragments, content_block_size)
