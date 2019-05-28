@@ -131,7 +131,11 @@ fn layout_block_level_children<'a>(
         adjust_block_axis(fragment, &mut content_block_size);
     }
 
-    (child_fragments, absolutely_positioned_fragments, content_block_size)
+    (
+        child_fragments,
+        absolutely_positioned_fragments,
+        content_block_size,
+    )
 }
 
 impl BlockLevelBox {
@@ -146,7 +150,7 @@ impl BlockLevelBox {
                 containing_block,
                 absolutely_positioned_fragments,
                 style,
-                move |containing_block| contents.layout(containing_block, tree_rank),
+                |containing_block| contents.layout(containing_block, tree_rank),
             ),
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
@@ -157,7 +161,7 @@ impl BlockLevelBox {
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
-                    move |containing_block| contents.layout(containing_block),
+                    |containing_block| contents.layout(containing_block),
                 ),
             },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
