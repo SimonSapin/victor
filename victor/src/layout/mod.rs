@@ -40,9 +40,13 @@ impl IndependentFormattingContext {
     ) -> Self {
         match contents.try_into() {
             Ok(non_replaced) => match display_inside {
-                DisplayInside::Flow | DisplayInside::FlowRoot => IndependentFormattingContext::Flow(
-                    BlockFormattingContext::construct(context, style, non_replaced),
-                ),
+                DisplayInside::Flow | DisplayInside::FlowRoot => {
+                    IndependentFormattingContext::Flow(BlockFormattingContext::construct(
+                        context,
+                        style,
+                        non_replaced,
+                    ))
+                }
             },
             Err(replaced) => IndependentFormattingContext::Replaced(replaced),
         }
