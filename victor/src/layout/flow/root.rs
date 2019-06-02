@@ -100,7 +100,8 @@ impl BoxTreeRoot {
             // https://drafts.csswg.org/css-writing-modes/#principal-flow
             mode: (WritingMode::HorizontalTb, Direction::Ltr),
         };
-        let (mut fragments, abspos, _) = self.0.layout(&initial_containing_block);
+        let dummy_tree_rank = 0;
+        let (mut fragments, abspos, _) = self.0.layout(&initial_containing_block, dummy_tree_rank);
 
         let initial_containing_block = DefiniteContainingBlock {
             size: initial_containing_block_size,

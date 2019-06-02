@@ -43,9 +43,9 @@ impl BlockFormattingContext {
     pub(super) fn layout(
         &self,
         containing_block: &ContainingBlock,
+        tree_rank: usize,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
-        let dummy_tree_rank = 0;
-        self.contents.layout(containing_block, dummy_tree_rank)
+        self.contents.layout(containing_block, tree_rank)
     }
 }
 
@@ -161,7 +161,7 @@ impl BlockLevelBox {
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
-                    |containing_block| contents.layout(containing_block),
+                    |containing_block| contents.layout(containing_block, tree_rank),
                 ),
             },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
