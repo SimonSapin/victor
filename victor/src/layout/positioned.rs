@@ -253,10 +253,11 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             containing_block.mode, containing_block_for_children.mode,
             "Mixed writing modes are not supported yet"
         );
+        let dummy_tree_rank = 0;
         let (mut children, nested_abspos, block_size) = self
             .absolutely_positioned_box
             .contents
-            .layout(&containing_block_for_children);
+            .layout(&containing_block_for_children, dummy_tree_rank);
 
         let inline_start = match inline_anchor {
             Anchor::Start(start) => start + pb.inline_start + margin.inline_start,
