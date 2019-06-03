@@ -45,7 +45,12 @@ impl BlockFormattingContext {
         containing_block: &ContainingBlock,
         tree_rank: usize,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
-        self.contents.layout(containing_block, tree_rank)
+        let mut float_list = self.contains_floats.into_list();
+        let mut float_context = float_list
+            .as_mut()
+            .map(|list| FloatContext::root(containing_block.inline_size, list));
+        self.contents
+            .layout(containing_block, tree_rank, float_context.as_mut())
     }
 }
 
@@ -54,11 +59,12 @@ impl BlockContainer {
         &self,
         containing_block: &ContainingBlock,
         tree_rank: usize,
+        float_context: Option<&mut FloatContext>,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
                 let (child_fragments, mut absolutely_positioned_fragments, content_block_size) =
-                    layout_block_level_children(containing_block, child_boxes);
+                    layout_block_level_children(containing_block, child_boxes, float_context);
 
                 for abspos_fragment in &mut absolutely_positioned_fragments {
                     let child_fragment_rect = match &child_fragments[abspos_fragment.tree_rank] {
@@ -94,8 +100,9 @@ impl BlockContainer {
 fn layout_block_level_children<'a>(
     containing_block: &ContainingBlock,
     child_boxes: &'a [BlockLevelBox],
+    float_context: Option<&mut FloatContext>,
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
-    fn adjust_block_axis(fragment: &mut Fragment, content_block_size: &mut Length) {
+    fn adjust_block_axis(fragment: &mut Fragment, content_block_size: &mut Length) -> Length {
         let (bpm, rect) = match fragment {
             Fragment::Box(fragment) => (
                 fragment.padding.block_sum()
@@ -108,72 +115,124 @@ fn layout_block_level_children<'a>(
         };
         // FIXME: margin collapsing
         rect.start_corner.block += *content_block_size;
-        *content_block_size += bpm + rect.size.block;
+        let fragment_total_block_size = bpm + rect.size.block;
+        *content_block_size += fragment_total_block_size;
+        fragment_total_block_size
     }
-
-    let mut absolutely_positioned_fragments = vec![];
-    let mut child_fragments = child_boxes
-        .par_iter()
-        .enumerate()
-        .mapfold_reduce_into(
-            &mut absolutely_positioned_fragments,
-            |abspos_fragments, (tree_rank, box_)| {
-                box_.layout(containing_block, tree_rank, abspos_fragments)
-            },
-            |left_abspos_fragments, mut right_abspos_fragments| {
-                left_abspos_fragments.append(&mut right_abspos_fragments);
-            },
-        )
-        .collect::<Vec<_>>();
 
     let mut content_block_size = Length::zero();
-    for fragment in &mut child_fragments {
-        adjust_block_axis(fragment, &mut content_block_size);
-    }
+    let mut absolutely_positioned_fragments = vec![];
+    let child_fragments = if let Some(float_context) = float_context {
+        // FIXME(nox): This should probably use Vec::with_capacity.
+        let mut child_fragments = vec![];
+
+        for (tree_rank, box_) in child_boxes.iter().enumerate() {
+            let mut fragment = match box_ {
+                BlockLevelBox::SameFormattingContextBlock { style, contents } => {
+                    in_flow_non_replaced(
+                        containing_block,
+                        &mut absolutely_positioned_fragments,
+                        style,
+                        |containing_block, start_corner| {
+                            contents.layout(
+                                containing_block,
+                                tree_rank,
+                                Some(
+                                    &mut float_context
+                                        .child(containing_block.inline_size, start_corner),
+                                ),
+                            )
+                        },
+                    )
+                }
+                BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
+                    Ok(replaced) => {
+                        // FIXME
+                        match *replaced {}
+                    }
+                    Err(contents) => in_flow_non_replaced(
+                        containing_block,
+                        &mut absolutely_positioned_fragments,
+                        style,
+                        |containing_block, _| contents.layout(containing_block, tree_rank),
+                    ),
+                },
+                BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
+                    absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
+                    Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
+                }
+                BlockLevelBox::OutOfFlowFloatBox(_box_) => {
+                    // TODO
+                    Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
+                }
+            };
+            float_context
+                .advance_block_start(adjust_block_axis(&mut fragment, &mut content_block_size));
+            child_fragments.push(fragment);
+        }
+
+        child_fragments
+    } else {
+        let mut child_fragments = child_boxes
+            .par_iter()
+            .enumerate()
+            .mapfold_reduce_into(
+                &mut absolutely_positioned_fragments,
+                |abspos_fragments, (tree_rank, box_)| {
+                    match box_ {
+                        BlockLevelBox::SameFormattingContextBlock { style, contents } => {
+                            in_flow_non_replaced(
+                                containing_block,
+                                abspos_fragments,
+                                style,
+                                |containing_block, _start_corner| {
+                                    contents.layout(containing_block, tree_rank, None)
+                                },
+                            )
+                        }
+                        BlockLevelBox::Independent { style, contents } => {
+                            match contents.as_replaced() {
+                                Ok(replaced) => {
+                                    // FIXME
+                                    match *replaced {}
+                                }
+                                Err(contents) => in_flow_non_replaced(
+                                    containing_block,
+                                    abspos_fragments,
+                                    style,
+                                    |containing_block, _start_corner| {
+                                        contents.layout(containing_block, tree_rank)
+                                    },
+                                ),
+                            }
+                        }
+                        BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
+                            abspos_fragments.push(box_.layout(Vec2::zero(), tree_rank));
+                            Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
+                        }
+                        BlockLevelBox::OutOfFlowFloatBox(_box_) => {
+                            panic!("encountered a float box in parallel layout")
+                        }
+                    }
+                },
+                |left_abspos_fragments, mut right_abspos_fragments| {
+                    left_abspos_fragments.append(&mut right_abspos_fragments);
+                },
+            )
+            .collect::<Vec<_>>();
+
+        for fragment in &mut child_fragments {
+            adjust_block_axis(fragment, &mut content_block_size);
+        }
+
+        child_fragments
+    };
 
     (
         child_fragments,
         absolutely_positioned_fragments,
         content_block_size,
     )
-}
-
-impl BlockLevelBox {
-    fn layout<'a>(
-        &'a self,
-        containing_block: &ContainingBlock,
-        tree_rank: usize,
-        absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
-    ) -> Fragment {
-        match self {
-            BlockLevelBox::SameFormattingContextBlock { style, contents } => in_flow_non_replaced(
-                containing_block,
-                absolutely_positioned_fragments,
-                style,
-                |containing_block| contents.layout(containing_block, tree_rank),
-            ),
-            BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
-                Ok(replaced) => {
-                    // FIXME
-                    match *replaced {}
-                }
-                Err(contents) => in_flow_non_replaced(
-                    containing_block,
-                    absolutely_positioned_fragments,
-                    style,
-                    |containing_block| contents.layout(containing_block, tree_rank),
-                ),
-            },
-            BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
-                absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
-                Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
-            }
-            BlockLevelBox::OutOfFlowFloatBox(_box_) => {
-                // TODO
-                Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
-            }
-        }
-    }
 }
 
 /// https://drafts.csswg.org/css2/visudet.html#blockwidth
@@ -184,6 +243,7 @@ fn in_flow_non_replaced<'a>(
     style: &Arc<ComputedValues>,
     layout_contents: impl FnOnce(
         &ContainingBlock,
+        &Vec2<Length>,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length),
 ) -> Fragment {
     let cbis = containing_block.inline_size;
@@ -235,12 +295,13 @@ fn in_flow_non_replaced<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
+    let start_corner = pbm.start_corner();
     let (mut children, nested_abspos, content_block_size) =
-        layout_contents(&containing_block_for_children);
+        layout_contents(&containing_block_for_children, &start_corner);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.auto_is(|| content_block_size);
     let content_rect = Rect {
-        start_corner: &pbm.start_corner() + &relative_adjustement,
+        start_corner: &start_corner + &relative_adjustement,
         size: Vec2 {
             block: block_size,
             inline: inline_size,

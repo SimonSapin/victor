@@ -1,3 +1,4 @@
+use crate::geom::physical::FloatAnchor;
 use crate::style::errors::PropertyParseError;
 use crate::style::properties::ComputedValues;
 use cssparser::Parser;
@@ -66,7 +67,7 @@ impl Display {
     /// https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
     pub fn fixup(style: &mut ComputedValues) {
         style.specified_display = style.box_.display;
-        if style.box_.position.is_absolutely_positioned() || style.box_.float.is_floating() {
+        if style.box_.position.is_absolutely_positioned() || style.box_.float.anchor().is_some() {
             let display = style.box_.display.blockify();
             if display != style.box_.display {
                 Arc::make_mut(&mut style.box_).display = display
@@ -116,10 +117,11 @@ pub(crate) enum Float {
 }
 
 impl Float {
-    pub fn is_floating(self) -> bool {
+    pub fn anchor(self) -> Option<FloatAnchor> {
         match self {
-            Float::None => false,
-            Float::Left | Float::Right => true,
+            Float::None => None,
+            Float::Left => Some(FloatAnchor::Left),
+            Float::Right => Some(FloatAnchor::Right),
         }
     }
 }

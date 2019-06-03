@@ -1,4 +1,5 @@
 use super::*;
+use crate::geom::physical::FloatAnchor;
 
 impl BlockFormattingContext {
     pub fn construct<'a>(
@@ -33,6 +34,7 @@ enum IntermediateBlockLevelBox {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
+        anchor: FloatAnchor,
     },
 }
 
@@ -172,8 +174,8 @@ impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
                     // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
                     if style.box_.position.is_absolutely_positioned() {
                         self.handle_absolutely_positioned_element(style.clone(), inside, contents)
-                    } else if style.box_.float.is_floating() {
-                        self.handle_float_element(style.clone(), inside, contents)
+                    } else if let Some(anchor) = style.box_.float.anchor() {
+                        self.handle_float_element(style.clone(), inside, contents, anchor)
                     } else {
                         self.handle_block_level_element(style.clone(), inside, contents)
                     }
@@ -412,6 +414,7 @@ impl<'a> BlockContainerBuilder<'a> {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
+        anchor: FloatAnchor,
     ) {
         self.contains_floats = ContainsFloats::Yes;
 
@@ -420,6 +423,7 @@ impl<'a> BlockContainerBuilder<'a> {
                 style,
                 contents,
                 display_inside,
+                anchor,
             };
             self.block_level_boxes.push(box_);
         } else {
@@ -431,6 +435,7 @@ impl<'a> BlockContainerBuilder<'a> {
                     contents,
                 ),
                 style,
+                anchor,
             });
             self.current_inline_level_boxes().push(box_);
         }
@@ -529,6 +534,7 @@ impl IntermediateBlockLevelBox {
                 style,
                 display_inside,
                 contents,
+                anchor,
             } => {
                 let contents = IndependentFormattingContext::construct(
                     context,
@@ -536,8 +542,11 @@ impl IntermediateBlockLevelBox {
                     display_inside,
                     contents,
                 );
-                let block_level_box =
-                    BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
+                let block_level_box = BlockLevelBox::OutOfFlowFloatBox(FloatBox {
+                    contents,
+                    style,
+                    anchor,
+                });
                 (block_level_box, ContainsFloats::Yes)
             }
         }

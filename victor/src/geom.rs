@@ -21,6 +21,12 @@ pub(crate) mod physical {
         pub bottom: T,
         pub right: T,
     }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum FloatAnchor {
+        Left,
+        Right,
+    }
 }
 
 pub(crate) mod flow_relative {
@@ -42,6 +48,12 @@ pub(crate) mod flow_relative {
         pub inline_end: T,
         pub block_start: T,
         pub block_end: T,
+    }
+
+    #[derive(Debug, Clone)]
+    pub(crate) enum FloatAnchor {
+        InlineStart,
+        InlineEnd,
     }
 }
 
@@ -325,6 +337,22 @@ impl From<physical::Rect<Length>> for crate::primitives::Rect<crate::primitives:
         crate::primitives::Rect {
             origin: crate::primitives::Point::new(r.top_left.x.px, r.top_left.y.px),
             size: crate::primitives::Size::new(r.size.x.px, r.size.y.px),
+        }
+    }
+}
+
+impl physical::FloatAnchor {
+    pub fn to_flow_relative(self, mode: (WritingMode, Direction)) -> flow_relative::FloatAnchor {
+        // https://drafts.csswg.org/css-writing-modes/#logical-to-physical
+        match (self, mode.1) {
+            (physical::FloatAnchor::Left, Direction::Ltr)
+            | (physical::FloatAnchor::Right, Direction::Rtl) => {
+                flow_relative::FloatAnchor::InlineStart
+            }
+            (physical::FloatAnchor::Left, Direction::Rtl)
+            | (physical::FloatAnchor::Right, Direction::Ltr) => {
+                flow_relative::FloatAnchor::InlineEnd
+            }
         }
     }
 }

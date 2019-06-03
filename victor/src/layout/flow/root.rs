@@ -68,12 +68,13 @@ fn construct_for_root_element(
                 AbsolutelyPositionedBox { style, contents },
             )],
         )
-    } else if style.box_.float.is_floating() {
+    } else if let Some(anchor) = style.box_.float.anchor() {
         (
             ContainsFloats::Yes,
             vec![BlockLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents,
                 style,
+                anchor,
             })],
         )
     } else {
