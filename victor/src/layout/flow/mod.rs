@@ -164,24 +164,24 @@ impl BlockLevelBox {
     ) -> Fragment {
         match self {
             BlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                layout_in_flow_non_replaced_block_level(
+                Fragment::Box(layout_in_flow_non_replaced_block_level(
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
                     |containing_block| contents.layout(containing_block, float_context, tree_rank),
-                )
+                ))
             }
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
                     // FIXME
                     match *replaced {}
                 }
-                Err(contents) => layout_in_flow_non_replaced_block_level(
+                Err(contents) => Fragment::Box(layout_in_flow_non_replaced_block_level(
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
                     |containing_block| contents.layout(containing_block, tree_rank),
-                ),
+                )),
             },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
@@ -204,7 +204,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     layout_contents: impl FnOnce(
         &ContainingBlock,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length),
-) -> Fragment {
+) -> BoxFragment {
     let cbis = containing_block.inline_size;
     let padding = style.padding().percentages_relative_to(cbis);
     let border = style.border_width().percentages_relative_to(cbis);
@@ -276,12 +276,12 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     } else {
         absolutely_positioned_fragments.extend(nested_abspos);
     };
-    Fragment::Box(BoxFragment {
+    BoxFragment {
         style: style.clone(),
         children,
         content_rect,
         padding,
         border,
         margin,
-    })
+    }
 }
