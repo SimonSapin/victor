@@ -19,6 +19,8 @@ pub(crate) struct BoxFragment {
     pub padding: Sides<Length>,
     pub border: Sides<Length>,
     pub margin: Sides<Length>,
+
+    pub collapsible_margins: bool,
 }
 
 /// Can contain child fragments with relative coordinates, but does not contribute to painting itself.

@@ -39,6 +39,9 @@ pub(super) enum BlockLevelBox {
     },
 }
 
+#[derive(Clone, Copy)]
+struct CollapsibleMargins(bool);
+
 impl BlockFormattingContext {
     pub(super) fn layout(
         &self,
@@ -81,6 +84,7 @@ fn layout_block_level_children<'a>(
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
     let mut absolutely_positioned_fragments = vec![];
     let mut current_block_direction_position = Length::zero();
+    let mut ongoing_collapsed_margin = Length::zero();
     let mut child_fragments: Vec<Fragment>;
     if let Some(float_context) = float_context {
         // Because floats are involved, we do layout for this block formatting context
@@ -96,7 +100,11 @@ fn layout_block_level_children<'a>(
                     tree_rank,
                     &mut absolutely_positioned_fragments,
                 );
-                place_block_level_fragment(&mut fragment, &mut current_block_direction_position);
+                place_block_level_fragment(
+                    &mut fragment,
+                    &mut current_block_direction_position,
+                    &mut ongoing_collapsed_margin,
+                );
                 fragment
             })
             .collect()
@@ -120,10 +128,14 @@ fn layout_block_level_children<'a>(
             )
             .collect();
         for fragment in &mut child_fragments {
-            place_block_level_fragment(fragment, &mut current_block_direction_position)
+            place_block_level_fragment(
+                fragment,
+                &mut current_block_direction_position,
+                &mut ongoing_collapsed_margin,
+            )
         }
     }
-    let content_block_size = current_block_direction_position;
+    let content_block_size = current_block_direction_position + ongoing_collapsed_margin;
     let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
     adjust_static_positions(
@@ -135,23 +147,48 @@ fn layout_block_level_children<'a>(
     (child_fragments, absolutely_positioned_fragments, block_size)
 }
 
+fn collapse_adjoining_margins(first: Length, second: Length) -> Length {
+    match (first >= Length::zero(), second >= Length::zero()) {
+        (true, true) => first.max(second),
+        (false, false) => first.min(second),
+        _ => first + second,
+    }
+}
+
 fn place_block_level_fragment(
     fragment: &mut Fragment,
     current_block_direction_position: &mut Length,
+    ongoing_collapsed_margin: &mut Length,
 ) {
-    let (bpm, rect) = match fragment {
-        Fragment::Box(fragment) => (
-            fragment.padding.block_sum()
+    match fragment {
+        Fragment::Box(fragment) => {
+            if fragment.collapsible_margins {
+                fragment.content_rect.start_corner.block -= fragment.margin.block_start;
+                *current_block_direction_position += collapse_adjoining_margins(
+                    fragment.margin.block_start,
+                    *ongoing_collapsed_margin,
+                );
+            }
+            fragment.content_rect.start_corner.block += *current_block_direction_position;
+            *current_block_direction_position += fragment.padding.block_sum()
                 + fragment.border.block_sum()
-                + fragment.margin.block_sum(),
-            &mut fragment.content_rect,
-        ),
-        Fragment::Anonymous(fragment) => (Length::zero(), &mut fragment.rect),
+                + fragment.content_rect.size.block;
+            if fragment.collapsible_margins {
+                *ongoing_collapsed_margin = fragment.margin.block_end;
+            } else {
+                *current_block_direction_position += fragment.margin.block_end;
+                *ongoing_collapsed_margin = Length::zero();
+            }
+        }
+        Fragment::Anonymous(fragment) => {
+            // FIXME(nox): Margin collapsing for hypothetical boxes of
+            // abspos elements is probably wrong.
+            assert!(fragment.children.is_empty());
+            assert_eq!(fragment.rect.size.block, Length::zero());
+            fragment.rect.start_corner.block += *current_block_direction_position;
+        }
         _ => unreachable!(),
-    };
-    // FIXME: margin collapsing
-    rect.start_corner.block += *current_block_direction_position;
-    *current_block_direction_position += bpm + rect.size.block;
+    }
 }
 
 impl BlockLevelBox {
@@ -168,6 +205,7 @@ impl BlockLevelBox {
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
+                    CollapsibleMargins(true),
                     |containing_block| contents.layout(containing_block, float_context, tree_rank),
                 ))
             }
@@ -180,6 +218,7 @@ impl BlockLevelBox {
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
+                    CollapsibleMargins(false),
                     |containing_block| contents.layout(containing_block, tree_rank),
                 )),
             },
@@ -201,6 +240,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     containing_block: &ContainingBlock,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     style: &Arc<ComputedValues>,
+    collapsible_margins: CollapsibleMargins,
     layout_contents: impl FnOnce(
         &ContainingBlock,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length),
@@ -283,5 +323,6 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         padding,
         border,
         margin,
+        collapsible_margins: collapsible_margins.0,
     }
 }
