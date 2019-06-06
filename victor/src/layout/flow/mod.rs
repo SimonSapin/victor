@@ -66,14 +66,7 @@ impl BlockContainer {
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
-                let (mut child_fragments, mut absolutely_positioned_fragments, content_block_size) =
-                    layout_block_level_children(containing_block, float_context, child_boxes);
-
-                adjust_static_positions(&mut absolutely_positioned_fragments, &mut child_fragments, tree_rank);
-
-                let block_size = containing_block.block_size.auto_is(|| content_block_size);
-
-                (child_fragments, absolutely_positioned_fragments, block_size)
+                layout_block_level_children(containing_block, float_context, tree_rank, child_boxes)
             }
             BlockContainer::InlineFormattingContext(ifc) => ifc.layout(containing_block, tree_rank),
         }
@@ -83,6 +76,7 @@ impl BlockContainer {
 fn layout_block_level_children<'a>(
     containing_block: &ContainingBlock,
     float_context: Option<&mut FloatContext>,
+    tree_rank: usize,
     child_boxes: &'a [BlockLevelBox],
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
     let mut absolutely_positioned_fragments = vec![];
@@ -140,11 +134,15 @@ fn layout_block_level_children<'a>(
         content_block_size += bpm + rect.size.block;
     }
 
-    (
-        child_fragments,
-        absolutely_positioned_fragments,
-        content_block_size,
-    )
+    adjust_static_positions(
+        &mut absolutely_positioned_fragments,
+        &mut child_fragments,
+        tree_rank,
+    );
+
+    let block_size = containing_block.block_size.auto_is(|| content_block_size);
+
+    (child_fragments, absolutely_positioned_fragments, block_size)
 }
 
 impl BlockLevelBox {
@@ -156,18 +154,20 @@ impl BlockLevelBox {
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     ) -> Fragment {
         match self {
-            BlockLevelBox::SameFormattingContextBlock { style, contents } => in_flow_non_replaced(
-                containing_block,
-                absolutely_positioned_fragments,
-                style,
-                |containing_block| contents.layout(containing_block, float_context, tree_rank),
-            ),
+            BlockLevelBox::SameFormattingContextBlock { style, contents } => {
+                layout_in_flow_non_replaced_block_level(
+                    containing_block,
+                    absolutely_positioned_fragments,
+                    style,
+                    |containing_block| contents.layout(containing_block, float_context, tree_rank),
+                )
+            }
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
                     // FIXME
                     match *replaced {}
                 }
-                Err(contents) => in_flow_non_replaced(
+                Err(contents) => layout_in_flow_non_replaced_block_level(
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
@@ -188,7 +188,7 @@ impl BlockLevelBox {
 
 /// https://drafts.csswg.org/css2/visudet.html#blockwidth
 /// https://drafts.csswg.org/css2/visudet.html#normal-block
-fn in_flow_non_replaced<'a>(
+fn layout_in_flow_non_replaced_block_level<'a>(
     containing_block: &ContainingBlock,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     style: &Arc<ComputedValues>,
