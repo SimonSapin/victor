@@ -298,3 +298,27 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         })
     }
 }
+
+pub(super) fn adjust_static_positions(
+    absolutely_positioned_fragments: &mut [AbsolutelyPositionedFragment],
+    child_fragments: &mut [Fragment],
+    tree_rank_in_parent: usize,
+) {
+    for abspos_fragment in absolutely_positioned_fragments {
+        let child_fragment_rect = match &child_fragments[abspos_fragment.tree_rank] {
+            Fragment::Box(b) => &b.content_rect,
+            Fragment::Anonymous(a) => &a.rect,
+            _ => unreachable!(),
+        };
+
+        abspos_fragment.tree_rank = tree_rank_in_parent;
+
+        if let AbsoluteBoxOffsets::StaticStart { start } = &mut abspos_fragment.inline_start {
+            *start += child_fragment_rect.start_corner.inline;
+        }
+
+        if let AbsoluteBoxOffsets::StaticStart { start } = &mut abspos_fragment.block_start {
+            *start += child_fragment_rect.start_corner.block;
+        }
+    }
+}

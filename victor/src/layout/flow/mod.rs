@@ -66,30 +66,10 @@ impl BlockContainer {
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
-                let (child_fragments, mut absolutely_positioned_fragments, content_block_size) =
+                let (mut child_fragments, mut absolutely_positioned_fragments, content_block_size) =
                     layout_block_level_children(containing_block, float_context, child_boxes);
 
-                for abspos_fragment in &mut absolutely_positioned_fragments {
-                    let child_fragment_rect = match &child_fragments[abspos_fragment.tree_rank] {
-                        Fragment::Box(b) => &b.content_rect,
-                        Fragment::Anonymous(a) => &a.rect,
-                        _ => unreachable!(),
-                    };
-
-                    abspos_fragment.tree_rank = tree_rank;
-
-                    if let AbsoluteBoxOffsets::StaticStart { start } =
-                        &mut abspos_fragment.inline_start
-                    {
-                        *start += child_fragment_rect.start_corner.inline;
-                    }
-
-                    if let AbsoluteBoxOffsets::StaticStart { start } =
-                        &mut abspos_fragment.block_start
-                    {
-                        *start += child_fragment_rect.start_corner.block;
-                    }
-                }
+                adjust_static_positions(&mut absolutely_positioned_fragments, &mut child_fragments, tree_rank);
 
                 let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
