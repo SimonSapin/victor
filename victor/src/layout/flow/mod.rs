@@ -80,24 +80,28 @@ fn layout_block_level_children<'a>(
     child_boxes: &'a [BlockLevelBox],
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
     let mut absolutely_positioned_fragments = vec![];
-    let mut child_fragments = if let Some(float_context) = float_context {
+    let mut current_block_direction_position = Length::zero();
+    let mut child_fragments: Vec<Fragment>;
+    if let Some(float_context) = float_context {
         // Because floats are involved, we do layout for this block formatting context
         // in tree order without parallelism. This enables mutable access
         // to a `FloatContext` that tracks every float encountered so far (again in tree order).
-        child_boxes
+        child_fragments = child_boxes
             .iter()
             .enumerate()
             .map(|(tree_rank, box_)| {
-                box_.layout(
+                let mut fragment = box_.layout(
                     containing_block,
                     Some(float_context),
                     tree_rank,
                     &mut absolutely_positioned_fragments,
-                )
+                );
+                place_block_level_fragment(&mut fragment, &mut current_block_direction_position);
+                fragment
             })
             .collect()
     } else {
-        child_boxes
+        child_fragments = child_boxes
             .par_iter()
             .enumerate()
             .mapfold_reduce_into(
@@ -114,25 +118,13 @@ fn layout_block_level_children<'a>(
                     left_abspos_fragments.append(&mut right_abspos_fragments);
                 },
             )
-            .collect::<Vec<_>>()
-    };
-
-    let mut content_block_size = Length::zero();
-    for fragment in &mut child_fragments {
-        let (bpm, rect) = match fragment {
-            Fragment::Box(fragment) => (
-                fragment.padding.block_sum()
-                    + fragment.border.block_sum()
-                    + fragment.margin.block_sum(),
-                &mut fragment.content_rect,
-            ),
-            Fragment::Anonymous(fragment) => (Length::zero(), &mut fragment.rect),
-            _ => unreachable!(),
-        };
-        // FIXME: margin collapsing
-        rect.start_corner.block += content_block_size;
-        content_block_size += bpm + rect.size.block;
+            .collect();
+        for fragment in &mut child_fragments {
+            place_block_level_fragment(fragment, &mut current_block_direction_position)
+        }
     }
+    let content_block_size = current_block_direction_position;
+    let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
     adjust_static_positions(
         &mut absolutely_positioned_fragments,
@@ -140,9 +132,26 @@ fn layout_block_level_children<'a>(
         tree_rank,
     );
 
-    let block_size = containing_block.block_size.auto_is(|| content_block_size);
-
     (child_fragments, absolutely_positioned_fragments, block_size)
+}
+
+fn place_block_level_fragment(
+    fragment: &mut Fragment,
+    current_block_direction_position: &mut Length,
+) {
+    let (bpm, rect) = match fragment {
+        Fragment::Box(fragment) => (
+            fragment.padding.block_sum()
+                + fragment.border.block_sum()
+                + fragment.margin.block_sum(),
+            &mut fragment.content_rect,
+        ),
+        Fragment::Anonymous(fragment) => (Length::zero(), &mut fragment.rect),
+        _ => unreachable!(),
+    };
+    // FIXME: margin collapsing
+    rect.start_corner.block += *current_block_direction_position;
+    *current_block_direction_position += bpm + rect.size.block;
 }
 
 impl BlockLevelBox {
