@@ -45,20 +45,29 @@ impl BlockFormattingContext {
         containing_block: &ContainingBlock,
         tree_rank: usize,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
-        self.contents.layout(containing_block, tree_rank)
+        let mut float_context;
+        let float_context = if self.contains_floats {
+            float_context = FloatContext::new();
+            Some(&mut float_context)
+        } else {
+            None
+        };
+        self.contents
+            .layout(containing_block, float_context, tree_rank)
     }
 }
 
 impl BlockContainer {
-    pub(super) fn layout(
+    pub fn layout(
         &self,
         containing_block: &ContainingBlock,
+        float_context: Option<&mut FloatContext>,
         tree_rank: usize,
     ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment>, Length) {
         match self {
             BlockContainer::BlockLevelBoxes(child_boxes) => {
                 let (child_fragments, mut absolutely_positioned_fragments, content_block_size) =
-                    layout_block_level_children(containing_block, child_boxes);
+                    layout_block_level_children(containing_block, float_context, child_boxes);
 
                 for abspos_fragment in &mut absolutely_positioned_fragments {
                     let child_fragment_rect = match &child_fragments[abspos_fragment.tree_rank] {
@@ -93,22 +102,46 @@ impl BlockContainer {
 
 fn layout_block_level_children<'a>(
     containing_block: &ContainingBlock,
+    float_context: Option<&mut FloatContext>,
     child_boxes: &'a [BlockLevelBox],
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
     let mut absolutely_positioned_fragments = vec![];
-    let mut child_fragments = child_boxes
-        .par_iter()
-        .enumerate()
-        .mapfold_reduce_into(
-            &mut absolutely_positioned_fragments,
-            |abspos_fragments, (tree_rank, box_)| {
-                box_.layout(containing_block, tree_rank, abspos_fragments)
-            },
-            |left_abspos_fragments, mut right_abspos_fragments| {
-                left_abspos_fragments.append(&mut right_abspos_fragments);
-            },
-        )
-        .collect::<Vec<_>>();
+    let mut child_fragments = if let Some(float_context) = float_context {
+        // Because floats are involved, we do layout for this block formatting context
+        // in tree order without parallelism. This enables mutable access
+        // to a `FloatContext` that tracks every float encountered so far (again in tree order).
+        child_boxes
+            .iter()
+            .enumerate()
+            .map(|(tree_rank, box_)| {
+                box_.layout(
+                    containing_block,
+                    Some(float_context),
+                    tree_rank,
+                    &mut absolutely_positioned_fragments,
+                )
+            })
+            .collect()
+    } else {
+        child_boxes
+            .par_iter()
+            .enumerate()
+            .mapfold_reduce_into(
+                &mut absolutely_positioned_fragments,
+                |abspos_fragments, (tree_rank, box_)| {
+                    box_.layout(
+                        containing_block,
+                        /* float_context = */ None,
+                        tree_rank,
+                        abspos_fragments,
+                    )
+                },
+                |left_abspos_fragments, mut right_abspos_fragments| {
+                    left_abspos_fragments.append(&mut right_abspos_fragments);
+                },
+            )
+            .collect::<Vec<_>>()
+    };
 
     let mut content_block_size = Length::zero();
     for fragment in &mut child_fragments {
@@ -138,6 +171,7 @@ impl BlockLevelBox {
     fn layout<'a>(
         &'a self,
         containing_block: &ContainingBlock,
+        float_context: Option<&mut FloatContext>,
         tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     ) -> Fragment {
@@ -146,7 +180,7 @@ impl BlockLevelBox {
                 containing_block,
                 absolutely_positioned_fragments,
                 style,
-                |containing_block| contents.layout(containing_block, tree_rank),
+                |containing_block| contents.layout(containing_block, float_context, tree_rank),
             ),
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
