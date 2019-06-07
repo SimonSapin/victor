@@ -113,9 +113,7 @@ fn layout_block_level_children<'a>(
                     &mut placement_state.current_margin,
                     fragment.block_margins_collapsed_with_children.end,
                 );
-                if placement_state
-                    .next_in_flow_margin_collapses_with_parent_start_margin
-                    .take()
+                if take(&mut placement_state.next_in_flow_margin_collapses_with_parent_start_margin)
                 {
                     debug_assert_eq!(current_margin.solve(), Length::zero());
                     debug_assert_eq!(placement_state.start_margin.solve(), Length::zero());

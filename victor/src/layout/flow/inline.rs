@@ -167,7 +167,7 @@ impl LinesBoxes {
         };
         self.next_line_block_position += size.block;
         self.boxes.push(Fragment::Anonymous(AnonymousFragment {
-            children: top_nesting_level.fragments_so_far.take(),
+            children: take(&mut top_nesting_level.fragments_so_far),
             rect: Rect { start_corner, size },
             mode: containing_block.mode,
         }))
@@ -232,7 +232,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
     ) {
         let mut fragment = BoxFragment {
             style: self.style.clone(),
-            children: nesting_level.fragments_so_far.take(),
+            children: take(&mut nesting_level.fragments_so_far),
             content_rect: Rect {
                 size: Vec2 {
                     inline: *inline_position - self.start_corner.inline,

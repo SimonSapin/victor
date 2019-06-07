@@ -113,15 +113,11 @@ fn relative_adjustement(
     }
 }
 
-trait Take {
-    fn take(&mut self) -> Self;
-}
-
-impl<T> Take for T
+// FIXME: use std::mem::take when it’s stable
+// https://github.com/rust-lang/rust/issues/61129
+fn take<T>(x: &mut T) -> T
 where
     T: Default,
 {
-    fn take(&mut self) -> Self {
-        std::mem::replace(self, Default::default())
-    }
+    std::mem::replace(x, Default::default())
 }

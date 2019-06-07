@@ -330,7 +330,7 @@ impl<'a> BlockContainerBuilder<'a> {
                         // The fragmented boxes before the block level element
                         // are obviously not the last fragment.
                         last_fragment: false,
-                        children: ongoing.children.take(),
+                        children: take(&mut ongoing.children),
                     };
                     ongoing.first_fragment = false;
                     fragmented
@@ -462,9 +462,9 @@ impl<'a> BlockContainerBuilder<'a> {
         self.block_level_boxes
             .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
                 style: anonymous_style.clone(),
-                contents: IntermediateBlockContainer::InlineFormattingContext(
-                    self.ongoing_inline_formatting_context.take(),
-                ),
+                contents: IntermediateBlockContainer::InlineFormattingContext(take(
+                    &mut self.ongoing_inline_formatting_context,
+                )),
             });
     }
 
