@@ -84,7 +84,7 @@ fn layout_block_level_children<'a>(
 ) -> (Vec<Fragment>, Vec<AbsolutelyPositionedFragment<'a>>, Length) {
     let mut absolutely_positioned_fragments = vec![];
     let mut current_block_direction_position = Length::zero();
-    let mut ongoing_collapsed_margin = Length::zero();
+    let mut ongoing_collapsed_margin = CollapsedMargin::zero();
     let mut child_fragments: Vec<Fragment>;
     if let Some(float_context) = float_context {
         // Because floats are involved, we do layout for this block formatting context
@@ -135,7 +135,7 @@ fn layout_block_level_children<'a>(
             )
         }
     }
-    let content_block_size = current_block_direction_position + ongoing_collapsed_margin;
+    let content_block_size = current_block_direction_position + ongoing_collapsed_margin.solve();
     let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
     adjust_static_positions(
@@ -147,37 +147,29 @@ fn layout_block_level_children<'a>(
     (child_fragments, absolutely_positioned_fragments, block_size)
 }
 
-fn collapse_adjoining_margins(first: Length, second: Length) -> Length {
-    match (first >= Length::zero(), second >= Length::zero()) {
-        (true, true) => first.max(second),
-        (false, false) => first.min(second),
-        _ => first + second,
-    }
-}
-
 fn place_block_level_fragment(
     fragment: &mut Fragment,
     current_block_direction_position: &mut Length,
-    ongoing_collapsed_margin: &mut Length,
+    ongoing_collapsed_margin: &mut CollapsedMargin,
 ) {
     match fragment {
         Fragment::Box(fragment) => {
-            if fragment.collapsible_margins {
+            if let Some(collapsing_context) = &fragment.collapsing_context {
                 fragment.content_rect.start_corner.block -= fragment.margin.block_start;
-                *current_block_direction_position += collapse_adjoining_margins(
-                    fragment.margin.block_start,
-                    *ongoing_collapsed_margin,
-                );
+                *current_block_direction_position += collapsing_context
+                    .start
+                    .adjoin(ongoing_collapsed_margin)
+                    .solve();
             }
             fragment.content_rect.start_corner.block += *current_block_direction_position;
             *current_block_direction_position += fragment.padding.block_sum()
                 + fragment.border.block_sum()
                 + fragment.content_rect.size.block;
-            if fragment.collapsible_margins {
-                *ongoing_collapsed_margin = fragment.margin.block_end;
+            if let Some(collapsing_context) = &fragment.collapsing_context {
+                *ongoing_collapsed_margin = collapsing_context.end;
             } else {
                 *current_block_direction_position += fragment.margin.block_end;
-                *ongoing_collapsed_margin = Length::zero();
+                *ongoing_collapsed_margin = CollapsedMargin::zero();
             }
         }
         Fragment::Anonymous(fragment) => {
@@ -294,6 +286,11 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
+    let collapsing_context = if collapsible_margins.0 {
+        Some(CollapsingContext::from_margin(&margin))
+    } else {
+        None
+    };
     let (mut children, nested_abspos, content_block_size) =
         layout_contents(&containing_block_for_children);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
@@ -323,6 +320,6 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         padding,
         border,
         margin,
-        collapsible_margins: collapsible_margins.0,
+        collapsing_context,
     }
 }
