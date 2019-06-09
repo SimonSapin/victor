@@ -154,23 +154,21 @@ fn place_block_level_fragment(
 ) {
     match fragment {
         Fragment::Box(fragment) => {
+            let mut fragment_block_size = fragment.padding.block_sum()
+                + fragment.border.block_sum()
+                + fragment.content_rect.size.block;
             if let Some(collapsing_context) = &fragment.collapsing_context {
-                fragment.content_rect.start_corner.block -= fragment.margin.block_start;
                 *current_block_direction_position += collapsing_context
                     .start
                     .adjoin(ongoing_collapsed_margin)
                     .solve();
-            }
-            fragment.content_rect.start_corner.block += *current_block_direction_position;
-            *current_block_direction_position += fragment.padding.block_sum()
-                + fragment.border.block_sum()
-                + fragment.content_rect.size.block;
-            if let Some(collapsing_context) = &fragment.collapsing_context {
                 *ongoing_collapsed_margin = collapsing_context.end;
             } else {
-                *current_block_direction_position += fragment.margin.block_end;
+                fragment_block_size += fragment.margin.block_sum();
                 *ongoing_collapsed_margin = CollapsedMargin::zero();
             }
+            fragment.content_rect.start_corner.block += *current_block_direction_position;
+            *current_block_direction_position += fragment_block_size;
         }
         Fragment::Anonymous(fragment) => {
             // FIXME(nox): Margin collapsing for hypothetical boxes of
@@ -269,8 +267,15 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         }
     }
     let margin = computed_margin.auto_is(Length::zero);
-    let pbm = &pb + &margin;
-    let inline_size = inline_size.auto_is(|| cbis - pbm.inline_sum());
+    let (collapsing_context, initial_margin_block_start) = if collapsible_margins.0 {
+        (
+            Some(CollapsingContext::from_margin(&margin)),
+            Length::zero(),
+        )
+    } else {
+        (None, margin.block_start)
+    };
+    let inline_size = inline_size.auto_is(|| cbis - pb.inline_sum() - margin.inline_sum());
     let block_size = match box_size.block {
         LengthOrPercentageOrAuto::Length(l) => LengthOrAuto::Length(l),
         LengthOrPercentageOrAuto::Percentage(p) => containing_block.block_size.map(|cbbs| cbbs * p),
@@ -286,17 +291,15 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
-    let collapsing_context = if collapsible_margins.0 {
-        Some(CollapsingContext::from_margin(&margin))
-    } else {
-        None
-    };
     let (mut children, nested_abspos, content_block_size) =
         layout_contents(&containing_block_for_children);
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.auto_is(|| content_block_size);
     let content_rect = Rect {
-        start_corner: &pbm.start_corner() + &relative_adjustement,
+        start_corner: Vec2 {
+            block: pb.block_start + relative_adjustement.block + initial_margin_block_start,
+            inline: pb.inline_start + relative_adjustement.inline + margin.inline_start,
+        },
         size: Vec2 {
             block: block_size,
             inline: inline_size,
