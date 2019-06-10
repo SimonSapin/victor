@@ -50,7 +50,7 @@ pub(crate) enum LengthOrPercentageOrAuto {
     Auto,
 }
 
-#[derive(Debug, Copy, Clone, FromVariants)]
+#[derive(Copy, Clone, Debug, FromVariants, PartialEq)]
 pub(crate) enum LengthOrAuto {
     Length(Length),
     Auto,

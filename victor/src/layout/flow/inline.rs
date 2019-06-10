@@ -141,6 +141,7 @@ impl InlineFormattingContext {
                     fragments: ifc.line_boxes.boxes,
                     absolutely_positioned_fragments: ifc.absolutely_positioned_fragments,
                     block_size: ifc.line_boxes.next_line_block_position,
+                    collapsing_context: CollapsingContext::zero(),
                 };
             }
         }

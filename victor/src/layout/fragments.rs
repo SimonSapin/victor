@@ -105,6 +105,10 @@ impl CollapsedMargin {
         }
     }
 
+    pub fn adjoin_assign(&mut self, other: &Self) {
+        *self = self.adjoin(other);
+    }
+
     pub fn solve(&self) -> Length {
         self.max_positive + self.min_negative
     }
