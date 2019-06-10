@@ -254,7 +254,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             "Mixed writing modes are not supported yet"
         );
         let dummy_tree_rank = 0;
-        let (mut children, nested_abspos, block_size) = self
+        let mut flow_children = self
             .absolutely_positioned_box
             .contents
             .layout(&containing_block_for_children, dummy_tree_rank);
@@ -266,7 +266,9 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         let block_start = match block_anchor {
             Anchor::Start(start) => start + pb.block_start + margin.block_start,
-            Anchor::End(end) => cbbs - end - pb.block_end - margin.block_end - block_size,
+            Anchor::End(end) => {
+                cbbs - end - pb.block_end - margin.block_end - flow_children.block_size
+            }
         };
 
         let content_rect = Rect {
@@ -276,13 +278,13 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             },
             size: Vec2 {
                 inline: inline_size,
-                block: block_size,
+                block: flow_children.block_size,
             },
         };
 
         AbsolutelyPositionedFragment::in_positioned_containing_block(
-            &nested_abspos,
-            &mut children,
+            &flow_children.absolutely_positioned_fragments,
+            &mut flow_children.fragments,
             &content_rect.size,
             &padding,
             containing_block_for_children.mode,
@@ -290,7 +292,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
 
         Fragment::Box(BoxFragment {
             style: style.clone(),
-            children,
+            children: flow_children.fragments,
             content_rect,
             padding,
             border,
