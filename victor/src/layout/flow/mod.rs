@@ -88,6 +88,40 @@ fn layout_block_level_children<'a>(
     tree_rank: usize,
     child_boxes: &'a [BlockLevelBox],
 ) -> FlowChildren<'a> {
+    fn place_block_level_fragment(
+        fragment: &mut Fragment,
+        current_block_direction_position: &mut Length,
+        ongoing_collapsed_margin: &mut CollapsedMargin,
+    ) {
+        match fragment {
+            Fragment::Box(fragment) => {
+                let mut fragment_block_size = fragment.padding.block_sum()
+                    + fragment.border.block_sum()
+                    + fragment.content_rect.size.block;
+                if let Some(collapsing_context) = &fragment.collapsing_context {
+                    *current_block_direction_position += collapsing_context
+                        .start
+                        .adjoin(ongoing_collapsed_margin)
+                        .solve();
+                    *ongoing_collapsed_margin = collapsing_context.end;
+                } else {
+                    fragment_block_size += fragment.margin.block_sum();
+                    *ongoing_collapsed_margin = CollapsedMargin::zero();
+                }
+                fragment.content_rect.start_corner.block += *current_block_direction_position;
+                *current_block_direction_position += fragment_block_size;
+            }
+            Fragment::Anonymous(fragment) => {
+                // FIXME(nox): Margin collapsing for hypothetical boxes of
+                // abspos elements is probably wrong.
+                assert!(fragment.children.is_empty());
+                assert_eq!(fragment.rect.size.block, Length::zero());
+                fragment.rect.start_corner.block += *current_block_direction_position;
+            }
+            _ => unreachable!(),
+        }
+    }
+
     let mut absolutely_positioned_fragments = vec![];
     let mut current_block_direction_position = Length::zero();
     let mut ongoing_collapsed_margin = CollapsedMargin::zero();
@@ -154,40 +188,6 @@ fn layout_block_level_children<'a>(
         fragments,
         absolutely_positioned_fragments,
         block_size,
-    }
-}
-
-fn place_block_level_fragment(
-    fragment: &mut Fragment,
-    current_block_direction_position: &mut Length,
-    ongoing_collapsed_margin: &mut CollapsedMargin,
-) {
-    match fragment {
-        Fragment::Box(fragment) => {
-            let mut fragment_block_size = fragment.padding.block_sum()
-                + fragment.border.block_sum()
-                + fragment.content_rect.size.block;
-            if let Some(collapsing_context) = &fragment.collapsing_context {
-                *current_block_direction_position += collapsing_context
-                    .start
-                    .adjoin(ongoing_collapsed_margin)
-                    .solve();
-                *ongoing_collapsed_margin = collapsing_context.end;
-            } else {
-                fragment_block_size += fragment.margin.block_sum();
-                *ongoing_collapsed_margin = CollapsedMargin::zero();
-            }
-            fragment.content_rect.start_corner.block += *current_block_direction_position;
-            *current_block_direction_position += fragment_block_size;
-        }
-        Fragment::Anonymous(fragment) => {
-            // FIXME(nox): Margin collapsing for hypothetical boxes of
-            // abspos elements is probably wrong.
-            assert!(fragment.children.is_empty());
-            assert_eq!(fragment.rect.size.block, Length::zero());
-            fragment.rect.start_corner.block += *current_block_direction_position;
-        }
-        _ => unreachable!(),
     }
 }
 
