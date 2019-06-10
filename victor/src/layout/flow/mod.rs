@@ -91,7 +91,7 @@ fn layout_block_level_children<'a>(
     fn place_block_level_fragment(
         fragment: &mut Fragment,
         current_block_direction_position: &mut Length,
-        ongoing_collapsed_margin: &mut CollapsedMargin,
+        ongoing_collapsed_margin: &mut OngoingCollapsedMargin,
     ) {
         match fragment {
             Fragment::Box(fragment) => {
@@ -99,14 +99,11 @@ fn layout_block_level_children<'a>(
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
                 if let Some(collapsing_context) = &fragment.collapsing_context {
-                    *current_block_direction_position += collapsing_context
-                        .start
-                        .adjoin(ongoing_collapsed_margin)
-                        .solve();
-                    *ongoing_collapsed_margin = collapsing_context.end;
+                    *current_block_direction_position +=
+                        ongoing_collapsed_margin.adjoin(collapsing_context);
                 } else {
                     fragment_block_size += fragment.margin.block_sum();
-                    *ongoing_collapsed_margin = CollapsedMargin::zero();
+                    ongoing_collapsed_margin.reset_end();
                 }
                 fragment.content_rect.start_corner.block += *current_block_direction_position;
                 *current_block_direction_position += fragment_block_size;
@@ -122,9 +119,27 @@ fn layout_block_level_children<'a>(
         }
     }
 
+    struct OngoingCollapsedMargin {
+        context: CollapsingContext,
+    }
+
+    impl OngoingCollapsedMargin {
+        fn adjoin(&mut self, other: &CollapsingContext) -> Length {
+            let margin = self.context.end.adjoin(&other.start).solve();
+            self.context.end = other.end;
+            margin
+        }
+
+        fn reset_end(&mut self) {
+            self.context.end = CollapsedMargin::zero();
+        }
+    }
+
     let mut absolutely_positioned_fragments = vec![];
     let mut current_block_direction_position = Length::zero();
-    let mut ongoing_collapsed_margin = CollapsedMargin::zero();
+    let mut ongoing_collapsed_margin = OngoingCollapsedMargin {
+        context: CollapsingContext::zero(),
+    };
     let mut fragments: Vec<_>;
     if let Some(float_context) = float_context {
         // Because floats are involved, we do layout for this block formatting context
@@ -175,7 +190,8 @@ fn layout_block_level_children<'a>(
             )
         }
     }
-    let content_block_size = current_block_direction_position + ongoing_collapsed_margin.solve();
+    let content_block_size =
+        current_block_direction_position + ongoing_collapsed_margin.context.end.solve();
     let block_size = containing_block.block_size.auto_is(|| content_block_size);
 
     adjust_static_positions(

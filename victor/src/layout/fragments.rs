@@ -74,6 +74,15 @@ impl CollapsingContext {
     }
 }
 
+impl CollapsingContext {
+    pub fn zero() -> Self {
+        Self {
+            start: CollapsedMargin::zero(),
+            end: CollapsedMargin::zero(),
+        }
+    }
+}
+
 impl CollapsedMargin {
     pub fn zero() -> Self {
         Self {
