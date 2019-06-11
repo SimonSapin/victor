@@ -277,6 +277,7 @@ impl BlockLevelBox {
     }
 }
 
+#[derive(PartialEq)]
 enum BlockLevelKind {
     SameFormattingContextBlock,
     EstablishesAnIndependentFormattingContext,
@@ -347,7 +348,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         "Mixed writing modes are not supported yet"
     );
     let this_start_margin_can_collapse_with_children = CollapsibleWithParentStartMargin(
-        matches!(block_level_kind, BlockLevelKind::SameFormattingContextBlock)
+        block_level_kind == BlockLevelKind::SameFormattingContextBlock
             && pb.block_start == Length::zero(),
     );
     let mut flow_children = layout_contents(
@@ -361,10 +362,12 @@ fn layout_in_flow_non_replaced_block_level<'a>(
                 .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
         }
     }
-    let collapsible_with_parent_end_margin =
-        matches!(block_level_kind, BlockLevelKind::SameFormattingContextBlock)
-            && pb.block_end == Length::zero()
-            && block_size == LengthOrAuto::Auto;
+    let collapsible_with_parent_end_margin = (block_level_kind, pb.block_end, block_size)
+        == (
+            BlockLevelKind::SameFormattingContextBlock,
+            Length::zero(),
+            LengthOrAuto::Auto,
+        );
     let collapsed_end_margin = collapsible_margins_in_children
         .as_mut()
         .map(|context| &mut context.end)
