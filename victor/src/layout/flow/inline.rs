@@ -141,7 +141,7 @@ impl InlineFormattingContext {
                     fragments: ifc.line_boxes.boxes,
                     absolutely_positioned_fragments: ifc.absolutely_positioned_fragments,
                     block_size: ifc.line_boxes.next_line_block_position,
-                    collapsing_context: CollapsingContext::zero(),
+                    collapsible_margins_in_children: CollapsedBlockMargins::zero(),
                 };
             }
         }
@@ -243,7 +243,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             padding: self.padding.clone(),
             border: self.border.clone(),
             margin: self.margin.clone(),
-            collapsing_context: None,
+            collapsible_margins_in_children: None,
         };
         let last_fragment = self.last_box_tree_fragment && !at_line_break;
         if last_fragment {

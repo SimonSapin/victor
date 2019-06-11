@@ -20,10 +20,10 @@ pub(crate) struct BoxFragment {
     pub border: Sides<Length>,
     pub margin: Sides<Length>,
 
-    pub collapsing_context: Option<CollapsingContext>,
+    pub collapsible_margins_in_children: Option<CollapsedBlockMargins>,
 }
 
-pub(crate) struct CollapsingContext {
+pub(crate) struct CollapsedBlockMargins {
     pub start: CollapsedMargin,
     pub end: CollapsedMargin,
 }
@@ -65,16 +65,14 @@ impl BoxFragment {
     }
 }
 
-impl CollapsingContext {
+impl CollapsedBlockMargins {
     pub fn from_margin(margin: &Sides<Length>) -> Self {
         Self {
             start: CollapsedMargin::new(margin.block_start),
             end: CollapsedMargin::new(margin.block_end),
         }
     }
-}
 
-impl CollapsingContext {
     pub fn zero() -> Self {
         Self {
             start: CollapsedMargin::zero(),

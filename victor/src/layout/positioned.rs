@@ -296,7 +296,7 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
             padding,
             border,
             margin,
-            collapsing_context: None,
+            collapsible_margins_in_children: None,
         })
     }
 }
