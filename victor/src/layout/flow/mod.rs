@@ -115,7 +115,7 @@ fn layout_block_level_children<'a>(
 
                 let end = std::mem::replace(
                     &mut ongoing_collapsed_margin.context.end,
-                    fragment.collapsible_margins_in_children.end,
+                    fragment.block_margins_collapsed_with_children.end,
                 );
                 if ongoing_collapsed_margin
                     .collapsed_with_parent_start_margin
@@ -125,10 +125,10 @@ fn layout_block_level_children<'a>(
                     ongoing_collapsed_margin
                         .context
                         .start
-                        .adjoin_assign(&fragment.collapsible_margins_in_children.start);
+                        .adjoin_assign(&fragment.block_margins_collapsed_with_children.start);
                 } else {
                     *current_block_direction_position += end
-                        .adjoin(&fragment.collapsible_margins_in_children.start)
+                        .adjoin(&fragment.block_margins_collapsed_with_children.start)
                         .solve()
                 }
 
@@ -319,7 +319,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         }
     }
     let margin = computed_margin.auto_is(Length::zero);
-    let mut collapsible_margins_in_children = CollapsedBlockMargins::from_margin(&margin);
+    let mut block_margins_collapsed_with_children = CollapsedBlockMargins::from_margin(&margin);
     let inline_size = inline_size.auto_is(|| cbis - pb.inline_sum() - margin.inline_sum());
     let block_size = match box_size.block {
         LengthOrPercentageOrAuto::Length(l) => LengthOrAuto::Length(l),
@@ -345,7 +345,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         this_start_margin_can_collapse_with_children,
     );
     if this_start_margin_can_collapse_with_children.0 {
-        collapsible_margins_in_children
+        block_margins_collapsed_with_children
             .start
             .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
     }
@@ -356,7 +356,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
             LengthOrAuto::Auto,
         );
     if this_end_margin_can_collapse_with_children {
-        collapsible_margins_in_children
+        block_margins_collapsed_with_children
             .end
             .adjoin_assign(&flow_children.collapsible_margins_in_children.end);
     } else {
@@ -392,6 +392,6 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         padding,
         border,
         margin,
-        collapsible_margins_in_children,
+        block_margins_collapsed_with_children,
     }
 }

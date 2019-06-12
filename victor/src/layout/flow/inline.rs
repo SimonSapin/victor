@@ -243,7 +243,7 @@ impl<'box_tree> PartialInlineBoxFragment<'box_tree> {
             padding: self.padding.clone(),
             border: self.border.clone(),
             margin: self.margin.clone(),
-            collapsible_margins_in_children: CollapsedBlockMargins::zero(),
+            block_margins_collapsed_with_children: CollapsedBlockMargins::zero(),
         };
         let last_fragment = self.last_box_tree_fragment && !at_line_break;
         if last_fragment {
