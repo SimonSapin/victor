@@ -109,7 +109,7 @@ fn layout_block_level_children<'a>(
     ) {
         match fragment {
             Fragment::Box(fragment) => {
-                let mut fragment_block_size = fragment.padding.block_sum()
+                let fragment_block_size = fragment.padding.block_sum()
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
                 *current_block_direction_position +=
@@ -144,10 +144,6 @@ fn layout_block_level_children<'a>(
             let margin = self.context.end.adjoin(&other.start).solve();
             self.context.end = other.end;
             margin
-        }
-
-        fn reset_end(&mut self) {
-            self.context.end = CollapsedMargin::zero();
         }
     }
 
