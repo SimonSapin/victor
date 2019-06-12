@@ -102,60 +102,61 @@ fn layout_block_level_children<'a>(
     collapsible_with_parent_start_margin: CollapsibleWithParentStartMargin,
     child_boxes: &'a [BlockLevelBox],
 ) -> FlowChildren<'a> {
-    fn place_block_level_fragment(
-        fragment: &mut Fragment,
-        current_block_direction_position: &mut Length,
-        ongoing_collapsed_margin: &mut OngoingCollapsedMargin,
-    ) {
+    fn place_block_level_fragment(fragment: &mut Fragment, placement_state: &mut PlacementState) {
         match fragment {
             Fragment::Box(fragment) => {
                 let fragment_block_size = fragment.padding.block_sum()
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
 
-                let end = std::mem::replace(
-                    &mut ongoing_collapsed_margin.context.end,
+                let current_margin = std::mem::replace(
+                    &mut placement_state.current_margin,
                     fragment.block_margins_collapsed_with_children.end,
                 );
-                if ongoing_collapsed_margin
-                    .collapsed_with_parent_start_margin
+                if placement_state
+                    .next_in_flow_margin_collapses_with_parent_start_margin
                     .take()
                 {
-                    assert_eq!(end.solve(), Length::zero());
-                    ongoing_collapsed_margin
-                        .context
-                        .start
-                        .adjoin_assign(&fragment.block_margins_collapsed_with_children.start);
+                    debug_assert_eq!(current_margin.solve(), Length::zero());
+                    debug_assert_eq!(placement_state.start_margin.solve(), Length::zero());
+                    placement_state.start_margin =
+                        fragment.block_margins_collapsed_with_children.start;
                 } else {
-                    *current_block_direction_position += end
+                    placement_state.current_block_direction_position += current_margin
                         .adjoin(&fragment.block_margins_collapsed_with_children.start)
                         .solve()
                 }
 
-                fragment.content_rect.start_corner.block += *current_block_direction_position;
-                *current_block_direction_position += fragment_block_size;
+                fragment.content_rect.start_corner.block +=
+                    placement_state.current_block_direction_position;
+                placement_state.current_block_direction_position += fragment_block_size;
             }
             Fragment::Anonymous(fragment) => {
                 // FIXME(nox): Margin collapsing for hypothetical boxes of
                 // abspos elements is probably wrong.
                 assert!(fragment.children.is_empty());
                 assert_eq!(fragment.rect.size.block, Length::zero());
-                fragment.rect.start_corner.block += *current_block_direction_position;
+                fragment.rect.start_corner.block +=
+                    placement_state.current_block_direction_position;
             }
             _ => unreachable!(),
         }
     }
 
-    struct OngoingCollapsedMargin {
-        collapsed_with_parent_start_margin: bool,
-        context: CollapsedBlockMargins,
+    struct PlacementState {
+        next_in_flow_margin_collapses_with_parent_start_margin: bool,
+        start_margin: CollapsedMargin,
+        current_margin: CollapsedMargin,
+        current_block_direction_position: Length,
     }
 
     let mut absolutely_positioned_fragments = vec![];
-    let mut current_block_direction_position = Length::zero();
-    let mut ongoing_collapsed_margin = OngoingCollapsedMargin {
-        collapsed_with_parent_start_margin: collapsible_with_parent_start_margin.0,
-        context: CollapsedBlockMargins::zero(),
+    let mut placement_state = PlacementState {
+        next_in_flow_margin_collapses_with_parent_start_margin:
+            collapsible_with_parent_start_margin.0,
+        start_margin: CollapsedMargin::zero(),
+        current_margin: CollapsedMargin::zero(),
+        current_block_direction_position: Length::zero(),
     };
     let mut fragments: Vec<_>;
     if let Some(float_context) = float_context {
@@ -172,11 +173,7 @@ fn layout_block_level_children<'a>(
                     tree_rank,
                     &mut absolutely_positioned_fragments,
                 );
-                place_block_level_fragment(
-                    &mut fragment,
-                    &mut current_block_direction_position,
-                    &mut ongoing_collapsed_margin,
-                );
+                place_block_level_fragment(&mut fragment, &mut placement_state);
                 fragment
             })
             .collect()
@@ -200,11 +197,7 @@ fn layout_block_level_children<'a>(
             )
             .collect();
         for fragment in &mut fragments {
-            place_block_level_fragment(
-                fragment,
-                &mut current_block_direction_position,
-                &mut ongoing_collapsed_margin,
-            )
+            place_block_level_fragment(fragment, &mut placement_state)
         }
     }
 
@@ -217,8 +210,11 @@ fn layout_block_level_children<'a>(
     FlowChildren {
         fragments,
         absolutely_positioned_fragments,
-        block_size: current_block_direction_position,
-        collapsible_margins_in_children: ongoing_collapsed_margin.context,
+        block_size: placement_state.current_block_direction_position,
+        collapsible_margins_in_children: CollapsedBlockMargins {
+            start: placement_state.start_margin,
+            end: placement_state.current_margin,
+        },
     }
 }
 
