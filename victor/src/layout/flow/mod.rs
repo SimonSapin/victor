@@ -112,8 +112,26 @@ fn layout_block_level_children<'a>(
                 let fragment_block_size = fragment.padding.block_sum()
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
-                *current_block_direction_position +=
-                    ongoing_collapsed_margin.adjoin(&fragment.collapsible_margins_in_children);
+
+                let end = std::mem::replace(
+                    &mut ongoing_collapsed_margin.context.end,
+                    fragment.collapsible_margins_in_children.end,
+                );
+                if ongoing_collapsed_margin
+                    .collapsed_with_parent_start_margin
+                    .take()
+                {
+                    assert_eq!(end.solve(), Length::zero());
+                    ongoing_collapsed_margin
+                        .context
+                        .start
+                        .adjoin_assign(&fragment.collapsible_margins_in_children.start);
+                } else {
+                    *current_block_direction_position += end
+                        .adjoin(&fragment.collapsible_margins_in_children.start)
+                        .solve()
+                }
+
                 fragment.content_rect.start_corner.block += *current_block_direction_position;
                 *current_block_direction_position += fragment_block_size;
             }
@@ -131,20 +149,6 @@ fn layout_block_level_children<'a>(
     struct OngoingCollapsedMargin {
         collapsed_with_parent_start_margin: bool,
         context: CollapsedBlockMargins,
-    }
-
-    impl OngoingCollapsedMargin {
-        fn adjoin(&mut self, other: &CollapsedBlockMargins) -> Length {
-            if self.collapsed_with_parent_start_margin.take() {
-                assert_eq!(self.context.end.solve(), Length::zero());
-                self.context.start.adjoin_assign(&other.start);
-                self.context.end = other.end;
-                return Length::zero();
-            }
-            let margin = self.context.end.adjoin(&other.start).solve();
-            self.context.end = other.end;
-            margin
-        }
     }
 
     let mut absolutely_positioned_fragments = vec![];
