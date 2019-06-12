@@ -112,13 +112,8 @@ fn layout_block_level_children<'a>(
                 let mut fragment_block_size = fragment.padding.block_sum()
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
-                if let Some(collapsing_context) = &fragment.collapsible_margins_in_children {
-                    *current_block_direction_position +=
-                        ongoing_collapsed_margin.adjoin(collapsing_context);
-                } else {
-                    fragment_block_size += fragment.margin.block_sum();
-                    ongoing_collapsed_margin.reset_end();
-                }
+                *current_block_direction_position +=
+                    ongoing_collapsed_margin.adjoin(&fragment.collapsible_margins_in_children);
                 fragment.content_rect.start_corner.block += *current_block_direction_position;
                 *current_block_direction_position += fragment_block_size;
             }
@@ -324,13 +319,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         }
     }
     let margin = computed_margin.auto_is(Length::zero);
-    let (mut collapsible_margins_in_children, initial_margin_block_start) = match block_level_kind {
-        BlockLevelKind::SameFormattingContextBlock => (
-            Some(CollapsedBlockMargins::from_margin(&margin)),
-            Length::zero(),
-        ),
-        BlockLevelKind::EstablishesAnIndependentFormattingContext => (None, margin.block_start),
-    };
+    let mut collapsible_margins_in_children = CollapsedBlockMargins::from_margin(&margin);
     let inline_size = inline_size.auto_is(|| cbis - pb.inline_sum() - margin.inline_sum());
     let block_size = match box_size.block {
         LengthOrPercentageOrAuto::Length(l) => LengthOrAuto::Length(l),
@@ -355,12 +344,10 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         &containing_block_for_children,
         this_start_margin_can_collapse_with_children,
     );
-    if let Some(collapsible_margins_in_children) = &mut collapsible_margins_in_children {
-        if this_start_margin_can_collapse_with_children.0 {
-            collapsible_margins_in_children
-                .start
-                .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
-        }
+    if this_start_margin_can_collapse_with_children.0 {
+        collapsible_margins_in_children
+            .start
+            .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
     }
     let collapsible_with_parent_end_margin = (block_level_kind, pb.block_end, block_size)
         == (
@@ -368,12 +355,10 @@ fn layout_in_flow_non_replaced_block_level<'a>(
             Length::zero(),
             LengthOrAuto::Auto,
         );
-    let collapsed_end_margin = collapsible_margins_in_children
-        .as_mut()
-        .map(|context| &mut context.end)
-        .filter(|_| collapsible_with_parent_end_margin);
-    if let Some(collapsed_end_margin) = collapsed_end_margin {
-        collapsed_end_margin.adjoin_assign(&flow_children.collapsible_margins_in_children.end);
+    if collapsible_with_parent_end_margin {
+        collapsible_margins_in_children
+            .end
+            .adjoin_assign(&flow_children.collapsible_margins_in_children.end);
     } else {
         flow_children.block_size += flow_children.collapsible_margins_in_children.end.solve();
     }
@@ -381,7 +366,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     let block_size = block_size.auto_is(|| flow_children.block_size);
     let content_rect = Rect {
         start_corner: Vec2 {
-            block: pb.block_start + relative_adjustement.block + initial_margin_block_start,
+            block: pb.block_start + relative_adjustement.block,
             inline: pb.inline_start + relative_adjustement.inline + margin.inline_start,
         },
         size: Vec2 {

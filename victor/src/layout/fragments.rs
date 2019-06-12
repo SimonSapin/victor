@@ -20,7 +20,7 @@ pub(crate) struct BoxFragment {
     pub border: Sides<Length>,
     pub margin: Sides<Length>,
 
-    pub collapsible_margins_in_children: Option<CollapsedBlockMargins>,
+    pub collapsible_margins_in_children: CollapsedBlockMargins,
 }
 
 pub(crate) struct CollapsedBlockMargins {
