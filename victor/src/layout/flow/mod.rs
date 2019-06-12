@@ -345,13 +345,13 @@ fn layout_in_flow_non_replaced_block_level<'a>(
             .start
             .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
     }
-    let collapsible_with_parent_end_margin = (block_level_kind, pb.block_end, block_size)
+    let this_end_margin_can_collapse_with_children = (block_level_kind, pb.block_end, block_size)
         == (
             BlockLevelKind::SameFormattingContextBlock,
             Length::zero(),
             LengthOrAuto::Auto,
         );
-    if collapsible_with_parent_end_margin {
+    if this_end_margin_can_collapse_with_children {
         collapsible_margins_in_children
             .end
             .adjoin_assign(&flow_children.collapsible_margins_in_children.end);
