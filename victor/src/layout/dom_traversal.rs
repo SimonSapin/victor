@@ -8,6 +8,12 @@ pub(super) struct Context<'a> {
     pub author_styles: &'a StyleSet,
 }
 
+#[derive(Copy, Clone)]
+pub(super) enum WhichPseudoElement {
+    Before,
+    After,
+}
+
 pub(super) enum Contents {
     /// Refers to a DOM subtree, plus `::before` and `::after` pseudo-elements.
     OfElement(NodeId),
@@ -42,51 +48,6 @@ pub(super) trait TraversalHandler<'dom> {
         contents: Contents,
         box_slot: BoxSlot<'dom>,
     );
-}
-
-pub(super) struct BoxSlot<'dom> {
-    slot: Option<AtomicRefMut<'dom, Option<LayoutBox>>>,
-}
-
-impl<'dom> BoxSlot<'dom> {
-    pub fn new(mut slot: AtomicRefMut<'dom, Option<LayoutBox>>) -> Self {
-        *slot = None;
-        Self { slot: Some(slot) }
-    }
-
-    pub fn dummy() -> Self {
-        Self { slot: None }
-    }
-
-    pub fn set(mut self, box_: LayoutBox) {
-        if let Some(slot) = &mut self.slot {
-            **slot = Some(box_)
-        }
-    }
-}
-
-impl Drop for BoxSlot<'_> {
-    fn drop(&mut self) {
-        if let Some(slot) = &mut self.slot {
-            assert!(slot.is_some(), "failed to set a layout box")
-        }
-    }
-}
-
-impl Context<'_> {
-    fn layout_data(&self, element_id: NodeId) -> AtomicRefMut<LayoutDataForElement> {
-        self.document[element_id]
-            .as_element()
-            .unwrap()
-            .layout_data
-            .borrow_mut()
-    }
-
-    fn element_box_slot(&self, element_id: NodeId) -> BoxSlot {
-        BoxSlot::new(AtomicRefMut::map(self.layout_data(element_id), |data| {
-            &mut data.self_box
-        }))
-    }
 }
 
 fn traverse_children_of<'dom>(
@@ -189,13 +150,7 @@ fn traverse_pseudo_element<'dom>(
         let items = generate_pseudo_element_content(pseudo_element_style, element, context);
         if let Some(display) = display_self {
             let contents = Contents::OfPseudoElement(items);
-            let box_slot = BoxSlot::new(AtomicRefMut::map(context.layout_data(element), |data| {
-                let pseudos = data.pseudo_elements.get_or_insert_with(Default::default);
-                match which {
-                    WhichPseudoElement::Before => &mut pseudos.before,
-                    WhichPseudoElement::After => &mut pseudos.after,
-                }
-            }));
+            let box_slot = context.pseudo_element_box_slot(element, which);
             handler.handle_element(pseudo_element_style, display, contents, box_slot);
         } else {
             // `display: contents`
@@ -276,12 +231,6 @@ impl NonReplacedContents {
     }
 }
 
-#[derive(Copy, Clone)]
-pub(super) enum WhichPseudoElement {
-    Before,
-    After,
-}
-
 fn pseudo_element_style(
     _which: WhichPseudoElement,
     _element: NodeId,
@@ -301,4 +250,59 @@ fn generate_pseudo_element_content(
     let _ = PseudoElementContentItem::Text;
     let _ = PseudoElementContentItem::Replaced;
     unimplemented!()
+}
+
+pub(super) struct BoxSlot<'dom> {
+    slot: Option<AtomicRefMut<'dom, Option<LayoutBox>>>,
+}
+
+impl<'dom> BoxSlot<'dom> {
+    pub fn new(mut slot: AtomicRefMut<'dom, Option<LayoutBox>>) -> Self {
+        *slot = None;
+        Self { slot: Some(slot) }
+    }
+
+    pub fn dummy() -> Self {
+        Self { slot: None }
+    }
+
+    pub fn set(mut self, box_: LayoutBox) {
+        if let Some(slot) = &mut self.slot {
+            **slot = Some(box_)
+        }
+    }
+}
+
+impl Drop for BoxSlot<'_> {
+    fn drop(&mut self) {
+        if let Some(slot) = &mut self.slot {
+            assert!(slot.is_some(), "failed to set a layout box")
+        }
+    }
+}
+
+impl Context<'_> {
+    fn layout_data(&self, element_id: NodeId) -> AtomicRefMut<LayoutDataForElement> {
+        self.document[element_id]
+            .as_element()
+            .unwrap()
+            .layout_data
+            .borrow_mut()
+    }
+
+    fn element_box_slot(&self, element_id: NodeId) -> BoxSlot {
+        BoxSlot::new(AtomicRefMut::map(self.layout_data(element_id), |data| {
+            &mut data.self_box
+        }))
+    }
+
+    fn pseudo_element_box_slot(&self, element_id: NodeId, which: WhichPseudoElement) -> BoxSlot {
+        BoxSlot::new(AtomicRefMut::map(self.layout_data(element_id), |data| {
+            let pseudos = data.pseudo_elements.get_or_insert_with(Default::default);
+            match which {
+                WhichPseudoElement::Before => &mut pseudos.before,
+                WhichPseudoElement::After => &mut pseudos.after,
+            }
+        }))
+    }
 }
