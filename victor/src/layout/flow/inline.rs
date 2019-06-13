@@ -4,7 +4,7 @@ use crate::text::ShapedSegment;
 
 #[derive(Debug, Default)]
 pub(in crate::layout) struct InlineFormattingContext {
-    pub(super) inline_level_boxes: Vec<InlineLevelBox>,
+    pub(super) inline_level_boxes: Vec<Arc<InlineLevelBox>>,
 }
 
 #[derive(Debug)]
@@ -25,7 +25,7 @@ pub(super) struct InlineBox {
     pub style: Arc<ComputedValues>,
     pub first_fragment: bool,
     pub last_fragment: bool,
-    pub children: Vec<InlineLevelBox>,
+    pub children: Vec<Arc<InlineLevelBox>>,
 }
 
 /// https://www.w3.org/TR/css-display-3/#css-text-run
@@ -36,7 +36,7 @@ pub(super) struct TextRun {
 }
 
 struct InlineNestingLevelState<'box_tree> {
-    remaining_boxes: std::slice::Iter<'box_tree, InlineLevelBox>,
+    remaining_boxes: std::slice::Iter<'box_tree, Arc<InlineLevelBox>>,
     fragments_so_far: Vec<Fragment>,
     inline_start: Length,
     max_block_size_of_fragments_so_far: Length,
@@ -90,7 +90,7 @@ impl InlineFormattingContext {
         };
         loop {
             if let Some(child) = ifc.current_nesting_level.remaining_boxes.next() {
-                match child {
+                match &**child {
                     InlineLevelBox::InlineBox(inline) => {
                         let partial = inline.start_layout(&mut ifc);
                         ifc.partial_inline_boxes_stack.push(partial)

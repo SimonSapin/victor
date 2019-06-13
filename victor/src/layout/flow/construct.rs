@@ -147,7 +147,7 @@ impl BlockContainer {
                     |contains_floats, intermediate| {
                         let (block_level_box, box_contains_floats) = intermediate.finish(context);
                         *contains_floats |= box_contains_floats;
-                        block_level_box
+                        Arc::new(block_level_box)
                     },
                     |left, right| *left |= right,
                 )
@@ -190,10 +190,11 @@ impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
             // that will be ended, or directly to the ongoing inline formatting
             // context with the parent style of that builder.
             let inlines = self.current_inline_level_boxes();
+            let last = inlines.last_mut().map(|a| Arc::get_mut(a).unwrap());
 
             let mut new_text_run_contents;
             let output;
-            if let Some(InlineLevelBox::TextRun(TextRun { text, .. })) = inlines.last_mut() {
+            if let Some(InlineLevelBox::TextRun(TextRun { text, .. })) = last {
                 // Append to the existing text run
                 new_text_run_contents = None;
                 output = text;
@@ -223,7 +224,10 @@ impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
 
             if let Some(text) = new_text_run_contents {
                 let parent_style = parent_style.clone();
-                inlines.push(InlineLevelBox::TextRun(TextRun { parent_style, text }))
+                inlines.push(Arc::new(InlineLevelBox::TextRun(TextRun {
+                    parent_style,
+                    text,
+                })))
             }
         }
     }
@@ -243,7 +247,7 @@ impl<'a> BlockContainerBuilder<'a> {
         let mut inline_level_boxes = self.current_inline_level_boxes().iter().rev();
         let mut stack = Vec::new();
         let preserved = loop {
-            match inline_level_boxes.next() {
+            match inline_level_boxes.next().map(|b| &**b) {
                 Some(InlineLevelBox::TextRun(r)) => break !r.text.ends_with(' '),
                 Some(InlineLevelBox::Atomic { .. }) => break false,
                 Some(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(_))
@@ -274,10 +278,10 @@ impl<'a> BlockContainerBuilder<'a> {
         match contents.try_into() {
             Err(replaced) => {
                 self.current_inline_level_boxes()
-                    .push(InlineLevelBox::Atomic {
+                    .push(Arc::new(InlineLevelBox::Atomic {
                         style: style.clone(),
                         contents: replaced,
-                    });
+                    }));
             }
             Ok(non_replaced) => match display_inside {
                 DisplayInside::Flow => {
@@ -298,7 +302,7 @@ impl<'a> BlockContainerBuilder<'a> {
                         .expect("no ongoing inline level box found");
                     inline_box.last_fragment = true;
                     self.current_inline_level_boxes()
-                        .push(InlineLevelBox::InlineBox(inline_box));
+                        .push(Arc::new(InlineLevelBox::InlineBox(inline_box)));
                 }
                 DisplayInside::FlowRoot => {
                     // a.k.a. `inline-block`
@@ -344,13 +348,13 @@ impl<'a> BlockContainerBuilder<'a> {
             for mut fragmented_parent_inline_box in fragmented_inline_boxes {
                 fragmented_parent_inline_box
                     .children
-                    .push(fragmented_inline);
+                    .push(Arc::new(fragmented_inline));
                 fragmented_inline = InlineLevelBox::InlineBox(fragmented_parent_inline_box);
             }
 
             self.ongoing_inline_formatting_context
                 .inline_level_boxes
-                .push(fragmented_inline);
+                .push(Arc::new(fragmented_inline));
         }
 
         // We found a block level element, so the ongoing inline formatting
@@ -403,7 +407,7 @@ impl<'a> BlockContainerBuilder<'a> {
                 ),
                 style,
             });
-            self.current_inline_level_boxes().push(box_)
+            self.current_inline_level_boxes().push(Arc::new(box_))
         }
     }
 
@@ -432,7 +436,7 @@ impl<'a> BlockContainerBuilder<'a> {
                 ),
                 style,
             });
-            self.current_inline_level_boxes().push(box_);
+            self.current_inline_level_boxes().push(Arc::new(box_));
         }
     }
 
@@ -468,7 +472,7 @@ impl<'a> BlockContainerBuilder<'a> {
             });
     }
 
-    fn current_inline_level_boxes(&mut self) -> &mut Vec<InlineLevelBox> {
+    fn current_inline_level_boxes(&mut self) -> &mut Vec<Arc<InlineLevelBox>> {
         match self.ongoing_inline_boxes_stack.last_mut() {
             Some(last) => &mut last.children,
             None => &mut self.ongoing_inline_formatting_context.inline_level_boxes,

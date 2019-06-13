@@ -32,7 +32,7 @@ fn construct_for_root_element(
     context: &Context,
     root_element: dom::NodeId,
     style: Arc<ComputedValues>,
-) -> (ContainsFloats, Vec<BlockLevelBox>) {
+) -> (ContainsFloats, Vec<Arc<BlockLevelBox>>) {
     let replaced = ReplacedContent::for_element(root_element, context);
 
     let display_inside = match style.box_.display {
@@ -51,7 +51,7 @@ fn construct_for_root_element(
         let _box = match replaced {};
         #[allow(unreachable_code)]
         {
-            return (ContainsFloats::No, vec![_box]);
+            return (ContainsFloats::No, vec![Arc::new(_box)]);
         }
     }
 
@@ -64,22 +64,22 @@ fn construct_for_root_element(
     if style.box_.position.is_absolutely_positioned() {
         (
             ContainsFloats::No,
-            vec![BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
+            vec![Arc::new(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
                 AbsolutelyPositionedBox { style, contents },
-            )],
+            ))],
         )
     } else if style.box_.float.is_floating() {
         (
             ContainsFloats::Yes,
-            vec![BlockLevelBox::OutOfFlowFloatBox(FloatBox {
+            vec![Arc::new(BlockLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents,
                 style,
-            })],
+            }))],
         )
     } else {
         (
             ContainsFloats::No,
-            vec![BlockLevelBox::Independent { style, contents }],
+            vec![Arc::new(BlockLevelBox::Independent { style, contents })],
         )
     }
 }

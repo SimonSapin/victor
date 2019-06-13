@@ -21,7 +21,7 @@ pub(super) struct BlockFormattingContext {
 
 #[derive(Debug)]
 pub(super) enum BlockContainer {
-    BlockLevelBoxes(Vec<BlockLevelBox>),
+    BlockLevelBoxes(Vec<Arc<BlockLevelBox>>),
     InlineFormattingContext(InlineFormattingContext),
 }
 
@@ -100,7 +100,7 @@ fn layout_block_level_children<'a>(
     float_context: Option<&mut FloatContext>,
     tree_rank: usize,
     collapsible_with_parent_start_margin: CollapsibleWithParentStartMargin,
-    child_boxes: &'a [BlockLevelBox],
+    child_boxes: &'a [Arc<BlockLevelBox>],
 ) -> FlowChildren<'a> {
     fn place_block_level_fragment(fragment: &mut Fragment, placement_state: &mut PlacementState) {
         match fragment {
