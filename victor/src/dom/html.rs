@@ -111,6 +111,7 @@ impl TreeSink for Sink {
             name,
             attrs: attrs.into_iter().map(Attribute::from).collect(),
             mathml_annotation_xml_integration_point,
+            layout_data: Default::default(),
         }));
         if is_style {
             self.document.style_elements.push(element)

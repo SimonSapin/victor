@@ -240,6 +240,7 @@ pub(crate) struct ElementData {
     pub(crate) name: QualName,
     pub(crate) attrs: Vec<Attribute>,
     pub(crate) mathml_annotation_xml_integration_point: bool,
+    pub(crate) layout_data: atomic_refcell::AtomicRefCell<crate::layout::LayoutDataForElement>,
 }
 
 pub(crate) struct Attribute {

@@ -163,6 +163,7 @@ impl<'a> TraversalHandler for BlockContainerBuilder<'a> {
         style: &Arc<ComputedValues>,
         display: DisplayGeneratingBox,
         contents: Contents,
+        _box_slot: BoxSlot,
     ) {
         match display {
             DisplayGeneratingBox::OutsideInside { outside, inside } => match outside {

@@ -11,7 +11,7 @@ mod root;
 
 pub(super) use construct::*;
 pub(super) use float::*;
-use inline::*;
+pub(super) use inline::*;
 
 #[derive(Debug)]
 pub(super) struct BlockFormattingContext {

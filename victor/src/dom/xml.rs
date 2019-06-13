@@ -23,6 +23,7 @@ impl Document {
                             )
                             .collect(),
                         mathml_annotation_xml_integration_point: false,
+                        layout_data: Default::default(),
                     })));
                     document.append(current, id);
                     ancestors.push(current);

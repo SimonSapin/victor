@@ -7,6 +7,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 mod dom_traversal;
+mod element_data;
 mod flow;
 mod fragments;
 mod positioned;
@@ -14,9 +15,11 @@ mod replaced;
 
 use dom_traversal::*;
 use flow::*;
-pub(crate) use fragments::*;
 use positioned::*;
-pub(crate) use replaced::*;
+use replaced::*;
+
+pub(crate) use element_data::*;
+pub(crate) use fragments::*;
 
 /// https://drafts.csswg.org/css-display/#independent-formatting-context
 #[derive(Debug)]

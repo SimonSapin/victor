@@ -11,6 +11,7 @@ edition = "2018"
 doctest = false
 
 [dependencies]
+atomic_refcell = "0.1"
 cssparser = "0.25.2"
 dtoa = "0.4"
 euclid = "0.19"

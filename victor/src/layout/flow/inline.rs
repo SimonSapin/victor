@@ -8,7 +8,7 @@ pub(in crate::layout) struct InlineFormattingContext {
 }
 
 #[derive(Debug)]
-pub(super) enum InlineLevelBox {
+pub(in crate::layout) enum InlineLevelBox {
     InlineBox(InlineBox),
     TextRun(TextRun),
     OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox),
@@ -21,7 +21,7 @@ pub(super) enum InlineLevelBox {
 }
 
 #[derive(Debug)]
-pub(super) struct InlineBox {
+pub(in crate::layout) struct InlineBox {
     pub style: Arc<ComputedValues>,
     pub first_fragment: bool,
     pub last_fragment: bool,
@@ -30,7 +30,7 @@ pub(super) struct InlineBox {
 
 /// https://www.w3.org/TR/css-display-3/#css-text-run
 #[derive(Debug)]
-pub(super) struct TextRun {
+pub(in crate::layout) struct TextRun {
     pub parent_style: Arc<ComputedValues>,
     pub text: String,
 }
