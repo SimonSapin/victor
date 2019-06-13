@@ -69,7 +69,7 @@ struct BlockContainerBuilder<'a> {
     /// doesn't have a next sibling, we either reached the end of the container
     /// root or there are ongoing inline-level boxes
     /// (see `handle_block_level_element`).
-    block_level_boxes: Vec<IntermediateBlockLevelBox>,
+    block_level_boxes: Vec<(IntermediateBlockLevelBox, BoxSlot<'a>)>,
 
     /// The ongoing inline formatting context of the builder.
     ///
@@ -144,10 +144,11 @@ impl BlockContainer {
                 .into_par_iter()
                 .mapfold_reduce_into(
                     &mut contains_floats,
-                    |contains_floats, intermediate| {
+                    |contains_floats, (intermediate, box_slot)| {
                         let (block_level_box, box_contains_floats) = intermediate.finish(context);
                         *contains_floats |= box_contains_floats;
-                        Arc::new(block_level_box)
+                        box_slot.set(LayoutBox::BlockLevel(block_level_box.clone()));
+                        block_level_box
                     },
                     |left, right| *left |= right,
                 )
@@ -157,26 +158,33 @@ impl BlockContainer {
     }
 }
 
-impl<'a> TraversalHandler for BlockContainerBuilder<'a> {
+impl<'a> TraversalHandler<'a> for BlockContainerBuilder<'a> {
     fn handle_element(
         &mut self,
         style: &Arc<ComputedValues>,
         display: DisplayGeneratingBox,
         contents: Contents,
-        _box_slot: BoxSlot,
+        box_slot: BoxSlot<'a>,
     ) {
         match display {
             DisplayGeneratingBox::OutsideInside { outside, inside } => match outside {
-                DisplayOutside::Inline => self.handle_inline_level_element(style, inside, contents),
+                DisplayOutside::Inline => box_slot.set(LayoutBox::InlineLevel(
+                    self.handle_inline_level_element(style, inside, contents),
+                )),
                 DisplayOutside::Block => {
                     // Floats and abspos cause blockification, so they only happen in this case.
                     // https://drafts.csswg.org/css2/visuren.html#dis-pos-flo
                     if style.box_.position.is_absolutely_positioned() {
-                        self.handle_absolutely_positioned_element(style.clone(), inside, contents)
+                        self.handle_absolutely_positioned_element(
+                            style.clone(),
+                            inside,
+                            contents,
+                            box_slot,
+                        )
                     } else if style.box_.float.is_floating() {
-                        self.handle_float_element(style.clone(), inside, contents)
+                        self.handle_float_element(style.clone(), inside, contents, box_slot)
                     } else {
-                        self.handle_block_level_element(style.clone(), inside, contents)
+                        self.handle_block_level_element(style.clone(), inside, contents, box_slot)
                     }
                 }
             },
@@ -191,11 +199,25 @@ impl<'a> TraversalHandler for BlockContainerBuilder<'a> {
             // that will be ended, or directly to the ongoing inline formatting
             // context with the parent style of that builder.
             let inlines = self.current_inline_level_boxes();
-            let last = inlines.last_mut().map(|a| Arc::get_mut(a).unwrap());
+
+            fn last_text(inlines: &mut [Arc<InlineLevelBox>]) -> Option<&mut String> {
+                let last = inlines.last_mut()?;
+                if let InlineLevelBox::TextRun(_) = &**last {
+                    // We never clone text run boxes, so the refcount is 1 and unwrap succeeds:
+                    let last = Arc::get_mut(last).unwrap();
+                    if let InlineLevelBox::TextRun(TextRun { text, .. }) = last {
+                        Some(text)
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    None
+                }
+            }
 
             let mut new_text_run_contents;
             let output;
-            if let Some(InlineLevelBox::TextRun(TextRun { text, .. })) = last {
+            if let Some(text) = last_text(inlines) {
                 // Append to the existing text run
                 new_text_run_contents = None;
                 output = text;
@@ -275,15 +297,12 @@ impl<'a> BlockContainerBuilder<'a> {
         style: &Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
-    ) {
-        match contents.try_into() {
-            Err(replaced) => {
-                self.current_inline_level_boxes()
-                    .push(Arc::new(InlineLevelBox::Atomic {
-                        style: style.clone(),
-                        contents: replaced,
-                    }));
-            }
+    ) -> Arc<InlineLevelBox> {
+        let box_ = match contents.try_into() {
+            Err(replaced) => Arc::new(InlineLevelBox::Atomic {
+                style: style.clone(),
+                contents: replaced,
+            }),
             Ok(non_replaced) => match display_inside {
                 DisplayInside::Flow => {
                     // Whatever happened before, we just found an inline level element, so
@@ -302,15 +321,16 @@ impl<'a> BlockContainerBuilder<'a> {
                         .pop()
                         .expect("no ongoing inline level box found");
                     inline_box.last_fragment = true;
-                    self.current_inline_level_boxes()
-                        .push(Arc::new(InlineLevelBox::InlineBox(inline_box)));
+                    Arc::new(InlineLevelBox::InlineBox(inline_box))
                 }
                 DisplayInside::FlowRoot => {
                     // a.k.a. `inline-block`
                     unimplemented!()
                 }
             },
-        }
+        };
+        self.current_inline_level_boxes().push(box_.clone());
+        box_
     }
 
     fn handle_block_level_element(
@@ -318,6 +338,7 @@ impl<'a> BlockContainerBuilder<'a> {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
+        box_slot: BoxSlot<'a>,
     ) {
         // We just found a block level element, all ongoing inline level boxes
         // need to be split around it. We iterate on the fragmented inline
@@ -362,7 +383,7 @@ impl<'a> BlockContainerBuilder<'a> {
         // context needs to be ended.
         self.end_ongoing_inline_formatting_context();
 
-        self.block_level_boxes.push(match contents.try_into() {
+        let intermediate_box = match contents.try_into() {
             Ok(contents) => match display_inside {
                 DisplayInside::Flow => IntermediateBlockLevelBox::SameFormattingContextBlock {
                     style,
@@ -382,7 +403,8 @@ impl<'a> BlockContainerBuilder<'a> {
                     contents,
                 }
             }
-        })
+        };
+        self.block_level_boxes.push((intermediate_box, box_slot))
     }
 
     fn handle_absolutely_positioned_element(
@@ -390,6 +412,7 @@ impl<'a> BlockContainerBuilder<'a> {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
+        box_slot: BoxSlot<'a>,
     ) {
         if !self.has_ongoing_inline_formatting_context() {
             let box_ = IntermediateBlockLevelBox::OutOfFlowAbsolutelyPositionedBox {
@@ -397,18 +420,21 @@ impl<'a> BlockContainerBuilder<'a> {
                 contents,
                 display_inside,
             };
-            self.block_level_boxes.push(box_)
+            self.block_level_boxes.push((box_, box_slot))
         } else {
-            let box_ = InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
-                contents: IndependentFormattingContext::construct(
-                    self.context,
-                    &style,
-                    display_inside,
-                    contents,
-                ),
-                style,
-            });
-            self.current_inline_level_boxes().push(Arc::new(box_))
+            let box_ = Arc::new(InlineLevelBox::OutOfFlowAbsolutelyPositionedBox(
+                AbsolutelyPositionedBox {
+                    contents: IndependentFormattingContext::construct(
+                        self.context,
+                        &style,
+                        display_inside,
+                        contents,
+                    ),
+                    style,
+                },
+            ));
+            self.current_inline_level_boxes().push(box_.clone());
+            box_slot.set(LayoutBox::InlineLevel(box_))
         }
     }
 
@@ -417,6 +443,7 @@ impl<'a> BlockContainerBuilder<'a> {
         style: Arc<ComputedValues>,
         display_inside: DisplayInside,
         contents: Contents,
+        box_slot: BoxSlot<'a>,
     ) {
         self.contains_floats = ContainsFloats::Yes;
 
@@ -426,9 +453,9 @@ impl<'a> BlockContainerBuilder<'a> {
                 contents,
                 display_inside,
             };
-            self.block_level_boxes.push(box_);
+            self.block_level_boxes.push((box_, box_slot));
         } else {
-            let box_ = InlineLevelBox::OutOfFlowFloatBox(FloatBox {
+            let box_ = Arc::new(InlineLevelBox::OutOfFlowFloatBox(FloatBox {
                 contents: IndependentFormattingContext::construct(
                     self.context,
                     &style,
@@ -436,8 +463,9 @@ impl<'a> BlockContainerBuilder<'a> {
                     contents,
                 ),
                 style,
-            });
-            self.current_inline_level_boxes().push(Arc::new(box_));
+            }));
+            self.current_inline_level_boxes().push(box_.clone());
+            box_slot.set(LayoutBox::InlineLevel(box_))
         }
     }
 
@@ -464,13 +492,13 @@ impl<'a> BlockContainerBuilder<'a> {
             ComputedValues::anonymous_inheriting_from(Some(block_container_style))
         });
 
-        self.block_level_boxes
-            .push(IntermediateBlockLevelBox::SameFormattingContextBlock {
-                style: anonymous_style.clone(),
-                contents: IntermediateBlockContainer::InlineFormattingContext(take(
-                    &mut self.ongoing_inline_formatting_context,
-                )),
-            });
+        let box_ = IntermediateBlockLevelBox::SameFormattingContextBlock {
+            style: anonymous_style.clone(),
+            contents: IntermediateBlockContainer::InlineFormattingContext(take(
+                &mut self.ongoing_inline_formatting_context,
+            )),
+        };
+        self.block_level_boxes.push((box_, BoxSlot::dummy()))
     }
 
     fn current_inline_level_boxes(&mut self) -> &mut Vec<Arc<InlineLevelBox>> {
@@ -490,11 +518,12 @@ impl<'a> BlockContainerBuilder<'a> {
 }
 
 impl IntermediateBlockLevelBox {
-    fn finish(self, context: &Context) -> (BlockLevelBox, ContainsFloats) {
+    fn finish(self, context: &Context) -> (Arc<BlockLevelBox>, ContainsFloats) {
         match self {
             IntermediateBlockLevelBox::SameFormattingContextBlock { style, contents } => {
                 let (contents, contains_floats) = contents.finish(context, &style);
-                let block_level_box = BlockLevelBox::SameFormattingContextBlock { contents, style };
+                let block_level_box =
+                    Arc::new(BlockLevelBox::SameFormattingContextBlock { contents, style });
                 (block_level_box, contains_floats)
             }
             IntermediateBlockLevelBox::Independent {
@@ -509,7 +538,7 @@ impl IntermediateBlockLevelBox {
                     contents,
                 );
                 (
-                    BlockLevelBox::Independent { style, contents },
+                    Arc::new(BlockLevelBox::Independent { style, contents }),
                     ContainsFloats::No,
                 )
             }
@@ -518,8 +547,8 @@ impl IntermediateBlockLevelBox {
                 display_inside,
                 contents,
             } => {
-                let block_level_box =
-                    BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(AbsolutelyPositionedBox {
+                let block_level_box = Arc::new(BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(
+                    AbsolutelyPositionedBox {
                         contents: IndependentFormattingContext::construct(
                             context,
                             &style,
@@ -527,7 +556,8 @@ impl IntermediateBlockLevelBox {
                             contents,
                         ),
                         style: style,
-                    });
+                    },
+                ));
                 (block_level_box, ContainsFloats::No)
             }
             IntermediateBlockLevelBox::OutOfFlowFloatBox {
@@ -541,8 +571,10 @@ impl IntermediateBlockLevelBox {
                     display_inside,
                     contents,
                 );
-                let block_level_box =
-                    BlockLevelBox::OutOfFlowFloatBox(FloatBox { contents, style });
+                let block_level_box = Arc::new(BlockLevelBox::OutOfFlowFloatBox(FloatBox {
+                    contents,
+                    style,
+                }));
                 (block_level_box, ContainsFloats::Yes)
             }
         }
