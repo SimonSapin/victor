@@ -198,6 +198,21 @@ impl Document {
         let root = Self::document_node_id();
         successors(Some(root), move |&node| self.next_in_tree_order(node))
     }
+
+    pub(crate) fn node_and_descendants<'a>(
+        &'a self,
+        base: NodeId,
+    ) -> impl Iterator<Item = NodeId> + 'a {
+        successors(Some(base), move |&node| {
+            // Similar to next_in_tree_order, except…
+            self[node].first_child.or_else(|| {
+                self.node_and_ancestors(node)
+                    // … don’t go up past the initial node:
+                    .take_while(|&node| node != base)
+                    .find_map(|ancestor| self[ancestor].next_sibling)
+            })
+        })
+    }
 }
 
 impl std::ops::Index<NodeId> for Document {

@@ -101,12 +101,14 @@ fn traverse_element<'dom>(
         Some(parent_element_style),
     );
     match style.box_.display {
-        Display::None => {}
+        Display::None => context.unset_boxes_in_subtree(element_id),
         Display::Contents => {
             if ReplacedContent::for_element(element_id, context).is_some() {
                 // `display: content` on a replaced element computes to `display: none`
                 // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
+                context.unset_boxes_in_subtree(element_id)
             } else {
+                context.layout_data(element_id).self_box = None;
                 traverse_children_of(element_id, &style, context, handler)
             }
         }
@@ -131,8 +133,9 @@ fn traverse_pseudo_element<'dom>(
 ) {
     if let Some(style) = pseudo_element_style(which, element, element_style, context) {
         match style.box_.display {
-            Display::None => {}
+            Display::None => context.unset_pseudo_element_box(element, which),
             Display::Contents => {
+                context.unset_pseudo_element_box(element, which);
                 let items = generate_pseudo_element_content(&style, element, context);
                 traverse_pseudo_element_contents(&style, items, handler);
             }
@@ -291,5 +294,24 @@ impl Context<'_> {
                 WhichPseudoElement::After => &mut pseudos.after,
             }
         }))
+    }
+
+    fn unset_pseudo_element_box(&self, element_id: NodeId, which: WhichPseudoElement) {
+        if let Some(pseudos) = &mut self.layout_data(element_id).pseudo_elements {
+            match which {
+                WhichPseudoElement::Before => pseudos.before = None,
+                WhichPseudoElement::After => pseudos.after = None,
+            }
+        }
+    }
+
+    fn unset_boxes_in_subtree(&self, element: NodeId) {
+        for node in self.document.node_and_descendants(element) {
+            if let Some(element_data) = self.document[node].as_element() {
+                let mut layout_data = element_data.layout_data.borrow_mut();
+                layout_data.self_box = None;
+                layout_data.pseudo_elements = None;
+            }
+        }
     }
 }
