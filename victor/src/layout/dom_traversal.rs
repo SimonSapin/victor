@@ -108,7 +108,7 @@ fn traverse_element<'dom>(
                 // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
                 context.unset_boxes_in_subtree(element_id)
             } else {
-                context.layout_data(element_id).self_box = Some(LayoutBox::DisplayContents);
+                context.layout_data_mut(element_id).self_box = Some(LayoutBox::DisplayContents);
                 traverse_children_of(element_id, &style, context, handler)
             }
         }
@@ -272,7 +272,7 @@ impl Drop for BoxSlot<'_> {
 }
 
 impl Context<'_> {
-    fn layout_data(&self, element_id: NodeId) -> AtomicRefMut<LayoutDataForElement> {
+    fn layout_data_mut(&self, element_id: NodeId) -> AtomicRefMut<LayoutDataForElement> {
         self.document[element_id]
             .as_element()
             .unwrap()
@@ -281,13 +281,13 @@ impl Context<'_> {
     }
 
     fn element_box_slot(&self, element_id: NodeId) -> BoxSlot {
-        BoxSlot::new(AtomicRefMut::map(self.layout_data(element_id), |data| {
+        BoxSlot::new(AtomicRefMut::map(self.layout_data_mut(element_id), |data| {
             &mut data.self_box
         }))
     }
 
     fn pseudo_element_box_slot(&self, element_id: NodeId, which: WhichPseudoElement) -> BoxSlot {
-        BoxSlot::new(AtomicRefMut::map(self.layout_data(element_id), |data| {
+        BoxSlot::new(AtomicRefMut::map(self.layout_data_mut(element_id), |data| {
             let pseudos = data.pseudo_elements.get_or_insert_with(Default::default);
             match which {
                 WhichPseudoElement::Before => &mut pseudos.before,
@@ -297,7 +297,7 @@ impl Context<'_> {
     }
 
     fn unset_pseudo_element_box(&self, element_id: NodeId, which: WhichPseudoElement) {
-        if let Some(pseudos) = &mut self.layout_data(element_id).pseudo_elements {
+        if let Some(pseudos) = &mut self.layout_data_mut(element_id).pseudo_elements {
             match which {
                 WhichPseudoElement::Before => pseudos.before = None,
                 WhichPseudoElement::After => pseudos.after = None,
