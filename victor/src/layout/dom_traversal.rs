@@ -1,15 +1,13 @@
-use super::{Document, NodeData, NodeId};
-use crate::layout::ReplacedContent;
-use crate::style::values::{Display, DisplayGeneratingBox, DisplayInside, DisplayOutside};
-use crate::style::{style_for_element, ComputedValues, StyleSet};
-use std::sync::Arc;
+use super::*;
+use crate::dom::{Document, NodeData, NodeId};
+use crate::style::StyleSet;
 
-pub(crate) struct Context<'a> {
+pub(super) struct Context<'a> {
     pub document: &'a Document,
     pub author_styles: &'a StyleSet,
 }
 
-pub(crate) enum Contents {
+pub(super) enum Contents {
     /// Refers to a DOM subtree, plus `::before` and `::after` pseudo-elements.
     OfElement(NodeId),
 
@@ -22,17 +20,17 @@ pub(crate) enum Contents {
     OfPseudoElement(Vec<PseudoElementContentItem>),
 }
 
-pub(crate) enum NonReplacedContents {
+pub(super) enum NonReplacedContents {
     OfElement(NodeId),
     OfPseudoElement(Vec<PseudoElementContentItem>),
 }
 
-pub(crate) enum PseudoElementContentItem {
+pub(super) enum PseudoElementContentItem {
     Text(String),
     Replaced(ReplacedContent),
 }
 
-pub(crate) trait Handler {
+pub(super) trait TraversalHandler {
     fn handle_text(&mut self, text: &str, parent_style: &Arc<ComputedValues>);
 
     /// Or pseudo-element
@@ -49,7 +47,7 @@ fn traverse_children_of(
     parent_element: NodeId,
     parent_element_style: &Arc<ComputedValues>,
     context: &Context,
-    handler: &mut impl Handler,
+    handler: &mut impl TraversalHandler,
 ) {
     traverse_pseudo_element(
         WhichPseudoElement::Before,
@@ -87,7 +85,7 @@ fn traverse_element(
     element_id: NodeId,
     parent_element_style: &ComputedValues,
     context: &Context,
-    handler: &mut impl Handler,
+    handler: &mut impl TraversalHandler,
 ) {
     let style = style_for_element(
         context.author_styles,
@@ -123,7 +121,7 @@ fn traverse_pseudo_element(
     element: NodeId,
     element_style: &ComputedValues,
     context: &Context,
-    handler: &mut impl Handler,
+    handler: &mut impl TraversalHandler,
 ) {
     let result = pseudo_element_style(which, element, element_style, context);
     if let Some(pseudo_element_style) = &result {
@@ -146,7 +144,7 @@ fn traverse_pseudo_element(
 fn traverse_pseudo_element_contents(
     pseudo_element_style: &Arc<ComputedValues>,
     items: Vec<PseudoElementContentItem>,
-    handler: &mut impl Handler,
+    handler: &mut impl TraversalHandler,
 ) {
     let mut anonymous_style = None;
     for item in items {
@@ -196,7 +194,7 @@ impl NonReplacedContents {
         self,
         inherited_style: &Arc<ComputedValues>,
         context: &Context,
-        handler: &mut impl Handler,
+        handler: &mut impl TraversalHandler,
     ) {
         match self {
             NonReplacedContents::OfElement(id) => {
@@ -210,7 +208,7 @@ impl NonReplacedContents {
 }
 
 impl ReplacedContent {
-    pub(crate) fn for_element(_element: NodeId, _context: &Context) -> Option<Self> {
+    pub(super) fn for_element(_element: NodeId, _context: &Context) -> Option<Self> {
         // FIXME: implement <img> etc.
         None
     }

@@ -1,7 +1,6 @@
 //! This is *a* Document Object Model, but is not necessarily compatible with *the* DOM.
 
 mod html;
-pub(crate) mod traversal;
 mod xml;
 
 use crate::style::{StyleSet, StyleSetBuilder};

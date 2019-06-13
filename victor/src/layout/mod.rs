@@ -1,5 +1,4 @@
 use crate::dom;
-use crate::dom::traversal::{Contents, Context, NonReplacedContents};
 use crate::geom::flow_relative::{Rect, Sides, Vec2};
 use crate::geom::Length;
 use crate::style::values::*;
@@ -7,11 +6,13 @@ use crate::style::{style_for_element, ComputedValues};
 use std::convert::TryInto;
 use std::sync::Arc;
 
+mod dom_traversal;
 mod flow;
 mod fragments;
 mod positioned;
 mod replaced;
 
+use dom_traversal::*;
 use flow::*;
 pub(crate) use fragments::*;
 use positioned::*;

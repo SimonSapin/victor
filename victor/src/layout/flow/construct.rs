@@ -157,7 +157,7 @@ impl BlockContainer {
     }
 }
 
-impl<'a> dom::traversal::Handler for BlockContainerBuilder<'a> {
+impl<'a> TraversalHandler for BlockContainerBuilder<'a> {
     fn handle_element(
         &mut self,
         style: &Arc<ComputedValues>,
