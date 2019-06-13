@@ -305,12 +305,35 @@ impl Context<'_> {
         }
     }
 
-    fn unset_boxes_in_subtree(&self, element: NodeId) {
-        for node in self.document.node_and_descendants(element) {
-            if let Some(element_data) = self.document[node].as_element() {
+    fn unset_boxes_in_subtree(&self, base_element: NodeId) {
+        let mut node_id = base_element;
+        loop {
+            let node = &self.document[node_id];
+            if let Some(element_data) = node.as_element() {
                 let mut layout_data = element_data.layout_data.borrow_mut();
-                layout_data.self_box = None;
                 layout_data.pseudo_elements = None;
+                if layout_data.self_box.take().is_some() {
+                    // Only descend into children if we removed a box.
+                    // If there wasn’t one, then descendants don’t have boxes either.
+                    if let Some(child) = node.first_child {
+                        node_id = child;
+                        continue;
+                    }
+                }
+            }
+            let mut next_is_a_sibling_of = node_id;
+            node_id = loop {
+                if let Some(sibling) = self.document[next_is_a_sibling_of].next_sibling {
+                    break sibling;
+                } else {
+                    next_is_a_sibling_of = node
+                        .parent
+                        .expect("reached the root while traversing only a subtree");
+                }
+            };
+            if next_is_a_sibling_of == base_element {
+                // Don’t go outside the subtree
+                return;
             }
         }
     }
