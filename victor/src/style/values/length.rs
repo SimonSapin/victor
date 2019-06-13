@@ -50,7 +50,7 @@ pub(crate) enum LengthOrPercentageOrAuto {
     Auto,
 }
 
-#[derive(Debug, Copy, Clone, FromVariants)]
+#[derive(Copy, Clone, Debug, FromVariants, PartialEq)]
 pub(crate) enum LengthOrAuto {
     Length(Length),
     Auto,
@@ -110,6 +110,12 @@ impl Length {
         }
     }
 
+    pub fn min(self, other: Self) -> Self {
+        Length {
+            px: self.px.min(other.px),
+        }
+    }
+
     pub fn max_assign(&mut self, other: Self) {
         *self = self.max(other)
     }
@@ -143,6 +149,12 @@ impl ops::Sub for Length {
 impl ops::AddAssign for Length {
     fn add_assign(&mut self, other: Self) {
         self.px += other.px
+    }
+}
+
+impl ops::SubAssign for Length {
+    fn sub_assign(&mut self, other: Self) {
+        self.px -= other.px
     }
 }
 
