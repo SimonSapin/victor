@@ -108,7 +108,7 @@ fn traverse_element<'dom>(
                 // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
                 context.unset_boxes_in_subtree(element_id)
             } else {
-                context.layout_data(element_id).self_box = None;
+                context.layout_data(element_id).self_box = Some(LayoutBox::DisplayContents);
                 traverse_children_of(element_id, &style, context, handler)
             }
         }

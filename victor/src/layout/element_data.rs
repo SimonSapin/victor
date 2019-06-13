@@ -13,6 +13,7 @@ pub(super) struct PseudoElementBoxes {
 }
 
 pub(super) enum LayoutBox {
+    DisplayContents,
     BlockLevel(Arc<BlockLevelBox>),
     InlineLevel(Arc<InlineLevelBox>),
 }
