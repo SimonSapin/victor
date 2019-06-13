@@ -100,36 +100,25 @@ fn traverse_element<'dom>(
         element_id,
         Some(parent_element_style),
     );
-    let display_self = match style.box_.display {
-        Display::None => return,
-        Display::Contents => None,
-        Display::GeneratingBox(display) => Some(display),
-    };
-    if let Some(replaced) = ReplacedContent::for_element(element_id, context) {
-        if let Some(display) = display_self {
-            handler.handle_element(
-                &style,
-                display,
-                Contents::Replaced(replaced),
-                context.element_box_slot(element_id),
-            );
-        } else {
-            // `display: content` on a replaced element computes to `display: none`
-            // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
+    match style.box_.display {
+        Display::None => {}
+        Display::Contents => {
+            if ReplacedContent::for_element(element_id, context).is_some() {
+                // `display: content` on a replaced element computes to `display: none`
+                // <https://drafts.csswg.org/css-display-3/#valdef-display-contents>
+            } else {
+                traverse_children_of(element_id, &style, context, handler)
+            }
         }
-    } else {
-        // Non-replaced element
-        if let Some(display) = display_self {
-            handler.handle_element(
-                &style,
-                display,
-                Contents::OfElement(element_id),
-                context.element_box_slot(element_id),
-            );
-        } else {
-            // `display: content`
-            traverse_children_of(element_id, &style, context, handler);
-        }
+        Display::GeneratingBox(display) => handler.handle_element(
+            &style,
+            display,
+            match ReplacedContent::for_element(element_id, context) {
+                Some(replaced) => Contents::Replaced(replaced),
+                None => Contents::OfElement(element_id),
+            },
+            context.element_box_slot(element_id),
+        ),
     }
 }
 
@@ -140,21 +129,19 @@ fn traverse_pseudo_element<'dom>(
     context: &'dom Context,
     handler: &mut impl TraversalHandler<'dom>,
 ) {
-    let result = pseudo_element_style(which, element, element_style, context);
-    if let Some(pseudo_element_style) = &result {
-        let display_self = match pseudo_element_style.box_.display {
-            Display::None => return,
-            Display::Contents => None,
-            Display::GeneratingBox(display) => Some(display),
-        };
-        let items = generate_pseudo_element_content(pseudo_element_style, element, context);
-        if let Some(display) = display_self {
-            let contents = Contents::OfPseudoElement(items);
-            let box_slot = context.pseudo_element_box_slot(element, which);
-            handler.handle_element(pseudo_element_style, display, contents, box_slot);
-        } else {
-            // `display: contents`
-            traverse_pseudo_element_contents(pseudo_element_style, items, handler);
+    if let Some(style) = pseudo_element_style(which, element, element_style, context) {
+        match style.box_.display {
+            Display::None => {}
+            Display::Contents => {
+                let items = generate_pseudo_element_content(&style, element, context);
+                traverse_pseudo_element_contents(&style, items, handler);
+            }
+            Display::GeneratingBox(display) => {
+                let items = generate_pseudo_element_content(&style, element, context);
+                let contents = Contents::OfPseudoElement(items);
+                let box_slot = context.pseudo_element_box_slot(element, which);
+                handler.handle_element(&style, display, contents, box_slot);
+            }
         }
     }
 }
