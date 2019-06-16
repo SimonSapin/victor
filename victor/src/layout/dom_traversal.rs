@@ -281,19 +281,23 @@ impl Context<'_> {
     }
 
     fn element_box_slot(&self, element_id: NodeId) -> BoxSlot {
-        BoxSlot::new(AtomicRefMut::map(self.layout_data_mut(element_id), |data| {
-            &mut data.self_box
-        }))
+        BoxSlot::new(AtomicRefMut::map(
+            self.layout_data_mut(element_id),
+            |data| &mut data.self_box,
+        ))
     }
 
     fn pseudo_element_box_slot(&self, element_id: NodeId, which: WhichPseudoElement) -> BoxSlot {
-        BoxSlot::new(AtomicRefMut::map(self.layout_data_mut(element_id), |data| {
-            let pseudos = data.pseudo_elements.get_or_insert_with(Default::default);
-            match which {
-                WhichPseudoElement::Before => &mut pseudos.before,
-                WhichPseudoElement::After => &mut pseudos.after,
-            }
-        }))
+        BoxSlot::new(AtomicRefMut::map(
+            self.layout_data_mut(element_id),
+            |data| {
+                let pseudos = data.pseudo_elements.get_or_insert_with(Default::default);
+                match which {
+                    WhichPseudoElement::Before => &mut pseudos.before,
+                    WhichPseudoElement::After => &mut pseudos.after,
+                }
+            },
+        ))
     }
 
     fn unset_pseudo_element_box(&self, element_id: NodeId, which: WhichPseudoElement) {
