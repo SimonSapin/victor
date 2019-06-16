@@ -70,6 +70,9 @@ impl BlockFormattingContext {
             CollapsibleWithParentStartMargin(false),
         );
         flow_children.block_size += flow_children.collapsible_margins_in_children.end.solve();
+        flow_children
+            .collapsible_margins_in_children
+            .collapsed_through = false;
         flow_children.collapsible_margins_in_children.end = CollapsedMargin::zero();
         flow_children
     }
@@ -111,29 +114,39 @@ fn layout_block_level_children<'a>(
     fn place_block_level_fragment(fragment: &mut Fragment, placement_state: &mut PlacementState) {
         match fragment {
             Fragment::Box(fragment) => {
+                let fragment_block_margins = &fragment.block_margins_collapsed_with_children;
                 let fragment_block_size = fragment.padding.block_sum()
                     + fragment.border.block_sum()
                     + fragment.content_rect.size.block;
 
-                let current_margin = std::mem::replace(
-                    &mut placement_state.current_margin,
-                    fragment.block_margins_collapsed_with_children.end,
-                );
-                if take(&mut placement_state.next_in_flow_margin_collapses_with_parent_start_margin)
-                {
-                    debug_assert_eq!(current_margin.solve(), Length::zero());
-                    debug_assert_eq!(placement_state.start_margin.solve(), Length::zero());
-                    placement_state.start_margin =
-                        fragment.block_margins_collapsed_with_children.start;
+                if placement_state.next_in_flow_margin_collapses_with_parent_start_margin {
+                    assert_eq!(placement_state.current_margin.solve(), Length::zero());
+                    placement_state
+                        .start_margin
+                        .adjoin_assign(&fragment_block_margins.start);
+                    if fragment_block_margins.collapsed_through {
+                        placement_state
+                            .start_margin
+                            .adjoin_assign(&fragment_block_margins.end);
+                        return;
+                    }
+                    placement_state.next_in_flow_margin_collapses_with_parent_start_margin = false;
                 } else {
-                    placement_state.current_block_direction_position += current_margin
-                        .adjoin(&fragment.block_margins_collapsed_with_children.start)
-                        .solve()
+                    placement_state
+                        .current_margin
+                        .adjoin_assign(&fragment_block_margins.start);
                 }
-
-                fragment.content_rect.start_corner.block +=
-                    placement_state.current_block_direction_position;
-                placement_state.current_block_direction_position += fragment_block_size;
+                fragment.content_rect.start_corner.block += placement_state.current_margin.solve()
+                    + placement_state.current_block_direction_position;
+                if fragment_block_margins.collapsed_through {
+                    placement_state
+                        .current_margin
+                        .adjoin_assign(&fragment_block_margins.end);
+                    return;
+                }
+                placement_state.current_block_direction_position +=
+                    placement_state.current_margin.solve() + fragment_block_size;
+                placement_state.current_margin = fragment_block_margins.end;
             }
             Fragment::Anonymous(fragment) => {
                 // FIXME(nox): Margin collapsing for hypothetical boxes of
@@ -215,6 +228,8 @@ fn layout_block_level_children<'a>(
         fragments,
         block_size: placement_state.current_block_direction_position,
         collapsible_margins_in_children: CollapsedBlockMargins {
+            collapsed_through: placement_state
+                .next_in_flow_margin_collapses_with_parent_start_margin,
             start: placement_state.start_margin,
             end: placement_state.current_margin,
         },
@@ -346,6 +361,12 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         block_level_kind == BlockLevelKind::SameFormattingContextBlock
             && pb.block_start == Length::zero(),
     );
+    let this_end_margin_can_collapse_with_children = (block_level_kind, pb.block_end, block_size)
+        == (
+            BlockLevelKind::SameFormattingContextBlock,
+            Length::zero(),
+            LengthOrAuto::Auto,
+        );
     let mut nested_abspos = vec![];
     let mut flow_children = layout_contents(
         &containing_block_for_children,
@@ -360,13 +381,18 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         block_margins_collapsed_with_children
             .start
             .adjoin_assign(&flow_children.collapsible_margins_in_children.start);
+        if flow_children
+            .collapsible_margins_in_children
+            .collapsed_through
+        {
+            block_margins_collapsed_with_children
+                .start
+                .adjoin_assign(&std::mem::replace(
+                    &mut flow_children.collapsible_margins_in_children.end,
+                    CollapsedMargin::zero(),
+                ));
+        }
     }
-    let this_end_margin_can_collapse_with_children = (block_level_kind, pb.block_end, block_size)
-        == (
-            BlockLevelKind::SameFormattingContextBlock,
-            Length::zero(),
-            LengthOrAuto::Auto,
-        );
     if this_end_margin_can_collapse_with_children {
         block_margins_collapsed_with_children
             .end
@@ -374,6 +400,12 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     } else {
         flow_children.block_size += flow_children.collapsible_margins_in_children.end.solve();
     }
+    block_margins_collapsed_with_children.collapsed_through =
+        this_start_margin_can_collapse_with_children.0
+            && this_end_margin_can_collapse_with_children
+            && flow_children
+                .collapsible_margins_in_children
+                .collapsed_through;
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
     let block_size = block_size.auto_is(|| flow_children.block_size);
     let content_rect = Rect {

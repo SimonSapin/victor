@@ -24,6 +24,7 @@ pub(crate) struct BoxFragment {
 }
 
 pub(crate) struct CollapsedBlockMargins {
+    pub collapsed_through: bool,
     pub start: CollapsedMargin,
     pub end: CollapsedMargin,
 }
@@ -68,6 +69,7 @@ impl BoxFragment {
 impl CollapsedBlockMargins {
     pub fn from_margin(margin: &Sides<Length>) -> Self {
         Self {
+            collapsed_through: false,
             start: CollapsedMargin::new(margin.block_start),
             end: CollapsedMargin::new(margin.block_end),
         }
@@ -75,6 +77,7 @@ impl CollapsedBlockMargins {
 
     pub fn zero() -> Self {
         Self {
+            collapsed_through: false,
             start: CollapsedMargin::zero(),
             end: CollapsedMargin::zero(),
         }
