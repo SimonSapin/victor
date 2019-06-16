@@ -66,12 +66,12 @@ struct LinesBoxes {
 }
 
 impl InlineFormattingContext {
-    pub(super) fn layout(
-        &self,
+    pub(super) fn layout<'a>(
+        &'a self,
         containing_block: &ContainingBlock,
         tree_rank: usize,
+        absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     ) -> FlowChildren {
-        let mut absolutely_positioned_fragments = vec![];
         let mut ifc = InlineFormattingContextState {
             containing_block,
             partial_inline_boxes_stack: Vec::new(),
@@ -138,7 +138,6 @@ impl InlineFormattingContext {
                     .finish_line(&mut ifc.current_nesting_level, containing_block);
                 return FlowChildren {
                     fragments: ifc.line_boxes.boxes,
-                    absolutely_positioned_fragments,
                     block_size: ifc.line_boxes.next_line_block_position,
                     collapsible_margins_in_children: CollapsedBlockMargins::zero(),
                 };

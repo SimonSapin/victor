@@ -101,15 +101,19 @@ impl BoxTreeRoot {
             mode: (WritingMode::HorizontalTb, Direction::Ltr),
         };
         let dummy_tree_rank = 0;
-        let mut flow_children = self.0.layout(&initial_containing_block, dummy_tree_rank);
+        let mut absolutely_positioned_fragments = vec![];
+        let mut flow_children = self.0.layout(
+            &initial_containing_block,
+            dummy_tree_rank,
+            &mut absolutely_positioned_fragments,
+        );
 
         let initial_containing_block = DefiniteContainingBlock {
             size: initial_containing_block_size,
             mode: initial_containing_block.mode,
         };
         flow_children.fragments.par_extend(
-            flow_children
-                .absolutely_positioned_fragments
+            absolutely_positioned_fragments
                 .par_iter()
                 .map(|a| a.layout(&initial_containing_block)),
         );
