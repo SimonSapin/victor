@@ -54,7 +54,6 @@ struct PartialInlineBoxFragment<'box_tree> {
 
 struct InlineFormattingContextState<'box_tree, 'cb> {
     containing_block: &'cb ContainingBlock,
-    absolutely_positioned_fragments: Vec<AbsolutelyPositionedFragment<'box_tree>>,
     line_boxes: LinesBoxes,
     inline_position: Length,
     partial_inline_boxes_stack: Vec<PartialInlineBoxFragment<'box_tree>>,
@@ -72,9 +71,9 @@ impl InlineFormattingContext {
         containing_block: &ContainingBlock,
         tree_rank: usize,
     ) -> FlowChildren {
+        let mut absolutely_positioned_fragments = vec![];
         let mut ifc = InlineFormattingContextState {
             containing_block,
-            absolutely_positioned_fragments: Vec::new(),
             partial_inline_boxes_stack: Vec::new(),
             line_boxes: LinesBoxes {
                 boxes: Vec::new(),
@@ -117,7 +116,7 @@ impl InlineFormattingContext {
                             }
                             Display::None => panic!("display:none does not generate an abspos box"),
                         };
-                        ifc.absolutely_positioned_fragments
+                        absolutely_positioned_fragments
                             .push(box_.layout(initial_start_corner, tree_rank));
                     }
                     InlineLevelBox::OutOfFlowFloatBox(_box_) => {
@@ -139,7 +138,7 @@ impl InlineFormattingContext {
                     .finish_line(&mut ifc.current_nesting_level, containing_block);
                 return FlowChildren {
                     fragments: ifc.line_boxes.boxes,
-                    absolutely_positioned_fragments: ifc.absolutely_positioned_fragments,
+                    absolutely_positioned_fragments,
                     block_size: ifc.line_boxes.next_line_block_position,
                     collapsible_margins_in_children: CollapsedBlockMargins::zero(),
                 };
