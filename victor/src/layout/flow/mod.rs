@@ -111,62 +111,6 @@ fn layout_block_level_children<'a>(
     float_context: Option<&mut FloatContext>,
     collapsible_with_parent_start_margin: CollapsibleWithParentStartMargin,
 ) -> FlowChildren {
-    fn place_block_level_fragment(fragment: &mut Fragment, placement_state: &mut PlacementState) {
-        match fragment {
-            Fragment::Box(fragment) => {
-                let fragment_block_margins = &fragment.block_margins_collapsed_with_children;
-                let fragment_block_size = fragment.padding.block_sum()
-                    + fragment.border.block_sum()
-                    + fragment.content_rect.size.block;
-
-                if placement_state.next_in_flow_margin_collapses_with_parent_start_margin {
-                    assert_eq!(placement_state.current_margin.solve(), Length::zero());
-                    placement_state
-                        .start_margin
-                        .adjoin_assign(&fragment_block_margins.start);
-                    if fragment_block_margins.collapsed_through {
-                        placement_state
-                            .start_margin
-                            .adjoin_assign(&fragment_block_margins.end);
-                        return;
-                    }
-                    placement_state.next_in_flow_margin_collapses_with_parent_start_margin = false;
-                } else {
-                    placement_state
-                        .current_margin
-                        .adjoin_assign(&fragment_block_margins.start);
-                }
-                fragment.content_rect.start_corner.block += placement_state.current_margin.solve()
-                    + placement_state.current_block_direction_position;
-                if fragment_block_margins.collapsed_through {
-                    placement_state
-                        .current_margin
-                        .adjoin_assign(&fragment_block_margins.end);
-                    return;
-                }
-                placement_state.current_block_direction_position +=
-                    placement_state.current_margin.solve() + fragment_block_size;
-                placement_state.current_margin = fragment_block_margins.end;
-            }
-            Fragment::Anonymous(fragment) => {
-                // FIXME(nox): Margin collapsing for hypothetical boxes of
-                // abspos elements is probably wrong.
-                assert!(fragment.children.is_empty());
-                assert_eq!(fragment.rect.size.block, Length::zero());
-                fragment.rect.start_corner.block +=
-                    placement_state.current_block_direction_position;
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    struct PlacementState {
-        next_in_flow_margin_collapses_with_parent_start_margin: bool,
-        start_margin: CollapsedMargin,
-        current_margin: CollapsedMargin,
-        current_block_direction_position: Length,
-    }
-
     let abspos_so_far = absolutely_positioned_fragments.len();
     let mut placement_state = PlacementState {
         next_in_flow_margin_collapses_with_parent_start_margin:
@@ -190,7 +134,7 @@ fn layout_block_level_children<'a>(
                     absolutely_positioned_fragments,
                     Some(float_context),
                 );
-                place_block_level_fragment(&mut fragment, &mut placement_state);
+                placement_state.place_block_level_fragment(&mut fragment);
                 fragment
             })
             .collect()
@@ -214,7 +158,7 @@ fn layout_block_level_children<'a>(
             )
             .collect();
         for fragment in &mut fragments {
-            place_block_level_fragment(fragment, &mut placement_state)
+            placement_state.place_block_level_fragment(fragment);
         }
     }
 
@@ -435,5 +379,63 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         border,
         margin,
         block_margins_collapsed_with_children,
+    }
+}
+
+struct PlacementState {
+    next_in_flow_margin_collapses_with_parent_start_margin: bool,
+    start_margin: CollapsedMargin,
+    current_margin: CollapsedMargin,
+    current_block_direction_position: Length,
+}
+
+impl PlacementState {
+    fn place_block_level_fragment(&mut self, fragment: &mut Fragment) {
+        match fragment {
+            Fragment::Box(fragment) => {
+                let fragment_block_margins = &fragment.block_margins_collapsed_with_children;
+                let fragment_block_size = fragment.padding.block_sum()
+                    + fragment.border.block_sum()
+                    + fragment.content_rect.size.block;
+
+                if self.next_in_flow_margin_collapses_with_parent_start_margin {
+                    assert_eq!(self.current_margin.solve(), Length::zero());
+                    self
+                        .start_margin
+                        .adjoin_assign(&fragment_block_margins.start);
+                    if fragment_block_margins.collapsed_through {
+                        self
+                            .start_margin
+                            .adjoin_assign(&fragment_block_margins.end);
+                        return;
+                    }
+                    self.next_in_flow_margin_collapses_with_parent_start_margin = false;
+                } else {
+                    self
+                        .current_margin
+                        .adjoin_assign(&fragment_block_margins.start);
+                }
+                fragment.content_rect.start_corner.block += self.current_margin.solve()
+                    + self.current_block_direction_position;
+                if fragment_block_margins.collapsed_through {
+                    self
+                        .current_margin
+                        .adjoin_assign(&fragment_block_margins.end);
+                    return;
+                }
+                self.current_block_direction_position +=
+                    self.current_margin.solve() + fragment_block_size;
+                self.current_margin = fragment_block_margins.end;
+            }
+            Fragment::Anonymous(fragment) => {
+                // FIXME(nox): Margin collapsing for hypothetical boxes of
+                // abspos elements is probably wrong.
+                assert!(fragment.children.is_empty());
+                assert_eq!(fragment.rect.size.block, Length::zero());
+                fragment.rect.start_corner.block +=
+                    self.current_block_direction_position;
+            }
+            _ => unreachable!(),
+        }
     }
 }
