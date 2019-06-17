@@ -68,10 +68,16 @@ impl IndependentFormattingContext {
         containing_block: &ContainingBlock,
         tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
-    ) -> FlowChildren {
+        placement_state: &mut PlacementState,
+    ) -> Vec<Fragment> {
         match self.as_replaced() {
             Ok(replaced) => match *replaced {},
-            Err(ifc) => ifc.layout(containing_block, tree_rank, absolutely_positioned_fragments),
+            Err(ifc) => ifc.layout(
+                containing_block,
+                tree_rank,
+                absolutely_positioned_fragments,
+                placement_state,
+            ),
         }
     }
 }
@@ -82,11 +88,15 @@ impl<'a> NonReplacedIFC<'a> {
         containing_block: &ContainingBlock,
         tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
-    ) -> FlowChildren {
+        placement_state: &mut PlacementState,
+    ) -> Vec<Fragment> {
         match self {
-            NonReplacedIFC::Flow(bfc) => {
-                bfc.layout(containing_block, tree_rank, absolutely_positioned_fragments)
-            }
+            NonReplacedIFC::Flow(bfc) => bfc.layout(
+                containing_block,
+                tree_rank,
+                absolutely_positioned_fragments,
+                placement_state,
+            ),
         }
     }
 }

@@ -71,7 +71,8 @@ impl InlineFormattingContext {
         containing_block: &ContainingBlock,
         tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
-    ) -> FlowChildren {
+        placement_state: &mut PlacementState,
+    ) -> Vec<Fragment> {
         let mut ifc = InlineFormattingContextState {
             containing_block,
             partial_inline_boxes_stack: Vec::new(),
@@ -136,11 +137,10 @@ impl InlineFormattingContext {
             } else {
                 ifc.line_boxes
                     .finish_line(&mut ifc.current_nesting_level, containing_block);
-                return FlowChildren {
-                    fragments: ifc.line_boxes.boxes,
-                    block_size: ifc.line_boxes.next_line_block_position,
-                    collapsible_margins_in_children: CollapsedBlockMargins::zero(),
-                };
+                placement_state.commit_current_margin();
+                placement_state.current_block_direction_position +=
+                    ifc.line_boxes.next_line_block_position;
+                return ifc.line_boxes.boxes;
             }
         }
     }

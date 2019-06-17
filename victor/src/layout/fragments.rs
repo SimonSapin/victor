@@ -67,14 +67,6 @@ impl BoxFragment {
 }
 
 impl CollapsedBlockMargins {
-    pub fn from_margin(margin: &Sides<Length>) -> Self {
-        Self {
-            collapsed_through: false,
-            start: CollapsedMargin::new(margin.block_start),
-            end: CollapsedMargin::new(margin.block_end),
-        }
-    }
-
     pub fn zero() -> Self {
         Self {
             collapsed_through: false,
