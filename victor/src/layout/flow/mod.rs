@@ -113,14 +113,13 @@ fn layout_block_level_children<'a>(
             .iter()
             .enumerate()
             .map(|(tree_rank, box_)| {
-                let mut fragment = box_.layout(
+                box_.layout(
                     containing_block,
                     tree_rank,
                     absolutely_positioned_fragments,
+                    placement_state,
                     Some(float_context),
-                );
-                placement_state.place_block_level_fragment(&mut fragment);
-                fragment
+                )
             })
             .collect()
     } else {
@@ -134,6 +133,7 @@ fn layout_block_level_children<'a>(
                         containing_block,
                         tree_rank,
                         abspos_fragments,
+                        &mut PlacementState::collapsible(),
                         /* float_context = */ None,
                     )
                 },
@@ -162,38 +162,46 @@ impl BlockLevelBox {
         containing_block: &ContainingBlock,
         tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+        placement_state: &mut PlacementState,
         float_context: Option<&mut FloatContext>,
     ) -> Fragment {
         match self {
             BlockLevelBox::SameFormattingContextBlock { style, contents } => {
-                Fragment::Box(layout_in_flow_non_replaced_block_level(
+                layout_in_flow_non_replaced_block_level(
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
-                    |containing_block, nested_abspos, placement_state| {
+                    placement_state,
+                    |containing_block, nested_abspos, nested_placement_state| {
                         contents.layout(
                             containing_block,
                             tree_rank,
                             nested_abspos,
-                            placement_state,
+                            nested_placement_state,
                             float_context,
                         )
                     },
-                ))
+                )
             }
             BlockLevelBox::Independent { style, contents } => match contents.as_replaced() {
                 Ok(replaced) => {
                     // FIXME
                     match *replaced {}
                 }
-                Err(contents) => Fragment::Box(layout_in_flow_non_replaced_block_level(
+                Err(contents) => layout_in_flow_non_replaced_block_level(
                     containing_block,
                     absolutely_positioned_fragments,
                     style,
-                    |containing_block, nested_abspos, placement_state| {
-                        contents.layout(containing_block, tree_rank, nested_abspos, placement_state)
+                    placement_state,
+                    |containing_block, nested_abspos, nested_placement_state| {
+                        contents.layout(
+                            containing_block,
+                            tree_rank,
+                            nested_abspos,
+                            nested_placement_state,
+                        )
                     },
-                )),
+                ),
             },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
                 absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
@@ -213,12 +221,13 @@ fn layout_in_flow_non_replaced_block_level<'a>(
     containing_block: &ContainingBlock,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     style: &Arc<ComputedValues>,
+    placement_state: &mut PlacementState,
     layout_contents: impl FnOnce(
         &ContainingBlock,
         &mut Vec<AbsolutelyPositionedFragment<'a>>,
         &mut PlacementState,
     ) -> Vec<Fragment>,
-) -> BoxFragment {
+) -> Fragment {
     let cbis = containing_block.inline_size;
     let padding = style.padding().percentages_relative_to(cbis);
     let border = style.border_width().percentages_relative_to(cbis);
@@ -267,7 +276,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         containing_block.mode, containing_block_for_children.mode,
         "Mixed writing modes are not supported yet"
     );
-    let mut placement_state = PlacementState {
+    let mut placement_state_for_children = PlacementState {
         next_in_flow_margin_collapses_with_parent_start_margin: pb.block_start == Length::zero(),
         start_margin: CollapsedMargin::new(margin.block_start),
         current_margin: CollapsedMargin::zero(),
@@ -281,26 +290,28 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         } else {
             absolutely_positioned_fragments
         },
-        &mut placement_state,
+        &mut placement_state_for_children,
     );
 
     let this_end_margin_can_collapse_with_children =
         (pb.block_end, block_size) == (Length::zero(), LengthOrAuto::Auto);
 
     if !this_end_margin_can_collapse_with_children {
-        placement_state.commit_current_margin();
+        placement_state_for_children.commit_current_margin();
     }
-    placement_state
+    placement_state_for_children
         .current_margin
         .adjoin_assign(&CollapsedMargin::new(margin.block_end));
     let block_margins_collapsed_with_children = CollapsedBlockMargins {
-        collapsed_through: placement_state.next_in_flow_margin_collapses_with_parent_start_margin
+        collapsed_through: placement_state_for_children
+            .next_in_flow_margin_collapses_with_parent_start_margin
             && this_end_margin_can_collapse_with_children,
-        start: placement_state.start_margin,
-        end: placement_state.current_margin,
+        start: placement_state_for_children.start_margin,
+        end: placement_state_for_children.current_margin,
     };
     let relative_adjustement = relative_adjustement(style, inline_size, block_size);
-    let block_size = block_size.auto_is(|| placement_state.current_block_direction_position);
+    let block_size =
+        block_size.auto_is(|| placement_state_for_children.current_block_direction_position);
     let content_rect = Rect {
         start_corner: Vec2 {
             block: pb.block_start + relative_adjustement.block,
@@ -320,7 +331,7 @@ fn layout_in_flow_non_replaced_block_level<'a>(
             containing_block_for_children.mode,
         )
     }
-    BoxFragment {
+    let mut fragment = Fragment::Box(BoxFragment {
         style: style.clone(),
         children,
         content_rect,
@@ -328,7 +339,9 @@ fn layout_in_flow_non_replaced_block_level<'a>(
         border,
         margin,
         block_margins_collapsed_with_children,
-    }
+    });
+    placement_state.place_block_level_fragment(&mut fragment);
+    fragment
 }
 
 pub(super) struct PlacementState {
@@ -342,6 +355,15 @@ impl PlacementState {
     pub fn root() -> Self {
         Self {
             next_in_flow_margin_collapses_with_parent_start_margin: false,
+            start_margin: CollapsedMargin::zero(),
+            current_margin: CollapsedMargin::zero(),
+            current_block_direction_position: Length::zero(),
+        }
+    }
+
+    pub fn collapsible() -> Self {
+        Self {
+            next_in_flow_margin_collapses_with_parent_start_margin: true,
             start_margin: CollapsedMargin::zero(),
             current_margin: CollapsedMargin::zero(),
             current_block_direction_position: Length::zero(),
