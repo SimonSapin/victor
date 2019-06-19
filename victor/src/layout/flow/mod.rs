@@ -43,8 +43,8 @@ impl BlockFormattingContext {
     pub(super) fn layout<'a>(
         &'a self,
         containing_block: &ContainingBlock,
-        tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+        tree_rank: usize,
         placement_state: &mut PlacementState,
     ) -> Vec<Fragment> {
         let mut float_context;
@@ -57,8 +57,8 @@ impl BlockFormattingContext {
         placement_state.next_in_flow_margin_collapses_with_parent_start_margin = false;
         let fragments = self.contents.layout(
             containing_block,
-            tree_rank,
             absolutely_positioned_fragments,
+            tree_rank,
             placement_state,
             float_context,
         );
@@ -71,8 +71,8 @@ impl BlockContainer {
     fn layout<'a>(
         &'a self,
         containing_block: &ContainingBlock,
-        tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+        tree_rank: usize,
         placement_state: &mut PlacementState,
         float_context: Option<&mut FloatContext>,
     ) -> Vec<Fragment> {
@@ -80,8 +80,8 @@ impl BlockContainer {
             BlockContainer::BlockLevelBoxes(child_boxes) => layout_block_level_children(
                 child_boxes,
                 containing_block,
-                tree_rank,
                 absolutely_positioned_fragments,
+                tree_rank,
                 placement_state,
                 float_context,
             ),
@@ -98,8 +98,8 @@ impl BlockContainer {
 fn layout_block_level_children<'a>(
     child_boxes: &'a [Arc<BlockLevelBox>],
     containing_block: &ContainingBlock,
-    tree_rank: usize,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+    tree_rank: usize,
     placement_state: &mut PlacementState,
     float_context: Option<&mut FloatContext>,
 ) -> Vec<Fragment> {
@@ -114,8 +114,8 @@ fn layout_block_level_children<'a>(
             .map(|box_| {
                 box_.layout(
                     containing_block,
-                    tree_rank,
                     absolutely_positioned_fragments,
+                    tree_rank,
                     placement_state,
                     Some(float_context),
                 )
@@ -130,8 +130,8 @@ fn layout_block_level_children<'a>(
                 |abspos_fragments, (tree_rank, box_)| {
                     box_.layout(
                         containing_block,
-                        tree_rank,
                         abspos_fragments,
+                        tree_rank,
                         &mut PlacementState::collapsible(),
                         /* float_context = */ None,
                     )
@@ -158,8 +158,8 @@ impl BlockLevelBox {
     fn layout<'a>(
         &'a self,
         containing_block: &ContainingBlock,
-        tree_rank: usize,
         absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+        tree_rank: usize,
         placement_state: &mut PlacementState,
         float_context: Option<&mut FloatContext>,
     ) -> Fragment {
@@ -173,8 +173,8 @@ impl BlockLevelBox {
                     |containing_block, nested_abspos, nested_placement_state| {
                         contents.layout(
                             containing_block,
-                            tree_rank,
                             nested_abspos,
+                            tree_rank,
                             nested_placement_state,
                             float_context,
                         )
@@ -194,8 +194,8 @@ impl BlockLevelBox {
                     |containing_block, nested_abspos, nested_placement_state| {
                         contents.layout(
                             containing_block,
-                            tree_rank,
                             nested_abspos,
+                            tree_rank,
                             nested_placement_state,
                         )
                     },

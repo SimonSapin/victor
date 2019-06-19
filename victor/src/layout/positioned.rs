@@ -258,8 +258,8 @@ impl<'a> AbsolutelyPositionedFragment<'a> {
         let mut placement_state = PlacementState::root();
         let mut children = self.absolutely_positioned_box.contents.layout(
             &containing_block_for_children,
-            dummy_tree_rank,
             &mut absolutely_positioned_fragments,
+            dummy_tree_rank,
             &mut placement_state,
         );
 

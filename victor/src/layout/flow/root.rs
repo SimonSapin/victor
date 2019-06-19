@@ -104,8 +104,8 @@ impl BoxTreeRoot {
         let mut absolutely_positioned_fragments = vec![];
         let mut fragments = self.0.layout(
             &initial_containing_block,
-            dummy_tree_rank,
             &mut absolutely_positioned_fragments,
+            dummy_tree_rank,
             &mut PlacementState::root(),
         );
 
