@@ -111,8 +111,7 @@ fn layout_block_level_children<'a>(
         // to a `FloatContext` that tracks every float encountered so far (again in tree order).
         fragments = child_boxes
             .iter()
-            .enumerate()
-            .map(|(tree_rank, box_)| {
+            .map(|box_| {
                 box_.layout(
                     containing_block,
                     tree_rank,
@@ -145,13 +144,12 @@ fn layout_block_level_children<'a>(
         for fragment in &mut fragments {
             placement_state.place_block_level_fragment(fragment);
         }
+        adjust_static_positions(
+            &mut absolutely_positioned_fragments[abspos_so_far..],
+            &mut fragments,
+            tree_rank,
+        );
     }
-
-    adjust_static_positions(
-        &mut absolutely_positioned_fragments[abspos_so_far..],
-        &mut fragments,
-        tree_rank,
-    );
 
     fragments
 }
@@ -204,7 +202,12 @@ impl BlockLevelBox {
                 ),
             },
             BlockLevelBox::OutOfFlowAbsolutelyPositionedBox(box_) => {
-                absolutely_positioned_fragments.push(box_.layout(Vec2::zero(), tree_rank));
+                // FIXME(nox): Margin collapsing is wrong here.
+                let start_corner = Vec2 {
+                    inline: Length::zero(),
+                    block: placement_state.current_block_direction_position,
+                };
+                absolutely_positioned_fragments.push(box_.layout(start_corner, tree_rank));
                 Fragment::Anonymous(AnonymousFragment::no_op(containing_block.mode))
             }
             BlockLevelBox::OutOfFlowFloatBox(_box_) => {
