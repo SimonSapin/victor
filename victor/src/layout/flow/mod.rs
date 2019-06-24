@@ -77,14 +77,29 @@ impl BlockContainer {
         float_context: Option<&mut FloatContext>,
     ) -> Vec<Fragment> {
         match self {
-            BlockContainer::BlockLevelBoxes(child_boxes) => layout_block_level_children(
-                child_boxes,
-                containing_block,
-                absolutely_positioned_fragments,
-                tree_rank,
-                placement_state,
-                float_context,
-            ),
+            BlockContainer::BlockLevelBoxes(child_boxes) => {
+                if let Some(float_context) = float_context {
+                    // Because floats are involved, we do layout for this block formatting context
+                    // in tree order without parallelism. This enables mutable access
+                    // to a `FloatContext` that tracks every float encountered so far (again in tree order).
+                    sequential_layout_block_level_children(
+                        child_boxes,
+                        containing_block,
+                        absolutely_positioned_fragments,
+                        tree_rank,
+                        placement_state,
+                        float_context,
+                    )
+                } else {
+                    parallel_layout_block_level_children(
+                        child_boxes,
+                        containing_block,
+                        absolutely_positioned_fragments,
+                        tree_rank,
+                        placement_state,
+                    )
+                }
+            },
             BlockContainer::InlineFormattingContext(ifc) => ifc.layout(
                 containing_block,
                 tree_rank,
@@ -95,62 +110,63 @@ impl BlockContainer {
     }
 }
 
-fn layout_block_level_children<'a>(
+fn sequential_layout_block_level_children<'a>(
     child_boxes: &'a [Arc<BlockLevelBox>],
     containing_block: &ContainingBlock,
     absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
     tree_rank: usize,
     placement_state: &mut PlacementState,
-    float_context: Option<&mut FloatContext>,
+    float_context: &mut FloatContext,
+) -> Vec<Fragment> {
+    child_boxes
+        .iter()
+        .map(|box_| {
+            box_.layout(
+                containing_block,
+                absolutely_positioned_fragments,
+                tree_rank,
+                placement_state,
+                Some(float_context),
+            )
+        })
+        .collect()
+}
+
+fn parallel_layout_block_level_children<'a>(
+    child_boxes: &'a [Arc<BlockLevelBox>],
+    containing_block: &ContainingBlock,
+    absolutely_positioned_fragments: &mut Vec<AbsolutelyPositionedFragment<'a>>,
+    tree_rank: usize,
+    placement_state: &mut PlacementState,
 ) -> Vec<Fragment> {
     let abspos_so_far = absolutely_positioned_fragments.len();
-    let mut fragments: Vec<_>;
-    if let Some(float_context) = float_context {
-        // Because floats are involved, we do layout for this block formatting context
-        // in tree order without parallelism. This enables mutable access
-        // to a `FloatContext` that tracks every float encountered so far (again in tree order).
-        fragments = child_boxes
-            .iter()
-            .map(|box_| {
+    let mut fragments = child_boxes
+        .par_iter()
+        .enumerate()
+        .mapfold_reduce_into(
+            absolutely_positioned_fragments,
+            |abspos_fragments, (tree_rank, box_)| {
                 box_.layout(
                     containing_block,
-                    absolutely_positioned_fragments,
+                    abspos_fragments,
                     tree_rank,
-                    placement_state,
-                    Some(float_context),
+                    &mut PlacementState::collapsible(),
+                    /* float_context = */ None,
                 )
-            })
-            .collect()
-    } else {
-        fragments = child_boxes
-            .par_iter()
-            .enumerate()
-            .mapfold_reduce_into(
-                absolutely_positioned_fragments,
-                |abspos_fragments, (tree_rank, box_)| {
-                    box_.layout(
-                        containing_block,
-                        abspos_fragments,
-                        tree_rank,
-                        &mut PlacementState::collapsible(),
-                        /* float_context = */ None,
-                    )
-                },
-                |left_abspos_fragments, mut right_abspos_fragments| {
-                    left_abspos_fragments.append(&mut right_abspos_fragments);
-                },
-            )
-            .collect();
-        for fragment in &mut fragments {
-            placement_state.place_block_level_fragment(fragment);
-        }
-        adjust_static_positions(
-            &mut absolutely_positioned_fragments[abspos_so_far..],
-            &mut fragments,
-            tree_rank,
-        );
+            },
+            |left_abspos_fragments, mut right_abspos_fragments| {
+                left_abspos_fragments.append(&mut right_abspos_fragments);
+            },
+        )
+        .collect::<Vec<_>>();
+    for fragment in &mut fragments {
+        placement_state.place_block_level_fragment(fragment);
     }
-
+    adjust_static_positions(
+        &mut absolutely_positioned_fragments[abspos_so_far..],
+        &mut fragments,
+        tree_rank,
+    );
     fragments
 }
 
